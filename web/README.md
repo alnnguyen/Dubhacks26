@@ -1,6 +1,6 @@
 # Browser client
 
-Role C currently ships a **camera debug harness** so phones can pass the framing gate before A’s lobby exists. A still owns full app composition; this page is temporary and should be mounted under a debug route later.
+The default page now renders Ally’s 3D cockpit from cockpit-scene. It currently uses mock lobby players and challenge timers; no real multiplayer connection is implied. Alan’s camera debug harness is preserved at `/?camera=1`. Photon and Voice remain in their existing standalone provider harnesses.
 
 Combat on this page is **rock only** (screen-space overlay). Gun and lightsaber are deferred until the rock loop + phone framing pass. Defense is **Block**, not catch.
 
@@ -13,7 +13,7 @@ npm test
 npm run dev
 ```
 
-Open the printed HTTPS URL (self-signed), usually `https://localhost:5173`. Accept the certificate warning. Click **Start camera**.
+Open the printed HTTPS URL (self-signed), usually `https://localhost:5173`. Accept the certificate warning. For camera testing, append `/?camera=1` and click **Start camera**.
 
 - Laptop with no rear lens falls back to the front camera and labels that clearly.
 - `localhost` / Vite HTTPS both count as a secure context for `getUserMedia`.
@@ -32,7 +32,7 @@ npx --yes cloudflared tunnel --url https://localhost:5173
 ngrok http https://localhost:5173
 ```
 
-Open the `https://…` tunnel URL on the **demo phone**, allow camera, use the **rear** lens when prompted, then check:
+Open the `https://…/?camera=1` tunnel URL on the **demo phone**, allow camera, use the **rear** lens when prompted, then check:
 
 1. Own hand (green) and opponent pose health stub together in one frame.
 2. Palm hold → rock floats above the hand + `startLift` in the command log.
@@ -50,3 +50,7 @@ Record pass/fail in `docs/task-board.md` or `docs/qa-checklist.md` with device/b
 - D’s voice should release the mic during combat; not wired here
 - Keep secrets out of client config
 - No gun/saber on this harness by design (PLAN cut order)
+
+## Cockpit integration check
+
+Merged origin/cockpit-scene at 20124de into alex-dev. Combined React/Three/MediaPipe dependencies; retained camera HTTPS development support with a Vite 7-compatible SSL plugin. Tests: 53 frontend and 10 integration tests passed; production build passed. Browser cockpit renders without observed console errors; camera debug remains a separate route. Ally’s onEnterBattle/lobby props are the next game integration points. The existing demo-state branch remains separate.
