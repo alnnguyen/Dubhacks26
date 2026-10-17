@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { Server, type Socket } from "socket.io";
 import type { Config } from "./config.js";
 import type { ClientToServerEvents, ServerToClientEvents } from "./contracts.js";
-import { createMatch, toSnapshot } from "./game/match.js";
+import { Match } from "./game/match.js";
 import { Sessions } from "./sessions/index.js";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -28,12 +28,14 @@ export async function startServer(config: Config): Promise<RunningServer> {
     cors: { origin: config.allowedOrigins },
   });
 
-  const match = createMatch(MATCH_ROOM);
+  // Every state change, whether from a command or a timer, broadcasts the full snapshot.
+  const match: Match = new Match(MATCH_ROOM, {
+    changed: () => io.to(MATCH_ROOM).emit("snapshot", match.toSnapshot()),
+    rockLanded: (event) => io.to(MATCH_ROOM).emit("rockLanded", event),
+  });
   const sessions = new Sessions(match);
   // Latest socket per player, so a second tab or a reconnect replaces the old one.
   const socketsByPlayerId = new Map<string, GameSocket>();
-
-  const broadcast = () => io.to(MATCH_ROOM).emit("snapshot", toSnapshot(match));
 
   io.on("connection", (socket) => {
     let playerId: string | null = null;
@@ -41,20 +43,34 @@ export async function startServer(config: Config): Promise<RunningServer> {
     socket.on("join", (request, reply) => {
       if (typeof reply !== "function") return;
 
+      // Join the room first so this socket also gets the broadcast join triggers.
+      socket.join(MATCH_ROOM);
       const result = sessions.join(request?.playerId);
       if (!result.ok) {
+        socket.leave(MATCH_ROOM);
         reply({ ok: false, reason: result.reason });
         return;
       }
 
       playerId = request.playerId;
+      // Record the new socket before closing the old one, so the old socket's
+      // disconnect handler sees it was replaced and doesn't start a grace period.
       const previous = socketsByPlayerId.get(playerId);
-      if (previous && previous.id !== socket.id) previous.disconnect(true);
       socketsByPlayerId.set(playerId, socket);
+      if (previous && previous.id !== socket.id) previous.disconnect(true);
 
-      socket.join(MATCH_ROOM);
-      reply({ ok: true, slot: result.slot, snapshot: toSnapshot(match) });
-      broadcast();
+      reply({ ok: true, slot: result.slot, snapshot: match.toSnapshot() });
+    });
+
+    socket.on("command", (command, reply) => {
+      if (typeof reply !== "function") return;
+
+      const slot = playerId === null ? undefined : sessions.slotOf(playerId);
+      if (slot === undefined || socketsByPlayerId.get(playerId!) !== socket) {
+        reply({ commandId: String(command?.commandId ?? ""), status: "rejected", reason: "not_joined" });
+        return;
+      }
+      reply(match.handleCommand(slot, command));
     });
 
     socket.on("disconnect", () => {
@@ -62,7 +78,6 @@ export async function startServer(config: Config): Promise<RunningServer> {
       if (playerId === null || socketsByPlayerId.get(playerId) !== socket) return;
       socketsByPlayerId.delete(playerId);
       sessions.disconnect(playerId);
-      broadcast();
     });
   });
 
@@ -70,6 +85,13 @@ export async function startServer(config: Config): Promise<RunningServer> {
 
   return {
     port: (httpServer.address() as AddressInfo).port,
-    close: () => new Promise((resolve) => io.close(() => resolve())),
+    // Close sockets first: their disconnect handlers start grace timers that dispose then clears.
+    close: () =>
+      new Promise((resolve) =>
+        io.close(() => {
+          match.dispose();
+          resolve();
+        }),
+      ),
   };
 }

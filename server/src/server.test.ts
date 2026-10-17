@@ -44,19 +44,12 @@ function nextSnapshot(client: Client, matches: (s: MatchSnapshot) => boolean): P
 test("two players join and receive the same snapshot", async () => {
   const alice = open();
   const bob = open();
-  const isReady = (s: MatchSnapshot) => s.phase === "ready";
+  const isReady = (s: MatchSnapshot) => s.phase === "active";
   const aliceSees = nextSnapshot(alice, isReady);
 
-  assert.deepEqual(await join(alice, "player-alice"), {
-    ok: true,
-    slot: 1,
-    snapshot: {
-      matchId: "demo-match",
-      phase: "waiting",
-      players: [{ slot: 1, connected: true, health: 100, action: "idle", weapon: "rock", block: { active: false, endsInMs: null } }],
-      rock: null,
-    },
-  });
+  const aliceJoin = await join(alice, "player-alice");
+  assert.equal(aliceJoin.ok && aliceJoin.slot, 1);
+  assert.equal(aliceJoin.ok && aliceJoin.snapshot.phase, "waiting");
 
   const bobSees = nextSnapshot(bob, isReady);
   const bobJoin = await join(bob, "player-bob");
@@ -73,6 +66,22 @@ test("a third player is rejected", async () => {
 
 test("malformed join is rejected", async () => {
   assert.deepEqual(await join(open(), "x"), { ok: false, reason: "invalid_request" });
+});
+
+test("a command is acknowledged and a retry gets the same reply", async () => {
+  const [, bob] = clients;
+  const send = () =>
+    new Promise((resolve) => bob.emit("command", { commandId: "bob-block-1", type: "startBlock" }, resolve));
+  assert.deepEqual(await send(), { commandId: "bob-block-1", status: "accepted" });
+  assert.deepEqual(await send(), { commandId: "bob-block-1", status: "accepted" });
+});
+
+test("a socket that has not joined cannot send commands", async () => {
+  const stranger = open();
+  const reply = await new Promise((resolve) =>
+    stranger.emit("command", { commandId: "c1", type: "throwRock" }, resolve),
+  );
+  assert.deepEqual(reply, { commandId: "c1", status: "rejected", reason: "not_joined" });
 });
 
 test("a player who disconnects reclaims their slot with the same playerId", async () => {

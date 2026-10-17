@@ -6,9 +6,9 @@ Game/session code validates identities, challenge state, unique command IDs, leg
 
 Before runtime implementation, resolve docs/contracts.md with A/C/D and publish the shared types.
 
-## Current state (step 1)
+## Current state (step 2)
 
-Node + TypeScript (compiled with `tsc` to `dist/`) + Socket.IO 4.8.4. One in-memory demo match: the first two `join` requests become slots 1 and 2, others get `match_full`. Every join or disconnect broadcasts a full `snapshot`. Combat commands are not implemented yet. Shared types live in `src/contracts.ts` until a root npm workspace is agreed with A.
+Node + TypeScript (compiled with `tsc` to `dist/`) + Socket.IO 4.8.4. One in-memory demo match: the first two `join` requests become slots 1 and 2, others get `match_full`. Rock and block commands are implemented in `src/game/match.ts` with server-side timers for landing, block limit, wind-up and reconnect grace; every state change broadcasts a full `snapshot`. See docs/contracts.md for message shapes. Not yet: world wheel, round clock, rematch, gun/sword. Shared types live in `src/contracts.ts` until a root npm workspace is agreed with A.
 
 ## Commands (run in `server/`, verified 2026-10-17 on Node 25.6.1 / npm 11.9.0)
 

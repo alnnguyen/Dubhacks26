@@ -1,33 +1,245 @@
-import type { MatchSnapshot, PlayerSlot, PlayerState } from "../contracts.js";
+import type {
+  CommandReply,
+  CommandType,
+  MatchPhase,
+  MatchResult,
+  MatchSnapshot,
+  PlayerSlot,
+  PlayerState,
+  RejectReason,
+  RockLanded,
+} from "../contracts.js";
+import { MARS_GRAVITY, RULES, rockFlightMs } from "./rules.js";
 
-export const STARTING_HEALTH = 100;
+type Timer = ReturnType<typeof setTimeout>;
 
-export interface Match {
-  matchId: string;
-  players: Map<PlayerSlot, PlayerState>;
+// Server-side player record. Times are absolute server times (Date.now());
+// toSnapshot converts them to remaining milliseconds for the phones.
+interface Player {
+  slot: PlayerSlot;
+  connected: boolean;
+  health: number;
+  windupEndsAt: number | null;
+  throwCooldownEndsAt: number | null;
+  blockEndsAt: number | null;
+  blockCooldownEndsAt: number | null;
+  rockLandsAt: number | null;
+  reconnectEndsAt: number | null;
+  timers: { windup?: Timer; block?: Timer; rock?: Timer; reconnect?: Timer };
 }
 
-export function createMatch(matchId: string): Match {
-  return { matchId, players: new Map() };
+export interface MatchEvents {
+  changed: () => void;
+  rockLanded: (event: RockLanded) => void;
 }
 
-export function createPlayer(slot: PlayerSlot): PlayerState {
-  return {
-    slot,
-    connected: true,
-    health: STARTING_HEALTH,
-    action: "idle",
-    weapon: "rock",
-    block: { active: false, endsInMs: null },
-  };
+const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const COMMAND_TYPES: readonly CommandType[] = ["throwRock", "startBlock", "endBlock"];
+
+export class Match {
+  private players = new Map<PlayerSlot, Player>();
+  private phase: MatchPhase = "waiting";
+  private result: MatchResult | null = null;
+  // Reply already sent for each "slot:commandId", so retries repeat it.
+  private replies = new Map<string, CommandReply>();
+
+  constructor(readonly matchId: string, private events: MatchEvents) {}
+
+  hasPlayer(slot: PlayerSlot): boolean {
+    return this.players.has(slot);
+  }
+
+  addPlayer(slot: PlayerSlot): void {
+    this.players.set(slot, {
+      slot,
+      connected: true,
+      health: RULES.startingHealth,
+      windupEndsAt: null,
+      throwCooldownEndsAt: null,
+      blockEndsAt: null,
+      blockCooldownEndsAt: null,
+      rockLandsAt: null,
+      reconnectEndsAt: null,
+      timers: {},
+    });
+    if (this.players.size === 2) {
+      this.phase = "active";
+      // A player who left while waiting starts their grace period now.
+      for (const p of this.players.values()) if (!p.connected) this.startGrace(p);
+    }
+    this.events.changed();
+  }
+
+  reconnect(slot: PlayerSlot): void {
+    const player = this.players.get(slot)!;
+    player.connected = true;
+    player.reconnectEndsAt = null;
+    clearTimeout(player.timers.reconnect);
+    this.events.changed();
+  }
+
+  disconnect(slot: PlayerSlot): void {
+    const player = this.players.get(slot)!;
+    player.connected = false;
+    // The player's own rock and block are tied to them and end with them.
+    this.cancelRock(player);
+    this.clearBlock(player);
+
+    if (this.phase === "active") this.startGrace(player);
+    this.events.changed();
+  }
+
+  handleCommand(slot: PlayerSlot, command: unknown): CommandReply {
+    const parsed = parseCommand(command);
+    if (!parsed) {
+      const commandId = typeof (command as { commandId?: unknown })?.commandId === "string"
+        ? (command as { commandId: string }).commandId
+        : "";
+      return { commandId, status: "rejected", reason: "invalid_command" };
+    }
+
+    const key = `${slot}:${parsed.commandId}`;
+    const previous = this.replies.get(key);
+    if (previous) return previous;
+
+    const reason = this.apply(this.players.get(slot)!, parsed.type);
+    const reply: CommandReply = reason
+      ? { commandId: parsed.commandId, status: "rejected", reason }
+      : { commandId: parsed.commandId, status: "accepted" };
+    this.replies.set(key, reply);
+    if (!reason) this.events.changed();
+    return reply;
+  }
+
+  toSnapshot(): MatchSnapshot {
+    const now = Date.now();
+    const remaining = (at: number | null) => (at === null || at <= now ? null : at - now);
+    const players: PlayerState[] = [...this.players.values()]
+      .sort((a, b) => a.slot - b.slot)
+      .map((p) => ({
+        slot: p.slot,
+        connected: p.connected,
+        reconnectEndsInMs: remaining(p.reconnectEndsAt),
+        health: p.health,
+        action: p.blockEndsAt !== null ? "blocking" : p.windupEndsAt !== null ? "throwing" : "idle",
+        weapon: "rock",
+        throwCooldownEndsInMs: remaining(p.throwCooldownEndsAt),
+        block: {
+          active: p.blockEndsAt !== null,
+          endsInMs: remaining(p.blockEndsAt),
+          cooldownEndsInMs: remaining(p.blockCooldownEndsAt),
+        },
+        rock: p.rockLandsAt === null ? null : { landsInMs: Math.max(0, p.rockLandsAt - now) },
+      }));
+    return { matchId: this.matchId, phase: this.phase, players, result: this.result };
+  }
+
+  // Stops every pending timer, e.g. when the server shuts down.
+  dispose(): void {
+    for (const player of this.players.values()) {
+      for (const timer of Object.values(player.timers)) clearTimeout(timer);
+    }
+  }
+
+  private apply(player: Player, type: CommandType): RejectReason | null {
+    if (this.phase !== "active") return "match_not_active";
+    const now = Date.now();
+
+    switch (type) {
+      case "throwRock": {
+        if (player.windupEndsAt !== null || player.blockEndsAt !== null) return "busy";
+        if (player.rockLandsAt !== null) return "rock_in_flight";
+        if (player.throwCooldownEndsAt !== null && now < player.throwCooldownEndsAt) return "on_cooldown";
+
+        const flightMs = rockFlightMs(MARS_GRAVITY);
+        player.windupEndsAt = now + RULES.throwWindupMs;
+        player.throwCooldownEndsAt = now + RULES.throwCooldownMs;
+        player.rockLandsAt = now + flightMs;
+        player.timers.windup = setTimeout(() => {
+          player.windupEndsAt = null;
+          this.events.changed();
+        }, RULES.throwWindupMs);
+        player.timers.rock = setTimeout(() => this.landRock(player), flightMs);
+        return null;
+      }
+
+      case "startBlock": {
+        if (player.windupEndsAt !== null || player.blockEndsAt !== null) return "busy";
+        if (player.blockCooldownEndsAt !== null && now < player.blockCooldownEndsAt) return "on_cooldown";
+
+        player.blockEndsAt = now + RULES.blockLimitMs;
+        player.timers.block = setTimeout(() => {
+          this.clearBlock(player);
+          this.events.changed();
+        }, RULES.blockLimitMs);
+        return null;
+      }
+
+      case "endBlock": {
+        if (player.blockEndsAt === null) return "not_blocking";
+        this.clearBlock(player);
+        return null;
+      }
+    }
+  }
+
+  private landRock(attacker: Player): void {
+    attacker.rockLandsAt = null;
+    const defender = this.players.get(attacker.slot === 1 ? 2 : 1)!;
+    const blocked = defender.blockEndsAt !== null;
+    const damage = blocked ? 0 : Math.min(RULES.rockDamage, defender.health);
+    defender.health -= damage;
+
+    this.events.rockLanded({ attackerSlot: attacker.slot, blocked, damage });
+    if (defender.health === 0) {
+      this.finish({ winner: attacker.slot, reason: "knockout" });
+    }
+    this.events.changed();
+  }
+
+  private startGrace(player: Player): void {
+    player.reconnectEndsAt = Date.now() + RULES.reconnectGraceMs;
+    player.timers.reconnect = setTimeout(() => this.forfeit(player), RULES.reconnectGraceMs);
+  }
+
+  private forfeit(player: Player): void {
+    const other = this.players.get(player.slot === 1 ? 2 : 1)!;
+    // If both players are gone, nobody remained to win.
+    this.finish({ winner: other.connected ? other.slot : null, reason: "forfeit" });
+    this.events.changed();
+  }
+
+  private finish(result: MatchResult): void {
+    this.phase = "finished";
+    this.result = result;
+    for (const player of this.players.values()) {
+      this.cancelRock(player);
+      this.clearBlock(player);
+      clearTimeout(player.timers.windup);
+      clearTimeout(player.timers.reconnect);
+      player.windupEndsAt = null;
+      player.reconnectEndsAt = null;
+    }
+  }
+
+  private cancelRock(player: Player): void {
+    clearTimeout(player.timers.rock);
+    player.rockLandsAt = null;
+  }
+
+  // Ending a block, early or at its limit, starts the block cooldown.
+  private clearBlock(player: Player): void {
+    if (player.blockEndsAt === null) return;
+    clearTimeout(player.timers.block);
+    player.blockEndsAt = null;
+    player.blockCooldownEndsAt = Date.now() + RULES.blockCooldownMs;
+  }
 }
 
-export function toSnapshot(match: Match): MatchSnapshot {
-  const players = [...match.players.values()].sort((a, b) => a.slot - b.slot);
-  return {
-    matchId: match.matchId,
-    phase: match.players.size === 2 ? "ready" : "waiting",
-    players: structuredClone(players),
-    rock: null,
-  };
+function parseCommand(command: unknown): { commandId: string; type: CommandType } | null {
+  if (typeof command !== "object" || command === null) return null;
+  const { commandId, type } = command as Record<string, unknown>;
+  if (typeof commandId !== "string" || !COMMAND_ID_PATTERN.test(commandId)) return null;
+  if (!COMMAND_TYPES.includes(type as CommandType)) return null;
+  return { commandId, type: type as CommandType };
 }
