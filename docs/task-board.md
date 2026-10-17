@@ -2,6 +2,10 @@
 
 No implementation tasks are marked complete. Move work through Ready → Doing → Integration → Done. Done means merged, deployed where applicable, checked against current main and exercised on the selected devices.
 
+## Doing
+
+- C (Alan): camera debug harness + MediaPipe + screen-space rock (hold/arc/cancel) in `web/`. Gun/saber deferred per PLAN. Run `cd web && npm run dev`, tunnel for phones — framing checklist in `web/README.md`. Human must still mark phone pass/fail on demo devices. Still needs B's frozen command schema and A's lobby mount for multiplayer.
+
 ## Ready — unblock first
 
 - All: assign A–D and approve PLAN.md; list actual demo phones.
