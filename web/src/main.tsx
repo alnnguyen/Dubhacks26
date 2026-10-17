@@ -1,11 +1,21 @@
-import { StrictMode } from 'react';
+import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
-import { SpaceshipHome } from './ui/screens/SpaceshipHome';
 
-// Standalone entry for the spaceship lobby. The game client (web/src/app/) can
-// render <SpaceshipHome onEnterBattle={...} lobby={...} /> instead.
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <SpaceshipHome />
-  </StrictMode>,
+// Keep camera-debug styling separate from the cockpit's global stylesheet.
+const cameraDebug = new URLSearchParams(window.location.search).has('camera');
+const Screen = cameraDebug
+  ? lazy(async () => {
+      await import('./styles.css');
+      const m = await import('./camera/CameraDebugPage');
+      return { default: m.CameraDebugPage };
+    })
+  : lazy(async () => {
+      const m = await import('./app/FlightApp');
+      return { default: m.FlightApp };
+    });
+
+const root = document.getElementById('root');
+if (!root) throw new Error('Missing #root');
+createRoot(root).render(
+  <StrictMode><Suspense fallback={<p>Loading flight systems…</p>}><Screen /></Suspense></StrictMode>,
 );
