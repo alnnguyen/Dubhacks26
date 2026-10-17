@@ -5,10 +5,12 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixturePort } from '../demo-state.mjs';
+import { createBriefingService } from './briefing.mjs';
 import { ephemeralToken, runVoiceTool, voiceSession } from './realtime.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const port = fixturePort(resolve(root, 'tmp/d-provider-demo/voice-state.json'));
+const briefing = createBriefingService({ port, key: process.env.XAI_API_KEY });
 const session = randomBytes(32).toString('hex');
 const cookiesEqual = value => {
   const a = Buffer.from(value ?? ''), b = Buffer.from(session);
@@ -48,6 +50,7 @@ const server = createServer(async (req, res) => {
     const body = await jsonBody(req);
     if (path === '/api/state') return reply(200, await port.getMatchState({ actorId: 'pilot-d' }));
     if (path === '/api/world') { await port.setDemoWorld(body.world); return reply(200, { fixture: true, updated: true }); }
+    if (path === '/api/briefing') return reply(200, await briefing({ actorId: 'pilot-d', expectedWorld: body.world }));
     if (path === '/api/token') {
       if (Date.now() - lastTokenAt < 5000) return reply(429, { error: 'Wait five seconds between sessions.' });
       lastTokenAt = Date.now();

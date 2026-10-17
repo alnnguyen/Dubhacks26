@@ -3,19 +3,48 @@ const base = location.pathname.startsWith('/copilot/') ? '/copilot' : '';
 const embeddedWorld = new URLSearchParams(location.search).get('world');
 const embedded = window.parent !== window && ['earth', 'mars', 'moon'].includes(embeddedWorld);
 let generation = 0;
+let briefingGeneration = 0, briefingAbort, briefingUrl;
+function stopBriefing() {
+  briefingGeneration++; briefingAbort?.abort();
+  $('briefing-audio').pause();
+  $('briefing-audio').removeAttribute('src');
+  if (briefingUrl) URL.revokeObjectURL(briefingUrl);
+  briefingUrl = null;
+}
+async function announce() {
+  stopBriefing(); const current = briefingGeneration;
+  briefingAbort = new AbortController();
+  $('briefing-play').disabled = true;
+  $('briefing-status').textContent = 'Your copilot is preparing the world briefing…';
+  try {
+    const result = await api('/api/briefing', { world: $('world').value }, briefingAbort.signal);
+    if (current !== briefingGeneration) return;
+    $('briefing-text').textContent = result.text;
+    const bytes = Uint8Array.from(atob(result.audioBase64), c => c.charCodeAt(0));
+    briefingUrl = URL.createObjectURL(new Blob([bytes], { type: result.contentType }));
+    $('briefing-audio').src = briefingUrl;
+    $('briefing-play').disabled = false;
+    try { await $('briefing-audio').play(); if (current === briefingGeneration) $('briefing-status').textContent = 'Copilot briefing playing.'; }
+    catch { if (current === briefingGeneration) $('briefing-status').textContent = 'Briefing ready. Tap Play briefing to enable sound.'; }
+  } catch (error) {
+    if (current !== briefingGeneration) return;
+    $('briefing-status').textContent = 'Briefing unavailable: ' + error.message;
+    $('briefing-play').disabled = false;
+  }
+}
 const tellParent = data => { if (embedded) window.parent.postMessage(data, location.origin); };
 let ws, context, stream, input, processor, mute, recording = false, toolQueue = [], calls = new Set(), nextAudioAt = 0, sessionTimer;
 let speakingAt = 0;
 const log = text => { $('log').textContent += text + '\n'; };
 const status = text => { $('status').textContent = text; };
-async function api(path, body = {}) {
-  const r = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+async function api(path, body = {}, signal) {
+  const r = await fetch(base + path, { signal, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const value = await r.json(); if (!r.ok) throw new Error(value.error ?? 'Local request failed.'); return value;
 }
 async function refresh() { const state = await api('/api/state'); $('world').value = state.world; $('state').textContent = JSON.stringify(state, null, 2); }
 function send(event) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event)); }
 async function disconnect() {
-  generation++; clearTimeout(sessionTimer); recording = false; processor?.disconnect(); input?.disconnect(); mute?.disconnect();
+  generation++; stopBriefing(); clearTimeout(sessionTimer); recording = false; processor?.disconnect(); input?.disconnect(); mute?.disconnect();
   stream?.getTracks().forEach(t => t.stop()); stream = null;
   if (ws) { const socket = ws; ws = null; socket.close(); }
   await context?.close().catch(() => {}); context = null;
@@ -51,6 +80,7 @@ async function eventReceived(e) {
   if (e.type === 'error') { log(`Voice error: ${e.error?.code ?? 'provider error'}`); await disconnect(); }
 }
 $('connect').onclick = async () => {
+  stopBriefing();
   const current = ++generation;
   $('connect').disabled = true; $('world').disabled = true;
   try {
@@ -85,8 +115,15 @@ $('record').onclick = () => {
   else { recording = false; processor.port.postMessage('stop'); $('record').textContent = 'Start speaking'; $('record').disabled = true; }
 };
 $('stop').onclick = disconnect;
-$('world').onchange = async () => { try { await api('/api/world', { world: $('world').value }); await refresh(); } catch (e) { status(e.message); } };
-window.addEventListener('pagehide', () => { stream?.getTracks().forEach(t => t.stop()); ws?.close(); });
+$('world').onchange = async () => { await disconnect(); try { await api('/api/world', { world: $('world').value }); await refresh(); await announce(); } catch (e) { status(e.message); } };
+$('briefing-play').onclick = async () => {
+  if ($('briefing-audio').getAttribute('src')) {
+    $('briefing-audio').currentTime = 0;
+    try { await $('briefing-audio').play(); $('briefing-status').textContent = 'Copilot briefing playing.'; } catch { $('briefing-status').textContent = 'Use the audio player to enable sound.'; }
+  } else { await disconnect(); await announce(); }
+};
+$('briefing-audio').onended = () => { $('briefing-status').textContent = 'Briefing complete. Ready for the jump.'; };
+window.addEventListener('pagehide', () => { stopBriefing(); stream?.getTracks().forEach(t => t.stop()); ws?.close(); });
 window.addEventListener('message', async event => {
   if (event.origin !== location.origin || event.source !== window.parent || event.data?.type !== 'COPILOT_STOP') return;
   await disconnect(); tellParent({ type: 'COPILOT_STOPPED' });
@@ -99,4 +136,5 @@ window.addEventListener('message', async event => {
     tellParent({ type: 'COPILOT_WORLD', world: embeddedWorld });
   }
   await refresh();
+  await announce();
 })().catch(e => { status(e.message); tellParent({ type: 'COPILOT_ERROR' }); });

@@ -53,18 +53,18 @@ export function FlightApp() {
     <p className="flight-notice">Local rehearsal vs {opponent?.callsign ?? 'training rival'}. Challenge replies, opponent actions and health are simulated. Photon is not connected to this match yet.</p>
     {state.phase === 'briefing' && <>
       <section className="flight-panel">
-        <p className="flight-eyebrow">JUMP COORDINATES CONFIRMED</p><h1>Choose your world. Brief your copilot.</h1>
+        <p className="flight-eyebrow">JUMP COORDINATES CONFIRMED</p><h1>Your world is ready. Listen to the briefing.</h1>
         <label>Training world <select disabled={entering} value={state.world} onChange={e => { setVoiceWorld(''); dispatch({ type: 'world', world: e.target.value as World }); }}>
           {Object.entries(worlds).map(([key, value]) => <option key={key} value={key}>{value.name}</option>)}
         </select></label>
         <p><strong>{worlds[state.world].gravity} m/s²</strong> · designed rock flight / defense window <strong>{flightSeconds(state.world)} s</strong></p>
         <p>Rounded <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/" target="_blank" rel="noreferrer">NASA gravity</a> values. Window = 0.8 × √(9.8 / gravity), a gameplay mapping.</p>
-        <p className="flight-muted">Connect below, Start speaking, ask “What world did we get?”, then Send speech. Grok reads this selected world through the local fixture. Changing the world disconnects the previous voice session.</p>
+        <p className="flight-muted">Your copilot announces the selected world automatically. If sound is paused by your browser, tap Play briefing below. Ask the copilot is optional for follow-up questions. Changing the world prepares a new briefing.</p>
         <p role="status">{voiceWorld === state.world ? `Copilot state synced: ${worlds[state.world].name}.` : 'Connecting briefing state… If unavailable, start the local Voice server; camera training still works.'}</p>
         <button className="flight-primary" disabled={entering} onClick={launch}>{entering ? 'Stopping microphone…' : 'Enter camera duel'}</button>
         <p className="flight-muted">Entering combat stops the briefing microphone and audio. Start camera explicitly on the next screen.</p>
       </section>
-      <iframe key={state.world} ref={frame} className="flight-voice" title="Grok Voice briefing" allow="microphone" src={`/copilot/?world=${state.world}`} />
+      <iframe key={state.world} ref={frame} className="flight-voice" title="Grok Voice briefing" allow="microphone; autoplay" src={`/copilot/?world=${state.world}`} />
     </>}
     {state.phase === 'duel' && <>
       <section className="flight-panel">

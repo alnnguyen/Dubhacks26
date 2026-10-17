@@ -11,7 +11,7 @@ Real iMessage ACCEPT DEMO-42 changed a saved fixture challenge and the provider 
 Keep permanent keys in ignored server/.env.photon.local and server/.env.grok.local, mode 0600. No keys in web environment variables.
 
 ```sh
-node --test server/src/integrations/integrations.test.mjs
+node --test server/src/integrations/integrations.test.mjs server/src/integrations/grok/briefing.test.mjs
 node --env-file=server/.env.photon.local server/src/integrations/photon/listen.mjs --fixture
 node --env-file=server/.env.grok.local server/src/integrations/grok/demo-server.mjs
 ```
@@ -49,3 +49,5 @@ For Voice, mount ephemeralToken/runVoiceTool in B's authenticated server. Derive
 3. Official Grok Bot planning bonus: run an actual official product team session. Suggested prompt: “Review our spaceship lobby → Photon challenge → gravity wheel → camera rock duel plan. Assign A UI, B authoritative game state, C camera gestures, D integrations; identify blockers and cut extras before 10 p.m.” Save the actual session link/output and decisions. API copilot code does not establish this bonus.
 
 Do not mark D fully accepted until the first two real-game checks pass. Do not claim official Grok Bot use without the actual session.
+
+Automatic briefing is in grok/briefing.mjs: state-derived text → server-only Grok TTS, cached by public script. Browser can listen without requesting microphone access; optional realtime questions remain separate. Mount the same briefing service against B’s real authenticated getMatchState adapter when ready.

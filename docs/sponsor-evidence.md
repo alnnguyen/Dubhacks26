@@ -52,3 +52,9 @@ Record evidence location, owner, time and observed result. Avoid secrets or pers
 - Browser verified Moon synchronization into Voice fixture and matching camera window; training command changed displayed rival health 100→75. User reported standalone Voice and CV working before this combined flow. Fresh human speech + gestures in the combined screens remain a check.
 - 59 frontend tests, 10 integration tests and build pass. Proxy rejects missing session/foreign origin/client identity overrides. Permanent credentials remain server-only.
 - All challenge/rival/health state in this combined flow remains labeled local simulation. Real Photon round trip evidence above applies only to saved DEMO-42; B’s actual challenge/multiplayer acceptance is still open. See docs/flight-integration.md.
+
+## Automatic selected-world narration
+
+- Replaced the required spoken test question with automatic state-derived Grok TTS in the briefing. Microphone is not requested for narration; realtime questions remain optional.
+- Real browser/API check: Mars script generated, playable MP3 duration 12.84 s, audio readyState 4, and browser reported “Briefing complete. Ready for the jump.” without a microphone session. Browser autoplay fallback remains Play briefing.
+- Three focused narration tests passed: selected-state validation, duplicate generation caching/state changes, and stale-world rejection/provider retry. Existing ten integration tests and production build passed.
