@@ -10,8 +10,8 @@ const Screen = cameraDebug
       return { default: m.CameraDebugPage };
     })
   : lazy(async () => {
-      const m = await import('./ui/screens/SpaceshipHome');
-      return { default: m.SpaceshipHome };
+      const m = await import('./app/FlightApp');
+      return { default: m.FlightApp };
     });
 
 const root = document.getElementById('root');

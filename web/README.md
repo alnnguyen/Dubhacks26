@@ -54,3 +54,7 @@ Record pass/fail in `docs/task-board.md` or `docs/qa-checklist.md` with device/b
 ## Cockpit integration check
 
 Merged origin/cockpit-scene at 20124de into alex-dev. Combined React/Three/MediaPipe dependencies; retained camera HTTPS development support with a Vite 7-compatible SSL plugin. Tests: 53 frontend and 10 integration tests passed; production build passed. Browser cockpit renders without observed console errors; camera debug remains a separate route. Ally’s onEnterBattle/lobby props are the next game integration points. The existing demo-state branch remains separate.
+
+## Connected local flow
+
+Default cockpit launch now continues into Voice briefing and camera training instead of a handoff placeholder. See docs/flight-integration.md from the repository root for startup, limits and test steps. Start the local Voice server on port 8787 before using the briefing. Real multiplayer/Photon challenge wiring remains B’s integration gate.

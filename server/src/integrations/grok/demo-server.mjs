@@ -32,14 +32,14 @@ const server = createServer(async (req, res) => {
   };
   // Loopback-only and exact Host/Origin checks keep this credential endpoint local.
   if (req.headers.host !== host) return reply(403, { error: 'Use the printed loopback address.' });
-  const path = req.url;
+  const path = new URL(req.url, `http://${host}`).pathname;
   try {
     if (req.method === 'GET' && assets.has(path)) {
       const [name, contentType] = assets.get(path);
       const body = await readFile(resolve(root, 'web/src/voice', name));
       res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-store',
         'Set-Cookie': `d_voice_session=${session}; HttpOnly; SameSite=Strict; Path=/`,
-        'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'self'; connect-src 'self' wss://api.x.ai; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob:; worker-src 'self'; frame-ancestors 'none'" });
+        'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'self'; connect-src 'self' wss://api.x.ai; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob:; worker-src 'self'; frame-ancestors 'self'" });
       return res.end(body);
     }
     const cookie = req.headers.cookie?.split('; ').find(x => x.startsWith('d_voice_session='))?.split('=')[1];

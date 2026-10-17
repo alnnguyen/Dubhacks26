@@ -45,3 +45,10 @@ Record evidence location, owner, time and observed result. Avoid secrets or pers
 - Browser fixture harness loads, switches world and reads changed state. Security checks: missing session 401, wrong Origin 403, tool identity argument 400. Permanent key remains server-only; browser receives a short-lived client secret.
 - Node built-in integration suite: 10 passing tests, including sender filtering, defender authorization, durable duplicate handling, retry after send failure and state-reading voice tools.
 - Remaining acceptance: B adapter to the shared authenticated command service; live challenge and selected-world flow on two clients; actual phone/microphone voice check; official Grok Bot planning session with truthful evidence. No official Grok Bot session is claimed here.
+
+## Combined cockpit / briefing / camera rehearsal
+
+- October 17: Ally’s cockpit launch now enters a selected-world briefing with embedded real Grok Voice controls, then Alan’s camera harness, local training health/results and return to cockpit.
+- Browser verified Moon synchronization into Voice fixture and matching camera window; training command changed displayed rival health 100→75. User reported standalone Voice and CV working before this combined flow. Fresh human speech + gestures in the combined screens remain a check.
+- 59 frontend tests, 10 integration tests and build pass. Proxy rejects missing session/foreign origin/client identity overrides. Permanent credentials remain server-only.
+- All challenge/rival/health state in this combined flow remains labeled local simulation. Real Photon round trip evidence above applies only to saved DEMO-42; B’s actual challenge/multiplayer acceptance is still open. See docs/flight-integration.md.

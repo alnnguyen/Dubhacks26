@@ -29,11 +29,15 @@ function nowLabel() {
   return new Date().toLocaleTimeString()
 }
 
-export function CameraDebugPage() {
+export function CameraDebugPage({ onCommands, flightSeconds = 0.8 }: { onCommands?: (commands: BattleCommand[]) => void; flightSeconds?: number } = {}) {
+  const commandSinkRef = useRef(onCommands)
+  commandSinkRef.current = onCommands
+  const cameraGenerationRef = useRef(0)
+  const commandSessionRef = useRef(SESSION_ID)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const battleRef = useRef<BattleInputState>(createBattleInput(performance.now()))
-  const rockRef = useRef<RockVisualState>(createRockVisual())
+  const rockRef = useRef<RockVisualState>(createRockVisual(flightSeconds))
   const touchRef = useRef<TouchInput>({ ...idleTouch })
   const visionRef = useRef<VisionBundle | null>(null)
   const stopCameraRef = useRef<(() => void) | null>(null)
@@ -59,6 +63,7 @@ export function CameraDebugPage() {
 
   function pushCommands(commands: BattleCommand[]) {
     if (commands.length === 0) return
+    commandSinkRef.current?.(commands)
     setCommandLog((prev) => {
       const next = [
         ...commands.map((command) => ({
@@ -78,10 +83,13 @@ export function CameraDebugPage() {
   }
 
   async function start() {
+    const generation = ++cameraGenerationRef.current
+    setRunning(true)
     setError(null)
     setStatus("Loading MediaPipe…")
     try {
       const vision = await createVisionBundle()
+      if (generation !== cameraGenerationRef.current) { vision.close(); return }
       visionRef.current = vision
       setStatus("Opening camera…")
       const devices = navigator.mediaDevices
@@ -89,6 +97,7 @@ export function CameraDebugPage() {
         throw new CameraStartError("unsupported", "This browser has no getUserMedia.")
       }
       const session = await openDebugCamera(devices, window.isSecureContext)
+      if (generation !== cameraGenerationRef.current) { session.stop(); return }
       stopCameraRef.current = session.stop
       setCameraKind(session.kind)
       setCameraNote(session.note)
@@ -97,14 +106,19 @@ export function CameraDebugPage() {
       if (!video) throw new Error("Missing video element")
       video.srcObject = session.stream as unknown as MediaStream
       await video.play()
+      if (generation !== cameraGenerationRef.current) return
+      commandSessionRef.current = `${SESSION_ID}:${crypto.randomUUID()}`
+      lastVideoTimeRef.current = -1
+      poseRef.current = null
 
       battleRef.current = createBattleInput(performance.now())
-      rockRef.current = createRockVisual()
+      rockRef.current = createRockVisual(flightSeconds)
       setRockMode("hidden")
       setRunning(true)
       setStatus("Running")
       loop()
     } catch (err) {
+      if (generation !== cameraGenerationRef.current) return
       const message =
         err instanceof CameraStartError
           ? `${err.code}: ${err.message}`
@@ -118,6 +132,7 @@ export function CameraDebugPage() {
   }
 
   function stop() {
+    cameraGenerationRef.current += 1
     cancelAnimationFrame(rafRef.current)
     stopCameraRef.current?.()
     stopCameraRef.current = null
@@ -155,7 +170,7 @@ export function CameraDebugPage() {
         nowMs,
         hands,
         touch: touchRef.current,
-        sessionId: SESSION_ID,
+        sessionId: commandSessionRef.current,
         matchId: MATCH_ID,
       })
       battleRef.current = stepped.state

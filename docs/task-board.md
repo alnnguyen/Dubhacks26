@@ -28,3 +28,9 @@ Use the absolute deadline and times in PLAN.md. If a checkpoint has passed, reco
 ## Blockers and decisions
 
 Record owner, specific blocker, next action and effect on scope. Never paste credentials here.
+
+## Integrated local rehearsal — October 17
+
+- A/C/D composition now runs on alex-dev: cockpit Engage → world/Voice briefing → camera training → result/back to cockpit. 59 frontend + 10 integration tests and build pass.
+- C/D: user confirmed standalone CV and Voice; now verify speech, microphone shutdown and gestures on combined screens and both phones. Voice dev proxy currently allows this computer only.
+- B blocker unchanged: replace mock discovery/challenges and local training health with shared authoritative state; wire Photon and Voice to actual challenge/match. Interface notes in docs/flight-integration.md and server/src/integrations/HANDOFF.md.

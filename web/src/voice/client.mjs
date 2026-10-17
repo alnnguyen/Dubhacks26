@@ -1,21 +1,26 @@
 const $ = id => document.getElementById(id);
+const base = location.pathname.startsWith('/copilot/') ? '/copilot' : '';
+const embeddedWorld = new URLSearchParams(location.search).get('world');
+const embedded = window.parent !== window && ['earth', 'mars', 'moon'].includes(embeddedWorld);
+let generation = 0;
+const tellParent = data => { if (embedded) window.parent.postMessage(data, location.origin); };
 let ws, context, stream, input, processor, mute, recording = false, toolQueue = [], calls = new Set(), nextAudioAt = 0, sessionTimer;
 let speakingAt = 0;
 const log = text => { $('log').textContent += text + '\n'; };
 const status = text => { $('status').textContent = text; };
 async function api(path, body = {}) {
-  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const r = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const value = await r.json(); if (!r.ok) throw new Error(value.error ?? 'Local request failed.'); return value;
 }
 async function refresh() { const state = await api('/api/state'); $('world').value = state.world; $('state').textContent = JSON.stringify(state, null, 2); }
 function send(event) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event)); }
 async function disconnect() {
-  clearTimeout(sessionTimer); recording = false; processor?.disconnect(); input?.disconnect(); mute?.disconnect();
+  generation++; clearTimeout(sessionTimer); recording = false; processor?.disconnect(); input?.disconnect(); mute?.disconnect();
   stream?.getTracks().forEach(t => t.stop()); stream = null;
   if (ws) { const socket = ws; ws = null; socket.close(); }
   await context?.close().catch(() => {}); context = null;
   $('connect').disabled = false; $('record').disabled = true; $('stop').disabled = true;
-  $('record').textContent = 'Start speaking'; $('world').disabled = false; status('Disconnected. Microphone stopped.');
+  $('record').textContent = 'Start speaking'; $('world').disabled = embedded; status('Disconnected. Microphone stopped.');
 }
 function playAudio(base64) {
   if (!context) return;
@@ -46,12 +51,16 @@ async function eventReceived(e) {
   if (e.type === 'error') { log(`Voice error: ${e.error?.code ?? 'provider error'}`); await disconnect(); }
 }
 $('connect').onclick = async () => {
+  const current = ++generation;
   $('connect').disabled = true; $('world').disabled = true;
   try {
     context = new AudioContext({ sampleRate: 24000 }); await context.resume(); nextAudioAt = 0;
     const config = await api('/api/token');
-    await context.audioWorklet.addModule('/mic-worklet.mjs');
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true }, video: false });
+    if (current !== generation) return;
+    await context.audioWorklet.addModule(base + '/mic-worklet.mjs');
+    const acquired = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true }, video: false });
+    if (current !== generation) { acquired.getTracks().forEach(t => t.stop()); return; }
+    stream = acquired;
     input = context.createMediaStreamSource(stream); processor = new AudioWorkletNode(context, 'microphone-pcm');
     mute = context.createGain(); mute.gain.value = 0; input.connect(processor).connect(mute).connect(context.destination);
     processor.port.onmessage = ({ data }) => {
@@ -78,4 +87,16 @@ $('record').onclick = () => {
 $('stop').onclick = disconnect;
 $('world').onchange = async () => { try { await api('/api/world', { world: $('world').value }); await refresh(); } catch (e) { status(e.message); } };
 window.addEventListener('pagehide', () => { stream?.getTracks().forEach(t => t.stop()); ws?.close(); });
-refresh().catch(e => status(e.message));
+window.addEventListener('message', async event => {
+  if (event.origin !== location.origin || event.source !== window.parent || event.data?.type !== 'COPILOT_STOP') return;
+  await disconnect(); tellParent({ type: 'COPILOT_STOPPED' });
+});
+(async () => {
+  if (embedded) {
+    $('world').disabled = true;
+    await api('/api/world', { world: embeddedWorld });
+    document.querySelector('h1').textContent = 'Ship copilot — world briefing';
+    tellParent({ type: 'COPILOT_WORLD', world: embeddedWorld });
+  }
+  await refresh();
+})().catch(e => { status(e.message); tellParent({ type: 'COPILOT_ERROR' }); });
