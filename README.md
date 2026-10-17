@@ -41,7 +41,9 @@ docs/                      Team, interface, QA, deployment and evidence notes
 
 ## Current status
 
-This is a planning scaffold, not a runnable application. No dependencies, app entry points or build scripts have been installed. A and B should agree on one package manager and initialize the client/server workspaces together. Record the actual run/check commands here once they exist; do not invent commands before setup.
+The server has a first runnable slice (two players join one demo match and share a snapshot; no combat yet). Its verified commands are in [server/README.md](server/README.md): `cd server && npm install && npm test`. The web client is still a planning scaffold.
+
+Original scaffold note: this is a planning scaffold, not a runnable application. No dependencies, app entry points or build scripts have been installed. A and B should agree on one package manager and initialize the client/server workspaces together. Record the actual run/check commands here once they exist; do not invent commands before setup.
 
 Target: mobile HTTPS website, two selected demo phones, rear-camera overlays and server-authoritative combat. Native Swift/ARKit, campus GPS, planet ownership and offline armies are outside this MVP.
 

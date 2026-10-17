@@ -27,3 +27,9 @@ LOBBY → CHALLENGED → ACCEPTED → WORLD_SELECTED → CALIBRATING/READY → C
 - Camera confidence is self-reported and not proof of physical distance or contact.
 
 Record decisions below with owner/date and affected modules. No decisions have been frozen by this scaffolding task.
+
+## Decisions
+
+- 2026-10-17, B — Transport is Socket.IO 4.8.4 (not raw `ws`). Affects web/src/networking: the client must use `socket.io-client`. Socket.IO replays buffered emits after reconnect, so command IDs remain required.
+- 2026-10-17, B — Join: client emits `join({ playerId })` with an ack. `playerId` is generated once by the phone and stored (8–64 chars of `A-Za-z0-9_-`) so a reconnect reclaims the same slot. Demo-level identity, not authentication. Server replies `{ ok, slot, snapshot }` or `{ ok: false, reason }` and broadcasts `snapshot` on join/disconnect.
+- 2026-10-17, B — Timing fields in snapshots are remaining milliseconds (`landsInMs`, `endsInMs`), not timestamps. Current types: `server/src/contracts.ts` (moves to packages/contracts once a root workspace is agreed with A).

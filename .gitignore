@@ -16,3 +16,5 @@ coverage/
 # Private recordings and local artifacts
 recordings/
 tmp/
+
+.vibe-wise
