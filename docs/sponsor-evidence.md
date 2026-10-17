@@ -1,6 +1,6 @@
 # Sponsor evidence — D maintains, A verifies at submission
 
-Status: Photon 2.0 PING/PONG delivery verified. Grok Voice TTS (`/v1/tts`) verified locally. Speech-to-Speech realtime and challenge-ID Photon wiring not done yet.
+Status: Photon PING/PONG and real ACCEPT → saved fixture challenge → delivered confirmation verified. Grok TTS and real Speech-to-Speech with state-reading tool verified against fixtures. Live B game integration, human microphone check and official Grok Bot planning bonus remain open.
 
 - Chef's Choice: record a working cockpit → challenge → camera duel → result.
 - SpaceXAI: actual Cursor development; real Grok Voice/Imagine API use; NASA dataset provenance and gameplay effect. Confirm TTS-only eligibility if relying on TTS instead of a live Voice interaction.
@@ -34,3 +34,14 @@ Record evidence location, owner, time and observed result. Avoid secrets or pers
 - Reusable script added: `server/src/integrations/grok/proof-tts.mjs` writing `tmp/grok-voice-tts-proof.mp3`. Setup notes in `server/src/integrations/grok/README.md`. Example env: `server/.env.grok.local.example`.
 - Label: **TTS-only**. This is not yet Speech-to-Speech realtime (`wss://api.x.ai/v1/realtime?model=grok-voice-latest`) and does not yet read a live match snapshot. Confirm organizer eligibility if relying on TTS for SpaceXAI Voice.
 - Next: realtime “What world did we get?” with server-supplied world state; ephemeral tokens for any browser client; then wire narration into the duel flow after B’s contracts exist.
+
+## D command and realtime proof — October 17, 2026
+
+- Branch: alex-dev. Implementation and handoff: server/src/integrations/HANDOFF.md.
+- Real inbound iMessage ACCEPT DEMO-42 (pho_msg_6mwpsr7pqegsv8sbfwenvz4vef) changed saved DEMO-42 from pending to accepted for the linked fixture defender. User confirmed sending it. Outbound confirmation pho_msg_5vj88ycjebh7jsx6bjbgr3xsj6 was independently checked through GET message: HTTP 200, status delivered.
+- This is a real provider round trip and real persisted **fixture** transition. It does not accept a live B game challenge. DECLINE/STATUS handling exists and is locally tested; no real-phone DECLINE/STATUS exchange is claimed.
+- Two actual Grok Realtime Speech-to-Speech calls used synthesized spoken input “What world did we get?”, invoked getMatchState and returned spoken audio. First state: Mars 3.7 m/s², designed window 1.30 s; changed state: Moon 1.6 m/s², window 1.98 s. Returned audio: 1,027,680 and 966,240 PCM bytes respectively. Transcripts explicitly identify fixture state.
+- Local outputs, excluded from Git: tmp/d-provider-demo/realtime-response.wav and realtime-proof-moon.json. These are API integration checks with synthesized input, not a human microphone test or a live duel.
+- Browser fixture harness loads, switches world and reads changed state. Security checks: missing session 401, wrong Origin 403, tool identity argument 400. Permanent key remains server-only; browser receives a short-lived client secret.
+- Node built-in integration suite: 10 passing tests, including sender filtering, defender authorization, durable duplicate handling, retry after send failure and state-reading voice tools.
+- Remaining acceptance: B adapter to the shared authenticated command service; live challenge and selected-world flow on two clients; actual phone/microphone voice check; official Grok Bot planning session with truthful evidence. No official Grok Bot session is claimed here.

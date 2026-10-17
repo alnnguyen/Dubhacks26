@@ -24,3 +24,5 @@ Official references:
 - https://api.photon.codes/openapi.json
 
 Observed provider constraint: this shared iMessage Space rejected parentMessageId with HTTP 409 SPACE_NOT_SENDABLE (threaded replies unsupported). The proof sends a normal direct message in the same Space instead, using a distinct stable idempotency-key namespace.
+
+Challenge reply implementation: see ../HANDOFF.md. Real ACCEPT DEMO-42 changed saved fixture state and its confirmation was delivered; B live-game wiring remains open.
