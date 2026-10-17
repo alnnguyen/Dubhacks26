@@ -2,6 +2,10 @@
 
 No implementation tasks are marked complete. Move work through Ready → Doing → Integration → Done. Done means merged, deployed where applicable, checked against current main and exercised on the selected devices.
 
+## Doing
+
+- C (Alan): camera debug harness + MediaPipe + screen-space rock (hold/arc/cancel) in `web/`. Gun/saber deferred per PLAN. Run `cd web && npm run dev`, tunnel for phones — framing checklist in `web/README.md`. Human must still mark phone pass/fail on demo devices. Still needs B's frozen command schema and A's lobby mount for multiplayer.
+
 ## Ready — unblock first
 
 - All: assign A–D and approve PLAN.md; list actual demo phones. C = Alan, D = Alex assigned; A/B still open.
@@ -10,7 +14,7 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 - A: cockpit shell with selectable rival ship and challenge panels connected to the agreed adapter.
 - B: two-client command/acknowledgement/snapshot, then touch-driven rock/block/health/result.
 - C (Alan): real-phone rear-camera test with own hand plus opponent pose in one frame; log failures and calibration behavior.
-- D (Alex): Photon PING/PONG delivery verified; Grok Voice TTS verified (TTS-only). Remaining: Speech-to-Speech realtime + Photon ACCEPT/DECLINE ↔ challenge IDs. Help Alan on C only after those.
+- D (Alex): Photon PING/PONG + ACCEPT DEMO-42 fixture verified; Grok TTS + Speech-to-Speech fixtures verified. Remaining: B `createGamePort()` adapter, live challenge/world on two clients, human mic check, Grok Bot bonus. Helping Alan on C after that.
 - B: NASA gravity record with provenance and timing helper/comparison check.
 - C (Alan): local palm/fist states and tracked overlay connected to B's commands; tracking loss cancels.
 - A/B: shared wheel, ready/countdown and result/rematch.

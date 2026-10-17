@@ -2,6 +2,7 @@
 
 - [ ] Both chosen phones open the deployed HTTPS app; permissions/denials are handled.
 - [ ] Own hand and opponent are detected together in realistic lighting/framing.
+- [ ] Debug harness: rock floats on palm hold, arcs on fist throw, vanishes on cancel (no catch; gun/saber not required).
 - [ ] Opponent gestures do not repeatedly trigger the wrong player's controls; ambiguity pauses/recalibrates.
 - [ ] Selecting a ship challenges the correct session; only that defender can accept.
 - [ ] Declined/expired/duplicate acceptance cannot start an unintended match.

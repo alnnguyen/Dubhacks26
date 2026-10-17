@@ -2,8 +2,8 @@
 
 - A — name to assign: cockpit/UI, app setup/composition, release and submission.
 - B — name to assign: shared contracts, authoritative server, networking and physics.
-- C — Alan: camera, local hand/pose inference and visual overlays.
-- D — Alex: Photon, Grok Voice, actual Grok Bot planning and optional Perceptron. Provider-evidence verifier. Helps Alan on C after D acceptance is met.
+- C — Alan: camera, local hand/pose inference and visual overlays (`web/src/camera`, `web/src/vision`, `web/src/overlay`, `public/models`).
+- D — Alex: Photon, Grok Voice, actual Grok Bot planning and optional Perceptron (`server/src/integrations`, `web/src/voice`, sponsor evidence). Provider-evidence verifier. Helps Alan on C after D fixtures.
 
 ## Decide before splitting
 
