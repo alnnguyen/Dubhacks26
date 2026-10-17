@@ -10,7 +10,7 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 - A: cockpit shell with selectable rival ship and challenge panels connected to the agreed adapter.
 - B: two-client command/acknowledgement/snapshot, then touch-driven rock/block/health/result.
 - C (Alan): real-phone rear-camera test with own hand plus opponent pose in one frame; log failures and calibration behavior.
-- D (Alex): real Photon outbound/inbound round trip; real Grok Voice API call; provider access blockers. Do D first; help Alan on C only after D acceptance.
+- D (Alex): Photon PING/PONG delivery verified; Grok Voice TTS verified (TTS-only). Remaining: Speech-to-Speech realtime + Photon ACCEPT/DECLINE ↔ challenge IDs. Help Alan on C only after those.
 - B: NASA gravity record with provenance and timing helper/comparison check.
 - C (Alan): local palm/fist states and tracked overlay connected to B's commands; tracking loss cancels.
 - A/B: shared wheel, ready/countdown and result/rematch.
