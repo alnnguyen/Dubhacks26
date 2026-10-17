@@ -25,13 +25,39 @@ const idleTouch: TouchInput = { lift: false, throw: false, block: false, cancel:
 
 type LogLine = { at: string; text: string }
 
+export type CameraPageMode = "debug" | "duel"
+
+export type DuelHudProps = {
+  worldName: string
+  gravity: number
+  rivalName?: string
+  health?: number
+  rivalHealth?: number
+  note?: string
+  incoming?: boolean
+  onSimulateRival?: () => void
+}
+
 function nowLabel() {
   return new Date().toLocaleTimeString()
 }
 
-export function CameraDebugPage({ onCommands, flightSeconds = 0.8 }: { onCommands?: (commands: BattleCommand[]) => void; flightSeconds?: number } = {}) {
+export function CameraDebugPage({
+  mode = "debug",
+  onCommands,
+  flightSeconds = 0.8,
+  duel,
+}: {
+  mode?: CameraPageMode
+  onCommands?: (commands: BattleCommand[]) => void
+  flightSeconds?: number
+  duel?: DuelHudProps
+} = {}) {
+  const isDuel = mode === "duel"
   const commandSinkRef = useRef(onCommands)
   commandSinkRef.current = onCommands
+  const duelRef = useRef(duel)
+  duelRef.current = duel
   const cameraGenerationRef = useRef(0)
   const commandSessionRef = useRef(SESSION_ID)
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -64,6 +90,7 @@ export function CameraDebugPage({ onCommands, flightSeconds = 0.8 }: { onCommand
   function pushCommands(commands: BattleCommand[]) {
     if (commands.length === 0) return
     commandSinkRef.current?.(commands)
+    if (isDuel) return
     setCommandLog((prev) => {
       const next = [
         ...commands.map((command) => ({
@@ -89,7 +116,10 @@ export function CameraDebugPage({ onCommands, flightSeconds = 0.8 }: { onCommand
     setStatus("Loading MediaPipe…")
     try {
       const vision = await createVisionBundle()
-      if (generation !== cameraGenerationRef.current) { vision.close(); return }
+      if (generation !== cameraGenerationRef.current) {
+        vision.close()
+        return
+      }
       visionRef.current = vision
       setStatus("Opening camera…")
       const devices = navigator.mediaDevices
@@ -97,7 +127,10 @@ export function CameraDebugPage({ onCommands, flightSeconds = 0.8 }: { onCommand
         throw new CameraStartError("unsupported", "This browser has no getUserMedia.")
       }
       const session = await openDebugCamera(devices, window.isSecureContext)
-      if (generation !== cameraGenerationRef.current) { session.stop(); return }
+      if (generation !== cameraGenerationRef.current) {
+        session.stop()
+        return
+      }
       stopCameraRef.current = session.stop
       setCameraKind(session.kind)
       setCameraNote(session.note)
@@ -201,7 +234,11 @@ export function CameraDebugPage({ onCommands, flightSeconds = 0.8 }: { onCommand
       }
       const ctx = canvas.getContext("2d")
       if (ctx) {
-        drawCameraOverlay(ctx, width, height, hands, stepped.ownHandId, poseRef.current, rockFrame.drawAt)
+        drawCameraOverlay(ctx, width, height, hands, stepped.ownHandId, poseRef.current, rockFrame.drawAt, {
+          showLandmarks: !isDuel,
+          rivalHealth: duelRef.current?.rivalHealth ?? 100,
+          rockScale: isDuel ? 1.35 : 1,
+        })
       }
     }
 
@@ -213,13 +250,122 @@ export function CameraDebugPage({ onCommands, flightSeconds = 0.8 }: { onCommand
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const worldKey = (duel?.worldName ?? "earth").toLowerCase()
+  const tintClass =
+    worldKey.includes("mars") ? "duel-tint-mars" : worldKey.includes("moon") ? "duel-tint-moon" : "duel-tint-earth"
+
+  const controls = (
+    <section className={`controls ${isDuel ? "duel-controls" : ""}`}>
+      {!running ? (
+        <button type="button" className="primary" onClick={() => void start()}>
+          Start camera
+        </button>
+      ) : (
+        <button type="button" className="primary" onClick={stop}>
+          Stop
+        </button>
+      )}
+      <button
+        type="button"
+        className={touchUi.lift ? "on" : ""}
+        onPointerDown={() => setTouch({ lift: true })}
+        onPointerUp={() => setTouch({ lift: false })}
+        onPointerLeave={() => setTouch({ lift: false })}
+      >
+        Lift
+      </button>
+      <button
+        type="button"
+        className={touchUi.throw ? "on" : ""}
+        onPointerDown={() => setTouch({ throw: true })}
+        onPointerUp={() => setTouch({ throw: false })}
+        onPointerLeave={() => setTouch({ throw: false })}
+      >
+        Throw
+      </button>
+      <button
+        type="button"
+        className={touchUi.block ? "on" : ""}
+        onPointerDown={() => setTouch({ block: true })}
+        onPointerUp={() => setTouch({ block: false })}
+        onPointerLeave={() => setTouch({ block: false })}
+      >
+        Block
+      </button>
+      <button
+        type="button"
+        className={touchUi.cancel ? "on" : ""}
+        onPointerDown={() => setTouch({ cancel: true })}
+        onPointerUp={() => setTouch({ cancel: false })}
+        onPointerLeave={() => setTouch({ cancel: false })}
+      >
+        Cancel
+      </button>
+      {isDuel && duel?.onSimulateRival ? (
+        <button type="button" disabled={duel.incoming} onClick={duel.onSimulateRival}>
+          Simulate rival
+        </button>
+      ) : null}
+    </section>
+  )
+
+  if (isDuel && duel) {
+    const you = duel.health ?? 100
+    const rival = duel.rivalHealth ?? 100
+    return (
+      <main className="duel-page">
+        <div className={`duel-stage ${tintClass}`}>
+          <video ref={videoRef} className="video" playsInline muted autoPlay />
+          <canvas ref={canvasRef} className="overlay" />
+          <div className="duel-tint" aria-hidden />
+          <div className="duel-hud">
+            <div className="duel-world-chip">
+              {duel.worldName} · {duel.gravity} m/s² · window {flightSeconds.toFixed(2)} s
+            </div>
+            <div className="duel-bars">
+              <div className="duel-bar">
+                <span>You</span>
+                <div className="duel-bar-track">
+                  <div className="duel-bar-fill you" style={{ width: `${you}%` }} />
+                </div>
+                <strong>{you}</strong>
+              </div>
+              <div className="duel-bar">
+                <span>{duel.rivalName ?? "Rival"}</span>
+                <div className="duel-bar-track">
+                  <div className="duel-bar-fill rival" style={{ width: `${rival}%` }} />
+                </div>
+                <strong>{rival}</strong>
+              </div>
+            </div>
+            {duel.incoming ? (
+              <p className="duel-incoming" role="alert">
+                INCOMING — BLOCK
+              </p>
+            ) : null}
+            <p className="duel-phase" role="status">
+              {duel.note ?? (running ? `Rock ${rockMode} · ${phase}` : "Start camera to begin")}
+            </p>
+          </div>
+        </div>
+        {controls}
+        {error ? <p className="error">{error}</p> : null}
+        {!running ? (
+          <p className="duel-hint">
+            Palm hold lifts a rock; fist throws. Tracking loss cancels. Touch buttons mirror gestures.
+          </p>
+        ) : null}
+      </main>
+    )
+  }
+
   return (
     <main className="page">
       <header className="header">
         <h1>Camera debug</h1>
         <p>
           Role C harness — MediaPipe hands + pose into <code>stepBattleInput</code>. Screen-space rock
-          only (no gun/saber, no catch). Not the lobby.
+          only (no gun/saber, no catch). Not the lobby. FlightApp duel mode uses a separate HUD.
         </p>
       </header>
 
@@ -228,60 +374,15 @@ export function CameraDebugPage({ onCommands, flightSeconds = 0.8 }: { onCommand
         <canvas ref={canvasRef} className="overlay" />
       </section>
 
-      <section className="controls">
-        {!running ? (
-          <button type="button" className="primary" onClick={() => void start()}>
-            Start camera
-          </button>
-        ) : (
-          <button type="button" className="primary" onClick={stop}>
-            Stop
-          </button>
-        )}
-        <button
-          type="button"
-          className={touchUi.lift ? "on" : ""}
-          onPointerDown={() => setTouch({ lift: true })}
-          onPointerUp={() => setTouch({ lift: false })}
-          onPointerLeave={() => setTouch({ lift: false })}
-        >
-          Lift
-        </button>
-        <button
-          type="button"
-          className={touchUi.throw ? "on" : ""}
-          onPointerDown={() => setTouch({ throw: true })}
-          onPointerUp={() => setTouch({ throw: false })}
-          onPointerLeave={() => setTouch({ throw: false })}
-        >
-          Throw
-        </button>
-        <button
-          type="button"
-          className={touchUi.block ? "on" : ""}
-          onPointerDown={() => setTouch({ block: true })}
-          onPointerUp={() => setTouch({ block: false })}
-          onPointerLeave={() => setTouch({ block: false })}
-        >
-          Block
-        </button>
-        <button
-          type="button"
-          className={touchUi.cancel ? "on" : ""}
-          onPointerDown={() => setTouch({ cancel: true })}
-          onPointerUp={() => setTouch({ cancel: false })}
-          onPointerLeave={() => setTouch({ cancel: false })}
-        >
-          Cancel
-        </button>
-      </section>
+      {controls}
 
       <section className="panel">
         <p>
           <strong>Status</strong> {status}
         </p>
         <p>
-          <strong>Secure context</strong> {String(typeof window !== "undefined" ? window.isSecureContext : false)}
+          <strong>Secure context</strong>{" "}
+          {String(typeof window !== "undefined" ? window.isSecureContext : false)}
         </p>
         <p>
           <strong>Camera</strong> {cameraKind ?? "—"} {cameraNote ? `· ${cameraNote}` : ""}

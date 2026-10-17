@@ -19,7 +19,7 @@ The Voice frame is now served through the local Vite /copilot proxy. Permanent k
 ## Integration seams
 
 - FlightApp connects SpaceshipHome.onEnterBattle to briefing.
-- CameraDebugPage accepts optional onCommands/flightSeconds props. Commands remain proposed C input payloads; B owns frozen schema and validation.
+- CameraDebugPage accepts `mode="duel"` from FlightApp (match HUD, world tint, health bars, no MediaPipe skeleton/debug log) and defaults to the lab harness on `/?camera=1`. Optional onCommands/flightSeconds/duel HUD props. Commands remain proposed C input payloads; B owns frozen schema and validation. Screen-space overlays only — not room scanning or a reconstructed 3D arena.
 - app/state.ts is only a local rehearsal reducer. It is not a second server rules implementation to adopt. Damage on release is immediate; rival attacks are manually simulated.
 - Voice syncs to the chosen local world via existing fixture adapter. This writes the same single-user voice-state.json as the standalone demo. It is not isolated multi-user state. Photon’s state.json remains separate.
 - B must replace mock lobby/health/world selection with authoritative challenge/match snapshots and mount Voice routes behind real session authorization. D’s game-port handoff remains server/src/integrations/HANDOFF.md.

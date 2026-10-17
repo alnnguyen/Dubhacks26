@@ -26,20 +26,42 @@ const HAND_CONNECTIONS: Array<[number, number]> = [
   [19, 20],
 ]
 
-export function drawRock(ctx: CanvasRenderingContext2D, width: number, height: number, point: Point) {
+export type OverlayDrawOptions = {
+  /** When false, skip full hand skeletons (duel presentation). Default true. */
+  showLandmarks?: boolean
+  /** Rival health 0–100 for pose-anchored bar. Default 100. */
+  rivalHealth?: number
+  /** Slightly larger rock for duel readability. */
+  rockScale?: number
+}
+
+export function drawRock(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  point: Point,
+  scale = 1,
+) {
   const x = point.x * width
   const y = point.y * height
-  const radius = Math.max(14, Math.min(width, height) * 0.035)
+  const radius = Math.max(14, Math.min(width, height) * 0.035) * scale
   const gradient = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, radius * 0.2, x, y, radius)
-  gradient.addColorStop(0, "#d9c4a0")
-  gradient.addColorStop(0.55, "#8a6a45")
-  gradient.addColorStop(1, "#3d2a18")
+  gradient.addColorStop(0, "#e8d4b0")
+  gradient.addColorStop(0.45, "#c49a5c")
+  gradient.addColorStop(0.75, "#8a6a45")
+  gradient.addColorStop(1, "#2a1a0c")
   ctx.beginPath()
   ctx.fillStyle = gradient
   ctx.arc(x, y, radius, 0, Math.PI * 2)
   ctx.fill()
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.35)"
-  ctx.lineWidth = 2
+  ctx.strokeStyle = "rgba(255, 236, 180, 0.65)"
+  ctx.lineWidth = 2.5 * scale
+  ctx.stroke()
+  // Soft glow for readability on bright camera frames.
+  ctx.beginPath()
+  ctx.strokeStyle = "rgba(255, 180, 80, 0.35)"
+  ctx.lineWidth = 6 * scale
+  ctx.arc(x, y, radius + 3 * scale, 0, Math.PI * 2)
   ctx.stroke()
 }
 
@@ -51,27 +73,47 @@ export function drawCameraOverlay(
   ownHandId: string | null,
   pose: PoseOverlay | null,
   rockAt: Point | null = null,
+  options: OverlayDrawOptions = {},
 ) {
+  const showLandmarks = options.showLandmarks !== false
+  const rivalHealth = Math.max(0, Math.min(100, options.rivalHealth ?? 100))
+  const rockScale = options.rockScale ?? 1
+
   ctx.clearRect(0, 0, width, height)
 
-  for (const hand of hands) {
-    const isOwn = hand.id === ownHandId
-    ctx.strokeStyle = isOwn ? "#3dff9a" : "#ffb347"
-    ctx.fillStyle = ctx.strokeStyle
-    ctx.lineWidth = isOwn ? 3 : 2
-    for (const [a, b] of HAND_CONNECTIONS) {
-      const pa = hand.landmarks[a]
-      const pb = hand.landmarks[b]
-      if (!pa || !pb) continue
-      ctx.beginPath()
-      ctx.moveTo(pa.x * width, pa.y * height)
-      ctx.lineTo(pb.x * width, pb.y * height)
-      ctx.stroke()
+  if (showLandmarks) {
+    for (const hand of hands) {
+      const isOwn = hand.id === ownHandId
+      ctx.strokeStyle = isOwn ? "#3dff9a" : "#ffb347"
+      ctx.fillStyle = ctx.strokeStyle
+      ctx.lineWidth = isOwn ? 3 : 2
+      for (const [a, b] of HAND_CONNECTIONS) {
+        const pa = hand.landmarks[a]
+        const pb = hand.landmarks[b]
+        if (!pa || !pb) continue
+        ctx.beginPath()
+        ctx.moveTo(pa.x * width, pa.y * height)
+        ctx.lineTo(pb.x * width, pb.y * height)
+        ctx.stroke()
+      }
+      for (const point of hand.landmarks) {
+        ctx.beginPath()
+        ctx.arc(point.x * width, point.y * height, isOwn ? 4 : 3, 0, Math.PI * 2)
+        ctx.fill()
+      }
     }
-    for (const point of hand.landmarks) {
+  } else {
+    // Duel: only a soft ring on the selected own hand so the rock stays readable.
+    const own = hands.find((hand) => hand.id === ownHandId)
+    if (own?.landmarks[9]) {
+      const p = own.landmarks[9]
+      const x = p.x * width
+      const y = p.y * height
       ctx.beginPath()
-      ctx.arc(point.x * width, point.y * height, isOwn ? 4 : 3, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.strokeStyle = "rgba(61, 255, 154, 0.55)"
+      ctx.lineWidth = 2
+      ctx.arc(x, y, Math.max(18, Math.min(width, height) * 0.04), 0, Math.PI * 2)
+      ctx.stroke()
     }
   }
 
@@ -80,15 +122,18 @@ export function drawCameraOverlay(
     if (anchor) {
       const x = anchor.x * width
       const y = anchor.y * height - 28
-      ctx.fillStyle = "rgba(0, 0, 0, 0.55)"
-      ctx.fillRect(x - 54, y - 10, 108, 16)
-      ctx.fillStyle = "#4ade80"
-      ctx.fillRect(x - 52, y - 8, 104, 12)
-      ctx.strokeStyle = "#ffffff"
+      const barW = 120
+      const barH = 14
+      const fill = (rivalHealth / 100) * (barW - 4)
+      ctx.fillStyle = "rgba(0, 0, 0, 0.65)"
+      ctx.fillRect(x - barW / 2, y - 10, barW, barH + 4)
+      ctx.fillStyle = rivalHealth > 35 ? "#4ade80" : rivalHealth > 15 ? "#f5bb65" : "#ff6b6b"
+      ctx.fillRect(x - barW / 2 + 2, y - 8, fill, barH)
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.85)"
       ctx.lineWidth = 1
-      ctx.strokeRect(x - 54, y - 10, 108, 16)
+      ctx.strokeRect(x - barW / 2, y - 10, barW, barH + 4)
     }
   }
 
-  if (rockAt) drawRock(ctx, width, height, rockAt)
+  if (rockAt) drawRock(ctx, width, height, rockAt, rockScale)
 }
