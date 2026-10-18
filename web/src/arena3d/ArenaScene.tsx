@@ -394,8 +394,14 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
     >
       <FrameSampler getFrame={getFrame} frameRef={frameRef} />
       {destination==='neptune'?<>
-        <NeptuneEnvironment/>
-        {!basicGraphics && <NeptuneDust/>}
+        {basicGraphics ? <>
+          <color attach="background" args={["#4f97d8"]} />
+          <hemisphereLight args={["#8cc4f0", "#0d2c58", 1.6]} />
+          <mesh rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[11, 48]} /><meshStandardMaterial color="#3a4a5c" /></mesh>
+        </> : <>
+          <NeptuneEnvironment/>
+          <NeptuneDust/>
+        </>}
         <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0}/>
       </>:basicGraphics ? <>
         <color attach="background" args={["#1b0f0b"]} />

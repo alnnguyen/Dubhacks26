@@ -139,8 +139,8 @@ Shared music/effects mixer and supplied audio pack integrated into alex-dev work
 - Status: Integration; staged on saber-duel for Justin to commit. No new environment variables, external messages or deployment.
 ## Neptune destination — `feature/neptune-arena` (not merged)
 
-- Goal: Neptune as a second selectable destination beside Mars.
-- Flow: cockpit destination picker → roulette locks the chosen planet → Neptune cinematic (`web/public/assets/neptune/neptune-arrival.mp4`, which ends in blue cloud with no arena) → the live 3D scene, already compiled behind the video and parked in matching fog → the video fades to a cutout of its own final cockpit frame plus a matched blue veil → the camera flies out of the cloud, the fog clears, and the camera settles at the slot-1 shoulder pose → server-backed briefing and arena.
+- Goal: Neptune as a second arena beside Mars. The server rolls Mars/Neptune 50/50 per accepted challenge; `?world=mars|neptune` on the challenger's page is a testing override.
+- Flow: roulette locks the chosen planet → Neptune cinematic (`web/public/assets/neptune/neptune-arrival.mp4`, which ends in blue cloud with no arena) → the live 3D scene, already compiled behind the video and parked in matching fog → the video fades to a cutout of its own final cockpit frame plus a matched blue veil → the camera flies out of the cloud, the fog clears, and the camera settles at the slot-1 shoulder pose → server-backed briefing and arena.
 - Mars flow is unchanged.
 - Data and sources: `docs/neptune-sources.md`. The platform is fictional; the clouds are procedural and Voyager-informed.
 - Interface: the `challenge` command gains an optional `destination` (see `docs/contracts.md`), and `WorldId` gains `neptune`. Affects B (server/contracts) and A (cockpit/cinematics).
@@ -150,4 +150,5 @@ Shared music/effects mixer and supplied audio pack integrated into alex-dev work
   - `/?journey=neptune&skip`: reveal only.
   - `/?dev=arena&destination=neptune`: synthetic fighters.
 - Not yet checked in a real browser playing the video, on phones, or in a live two-client match.
+- 2026-10-18 check (saber-duel): server tests 98/98, integration tests 13/13, web typecheck + 99 tests pass, production build OK, all Neptune assets serve (arrival MP4 is H.264 + faststart). Fixed: the voice briefing iframe ignored `?world=neptune` and announced the Mars fixture (D's `client.mjs`, `demo-state.mjs`, `briefing.mjs`, `demo.html`), the copilot text said matches are always Mars, and the arena's basic-graphics recovery re-rendered the full Neptune scene. Live two-client match, phones and voice server still unverified.
 - Deploy server and client together before using Neptune in real matches. Not deployed or pushed.

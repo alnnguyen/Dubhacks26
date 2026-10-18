@@ -54,12 +54,12 @@ export function fixturePort(path) {
     }),
     getMatchState: ({ actorId }) => store.transact(data => {
       if (!['pilot-a', 'pilot-d'].includes(actorId)) throw new Error('Player unavailable.');
-      const gravityMps2 = { earth: 9.8, mars: 3.7, moon: 1.6 }[data.world];
+      const gravityMps2 = { earth: 9.8, mars: 3.7, moon: 1.6, neptune: 11.2 }[data.world];
       return { fixture: true, matchId: 'FIXTURE-MATCH', phase: 'briefing', world: data.world, gravityMps2,
         rockFlightSeconds: Number((0.8 * Math.sqrt(9.8 / gravityMps2)).toFixed(2)) };
     }),
     setDemoWorld: world => store.transact(data => {
-      if (!['earth', 'mars', 'moon'].includes(world)) throw new Error('Unknown fixture world.');
+      if (!['earth', 'mars', 'moon', 'neptune'].includes(world)) throw new Error('Unknown fixture world.');
       data.world = world;
     }),
   };
