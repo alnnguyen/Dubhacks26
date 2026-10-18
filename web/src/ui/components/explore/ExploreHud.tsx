@@ -207,7 +207,7 @@ export function ExploreHud({
           ))}
         </ul>
         {selected && (
-          <HoloButton variant="primary" disabled={challengeBusy} onClick={() => onChallenge(selected.id)}>
+          <HoloButton variant="primary" data-ui-sound="commit" disabled={challengeBusy} onClick={() => onChallenge(selected.id)}>
             Challenge {selected.callsign}
           </HoloButton>
         )}

@@ -233,7 +233,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
             <span className="sd-brand__sub">{phase === 'boarding' || view === 'pilot' ? 'Pilot seat // Boarding' : 'Bridge // Lobby'}</span>
           </p>
           {view !== 'lobby' ? (
-            <HoloButton size="sm" onClick={closePanel} aria-label="Back to bridge">
+            <HoloButton size="sm" data-ui-sound="commit" onClick={closePanel} aria-label="Back to bridge">
               ‹ Bridge
             </HoloButton>
           ) : (

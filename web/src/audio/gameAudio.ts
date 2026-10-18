@@ -13,7 +13,13 @@ export const AUDIO_FILES = {
   engine: { path: 'travel/engine_thrust_loop', volume: .20 },
   clash: { path: 'impact/vs_slam_a', volume: .38 },
   impact: { path: 'impact/impact_boom', volume: .25 },
-  click: { path: 'ui/ui_tap_b', volume: .22 },
+  hover: { path: 'ui/ui_tap_b', volume: .22 },
+  click: { path: 'ui/click_f', volume: .5 },
+  /** Stronger confirm for Radar / Enter Hyperspace. */
+  commit: { path: 'ui/click_j', volume: .55 },
+  back: { path: 'ui/click_h', volume: .5 },
+  /** Soft hologram chime when opening LYRA. */
+  lyraHello: { path: 'ui/lyra_hello', volume: .48 },
 } as const;
 export type SoundId = keyof typeof AUDIO_FILES;
 export type AudioScene = 'onboarding' | 'cockpit' | 'travel' | 'briefing' | 'battle' | 'result';

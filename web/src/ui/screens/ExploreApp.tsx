@@ -315,7 +315,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
 
       {(
         <div className="ex-exit">
-          <HoloButton size="sm" onClick={() => onExit ? onExit() : window.location.assign('/')}>
+          <HoloButton size="sm" data-ui-sound="commit" onClick={() => onExit ? onExit() : window.location.assign('/')}>
             ‹ Bridge
           </HoloButton>
         </div>
