@@ -32,6 +32,7 @@ import {
 } from "./setupWizard";
 import "./arena3d.css";
 import { SaberInitiation, SaberCountdown, saberCountdown } from "./SaberInitiation";
+import { IDLE_HOLD, TRACKING_GRACE_MS, holdsFight, tickFightHold, trackingLossNote, type FightHold } from "./fightHold";
 import { useLyraArenaSpeak } from "./useLyraArenaSpeak";
 
 /** Keep renderer failures from taking down the match controls. */
@@ -503,9 +504,25 @@ export function ArenaDuel({
   const fighting = view.phase === "active" && wizard.step === "done" && youArmed && rivalArmed && Boolean(saberStart?.unlocked) && serverFresh;
   mayStep.current = fighting;
   const finished = view.phase === "finished";
+  // Commands stay on the strict gate above; what's drawn holds through a short tracking
+  // gap so a 300 ms input stall on either side doesn't flash the initiation screen.
+  const [hold, setHold] = useState<FightHold>(IDLE_HOLD);
+  const unlocked = Boolean(saberStart?.unlocked);
+  const active = view.phase === "active";
+  useEffect(() => {
+    setHold((h) => tickFightHold(h, { fighting, unlocked, active, nowMs: performance.now() }));
+  }, [fighting, unlocked, active]);
+  const [graceOver, setGraceOver] = useState(false);
+  useEffect(() => {
+    if (hold.lostAtMs === null) { setGraceOver(false); return; }
+    const left = TRACKING_GRACE_MS - (performance.now() - hold.lostAtMs);
+    const id = window.setTimeout(() => setGraceOver(true), Math.max(0, left));
+    return () => window.clearTimeout(id);
+  }, [hold.lostAtMs]);
+  const inFight = fighting || (!graceOver && holdsFight(hold, false, performance.now()));
   useLyraArenaSpeak(client, {
     step: wizard.step,
-    fighting,
+    fighting: inFight,
     finished,
     winner: view.result?.winner,
     mySlot: you.slot,
@@ -516,17 +533,17 @@ export function ArenaDuel({
     if (finished && view.result?.reason === "knockout") gameAudio.play("saberKo");
   }, [finished, view.result?.reason, view.matchId, view.round]);
   useEffect(() => {
-    if (fighting && running && !loading && replayEnabled && videoRef.current && onReplaySource) return onReplaySource(videoRef.current);
-  }, [fighting, running, loading, replayEnabled, onReplaySource]);
+    if (inFight && running && !loading && replayEnabled && videoRef.current && onReplaySource) return onReplaySource(videoRef.current);
+  }, [inFight, running, loading, replayEnabled, onReplaySource]);
 
   return (
-    <main className="arena-duel" data-initiating={!fighting && !finished}>
+    <main className="arena-duel" data-initiating={!inFight && !finished}>
       <div className="si-arena-viewport">
       <ArenaRenderBoundary key={renderAttempt} onLeave={onLeave} onBasic={() => { setBasicGraphics(true); setRenderAttempt((n) => n + 1); }}>
       <ArenaScene
         destination={destinationFromWorld(view.world.id)}
         basicGraphics={basicGraphics}
-        initiation={!fighting && !finished}
+        initiation={!inFight && !finished}
         getFrame={getFrame}
         flashRef={flashRef}
         mySlot={you.slot}
@@ -539,8 +556,11 @@ export function ArenaDuel({
         <button type="button" className="arena-leave" onClick={finished ? onLeave : onForfeit}>
           {finished ? "Back to bridge" : "Forfeit"}
         </button>
-        {fighting && replayEnabled && onReplayEnabled && <button type="button" className="arena-replay-stop" onClick={() => onReplayEnabled(false)}>Stop replay recording</button>}
-        {!fighting && !finished && <p className="arena-note" role="status">
+        {inFight && replayEnabled && onReplayEnabled && <button type="button" className="arena-replay-stop" onClick={() => onReplayEnabled(false)}>Stop replay recording</button>}
+        {inFight && !fighting && <p className="arena-note arena-tracking" role="status">
+          {trackingLossNote({ youBody: you.saber.bodyReady, youSaber: you.saber.saberReady, rivalArmed, serverFresh, rivalName: rival.callsign })}
+        </p>}
+        {!inFight && !finished && <p className="arena-note" role="status">
           {view.phase === "waiting"
               ? `Waiting for ${rival.callsign} to arrive in the arena…`
               : wizard.step === "done"
@@ -549,7 +569,7 @@ export function ArenaDuel({
         </p>}
       </div>
 
-      {!fighting && view.phase !== "finished" && <SaberInitiation
+      {!inFight && view.phase !== "finished" && <SaberInitiation
         step={wizard.step} progress={wizard.progress} running={running} loading={loading}
         bodySeen={bodySeen} phonePaired={you.saber.paired} phoneLive={you.saber.phoneLive}
         youReady={youArmed} rivalReady={rivalArmed} yourName={you.callsign} rivalName={rival.callsign}
@@ -558,10 +578,10 @@ export function ArenaDuel({
         notes={wizard.notes} error={error} onStart={() => setRunning(true)} onRedo={redoSetup}
       />}
       <SaberCountdown start={saberStart} remaining={countdown} fresh={!finished && serverFresh && wizard.step === "done" && youArmed && rivalArmed} />
-      {running && !fighting && !finished && <span className="si-self-label">LIVE CAMERA</span>}
+      {running && !inFight && !finished && <span className="si-self-label">LIVE CAMERA</span>}
 
-      {(fighting || finished) && (
-        <BattleHud client={client} view={view} fighting={fighting} finished={finished}>
+      {(inFight || finished) && (
+        <BattleHud client={client} view={view} fighting={inFight} finished={finished}>
           <div className="bh-result-actions">
             <p className="arena-result-status" role="status">
               {!rival.connected
