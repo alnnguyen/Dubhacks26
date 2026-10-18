@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, mock, test } from "node:test";
-import type { ProjectileLanded } from "../contracts.js";
 import { RULES } from "../game/rules.js";
-import { Lobby } from "./index.js";
+import { Lobby, pickArenaWorld } from "./index.js";
 
 const ALICE = "player-alice";
 const BOB = "player-bob";
@@ -10,20 +9,18 @@ const CAROL = "player-carol";
 
 let lobby: Lobby;
 let changes: number;
-let landed: { playerIds: string[]; event: ProjectileLanded }[];
 let nextId: number;
 
 beforeEach(() => {
   mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_000_000 });
   changes = 0;
-  landed = [];
   nextId = 0;
   lobby = new Lobby(
     {
       changed: () => changes++,
-      projectileLanded: (playerIds, event) => landed.push({ playerIds, event }),
       saberResolved: () => {},
       arenaFrame: () => {},
+      stepped: () => {},
     },
     { pickWorld: () => "moon" },
   );
@@ -76,6 +73,30 @@ describe("joining", () => {
     assert.equal(send(ALICE, { type: "setCallsign", callsign: "<script>" }).status, "rejected");
     assert.equal(send(ALICE, { type: "setCallsign", callsign: " nova  7 " }).status, "accepted");
     assert.equal(lobby.lobbyView(BOB).pilots[0].callsign, "NOVA 7");
+  });
+
+  test("an exploration location is shown to other pilots until cleared", () => {
+    assert.equal(lobby.lobbyView(BOB).pilots[0].location, undefined);
+    const place = { bodyId: "exo-trappist-1-e", label: " TRAPPIST-1  e " };
+    assert.equal(send(ALICE, { type: "setLocation", location: place }).status, "accepted");
+    assert.deepEqual(lobby.lobbyView(BOB).pilots[0].location, { bodyId: "exo-trappist-1-e", label: "TRAPPIST-1 e" });
+    assert.deepEqual(lobby.lobbyView(ALICE).you.location, { bodyId: "exo-trappist-1-e", label: "TRAPPIST-1 e" });
+    assert.equal(send(ALICE, { type: "setLocation", location: null }).status, "accepted");
+    assert.equal(lobby.lobbyView(BOB).pilots[0].location, undefined);
+  });
+
+  test("malformed locations are refused and keep the last one", () => {
+    send(ALICE, { type: "setLocation", location: { bodyId: "jupiter", label: "Jupiter" } });
+    for (const location of [
+      { bodyId: "../etc", label: "Jupiter" },
+      { bodyId: "jupiter", label: "<script>alert(1)</script>" },
+      { bodyId: "jupiter", label: "x".repeat(49) },
+      { bodyId: "jupiter" },
+      "jupiter",
+    ]) {
+      assert.equal(send(ALICE, { type: "setLocation", location }).status, "rejected");
+    }
+    assert.deepEqual(lobby.lobbyView(BOB).pilots[0].location, { bodyId: "jupiter", label: "Jupiter" });
   });
 
   test("commands from unknown players are rejected", () => {
@@ -147,7 +168,7 @@ describe("challenges", () => {
     const a = lobby.matchView(ALICE)!;
     const b = lobby.matchView(BOB)!;
     assert.equal(a.matchId, b.matchId);
-    assert.deepEqual([a.phase, a.world.id, a.world.rockFlightMs], ["waiting", "moon", 1980]);
+    assert.deepEqual([a.phase, a.world.id, a.world.gravityMps2], ["waiting", "moon", 1.6]);
     assert.deepEqual([a.you.callsign, a.rival.callsign], ["ALICE", "BOB"]);
     assert.equal(lobby.lobbyView(ALICE).pilots[0].status, "in-duel");
   });
@@ -155,29 +176,38 @@ describe("challenges", () => {
 
 describe("matches", () => {
   test("combat commands are refused outside a match", () => {
-    assert.deepEqual(send(ALICE, { type: "throwRock" }, "t"), {
+    assert.deepEqual(send(ALICE, { type: "ready" }, "t"), {
       commandId: "t",
       status: "rejected",
       reason: "not_in_match",
     });
   });
 
-  test("a hit reaches both players and a knockout updates the record", () => {
+  test("a finished match updates both records and frees both pilots", () => {
     startMatch();
     assert.equal(lobby.matchView(ALICE)!.phase, "active");
-    send(ALICE, { type: "gunActive" });
-    for (let i = 0; i < 5; i++) {
-      assert.equal(send(ALICE, { type: "fireGun" }).status, "accepted");
-      mock.timers.tick(1000);
-    }
-    assert.deepEqual(landed[0].playerIds, [ALICE, BOB]);
-    assert.deepEqual(lobby.matchView(BOB)!.result, { winner: 1, reason: "knockout" });
+    send(BOB, { type: "leaveMatch" });
+    assert.deepEqual(lobby.matchView(ALICE)!.result, { winner: 1, reason: "forfeit" });
 
     send(ALICE, { type: "leaveMatch" });
-    send(BOB, { type: "leaveMatch" });
     assert.equal(lobby.matchView(ALICE), null);
     const view = lobby.lobbyView(ALICE);
     assert.deepEqual([view.you.wins, view.pilots[0].losses, view.pilots[0].status], [1, 1, "available"]);
+  });
+
+  test("a step goes through the command path, and a retried commandId doesn't step twice", () => {
+    assert.equal(send(ALICE, { type: "step", direction: "forward" }).status, "rejected", "not in a match");
+    startMatch();
+    assert.equal(send(ALICE, { type: "step", direction: "forward" }, "step-1").status, "accepted");
+    // The retry repeats the first reply instead of stepping again (or being buffered).
+    assert.equal(send(ALICE, { type: "step", direction: "forward" }, "step-1").status, "accepted");
+    // One more is buffered mid-glide; a third is refused.
+    assert.equal(send(ALICE, { type: "step", direction: "left" }, "step-2").status, "accepted");
+    assert.deepEqual(send(ALICE, { type: "step", direction: "left" }, "step-3"), {
+      commandId: "step-3",
+      status: "rejected",
+      reason: "busy",
+    });
   });
 
   test("leaving an unfinished match forfeits it to the opponent", () => {
@@ -200,5 +230,34 @@ describe("matches", () => {
     const before = changes;
     challengeBobFromAlice();
     assert.ok(changes > before);
+  });
+});
+
+describe('destination selection',()=>{
+ test('an accepted Neptune challenge shares one immutable world with both pilots and reconnects',()=>{
+  assert.equal(send(ALICE,{type:'challenge',pilotId:idOf(BOB),destination:'neptune'},'route').status,'accepted');
+  const id=lobby.lobbyView(BOB).challenge!.id;
+  assert.equal(send(BOB,{type:'acceptChallenge',challengeId:id},'accept-neptune').status,'accepted');
+  const a=lobby.matchView(ALICE)!,b=lobby.matchView(BOB)!;
+  assert.equal(a.world.id,'neptune');assert.deepEqual(a.world,b.world);assert.equal(a.matchId,b.matchId);
+  assert.equal(send(ALICE,{type:'challenge',pilotId:idOf(BOB),destination:'mars'},'route').status,'accepted');
+  assert.equal(lobby.matchView(ALICE)!.world.id,'neptune');
+  lobby.disconnect(ALICE);lobby.join(ALICE,'alice');assert.equal(lobby.matchView(ALICE)!.world.id,'neptune');
+ });
+ test('rejects unsupported destinations and retains explicit Mars',()=>{
+  assert.equal(send(ALICE,{type:'challenge',pilotId:idOf(BOB),destination:'saturn'}).status,'rejected');
+  assert.equal(lobby.lobbyView(BOB).challenge,null);
+  send(ALICE,{type:'challenge',pilotId:idOf(BOB),destination:'mars'});
+  send(BOB,{type:'acceptChallenge',challengeId:lobby.lobbyView(BOB).challenge!.id});
+  assert.equal(lobby.matchView(BOB)!.world.id,'mars');
+ });
+});
+
+describe('arena world roll', () => {
+  test('splits Mars and Neptune evenly', () => {
+    assert.equal(pickArenaWorld(() => 0), 'mars');
+    assert.equal(pickArenaWorld(() => 0.49), 'mars');
+    assert.equal(pickArenaWorld(() => 0.5), 'neptune');
+    assert.equal(pickArenaWorld(() => 0.99), 'neptune');
   });
 });

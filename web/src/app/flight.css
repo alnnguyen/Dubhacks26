@@ -17,19 +17,24 @@
 .flight-flow .stage {position:relative;aspect-ratio:3/4;max-height:65vh;background:#000;overflow:hidden;margin:20px 0}
 .flight-flow .video,.flight-flow .overlay {position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .flight-flow .overlay {pointer-events:none}
+.flight-flow .gun-layer {z-index:2}
 .flight-flow .panel,.flight-flow .log {background:#101f30;padding:16px;margin:12px 0;border:1px solid #31485b}
 .flight-flow .error {color:#ffaaaa}
 .flight-flow .on {background:#684c20}
 .flight-warning {background:#533a1e;border-left:4px solid #f5bb65;padding:12px}
 .flight-flow .duel-page {max-width:720px;margin:12px auto;padding:0}
-.flight-flow .duel-page .controls {display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.flight-flow .duel-page .controls {display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;align-items:center}
 .flight-flow .duel-page .controls button {font:inherit;color:inherit;background:#173148;border:1px solid #4d728b;border-radius:6px;padding:11px 16px;cursor:pointer;min-width:4.5rem}
 .flight-flow .duel-page .controls button.primary {background:#174e45;border-color:#67d9bb}
 .flight-flow .duel-page .controls button.on {background:#684c20}
 .flight-flow .duel-page .controls button:disabled {opacity:.5;cursor:not-allowed}
+.flight-flow .duel-page .controls .weapon-switch {display:inline-flex;gap:0;border:1px solid #4d728b;border-radius:6px;overflow:hidden}
+.flight-flow .duel-page .controls .weapon-switch button {border:0;border-radius:0;min-width:4rem}
+.flight-flow .duel-page .controls .weapon-switch button + button {border-left:1px solid #4d728b}
 .flight-flow .duel-stage {position:relative;aspect-ratio:3/4;max-height:min(78vh,920px);background:#000;overflow:hidden;border-radius:10px;border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 40px rgba(0,0,0,.45)}
 .flight-flow .duel-stage .video,.flight-flow .duel-stage .overlay {position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .flight-flow .duel-stage .overlay {pointer-events:none;z-index:1}
+.flight-flow .duel-stage .gun-layer {z-index:2}
 .flight-flow .duel-tint {position:absolute;inset:0;pointer-events:none;mix-blend-mode:soft-light;z-index:2}
 .flight-flow .duel-tint-earth .duel-tint {background:linear-gradient(160deg,rgba(40,120,200,.28),rgba(20,60,40,.18))}
 .flight-flow .duel-tint-mars .duel-tint {background:linear-gradient(160deg,rgba(190,70,30,.38),rgba(80,20,10,.22))}
@@ -44,6 +49,16 @@
 .flight-flow .duel-bar-fill.rival {background:linear-gradient(90deg,#a33a2a,#ff8f6a)}
 .flight-flow .duel-incoming {margin:8px 0 0;padding:8px 10px;font-weight:700;letter-spacing:.08em;color:#1a1008;background:#f5bb65;border-radius:4px}
 .flight-flow .duel-phase {margin:8px 0 0;font-size:14px;color:#c9d7ef}
+.flight-flow .duel-cv {margin:8px 0 0;padding:8px 10px;background:rgba(4,12,24,.72);border:1px solid rgba(255,255,255,.16);border-radius:6px;font-size:12px;line-height:1.35;color:#d7e6ff;pointer-events:none}
+.flight-flow .duel-cv p {margin:0 0 4px}
+.flight-flow .duel-cv strong {color:#fff6c8;font-weight:700;text-transform:uppercase}
+.flight-flow .duel-cv-server {color:#9dffc4}
+.flight-flow .duel-cv-log {margin:4px 0 0;padding-left:1.1rem;color:#b7c9e0}
+.flight-flow .duel-cv-log-empty {color:#8fa3bb;font-style:italic}
 .flight-flow .duel-hint {color:#a7bdce;font-size:14px;margin:8px 0 0}
 .flight-flow .duel-page .error {color:#ffaaaa}
 @media(max-width:600px){.flight-flow{padding:12px}.flight-panel,.flight-flow .page{padding:16px}.flight-voice{height:760px}}
+
+/* Exceptional arrival failures only; normal arrival opens saber setup directly. */
+.flight-entry-error {position:fixed;left:24px;bottom:24px;z-index:20;max-width:420px;padding:12px 16px;background:#091728f5;border:1px solid #e3aa6f;color:#f8ddbd;font:12px/1.6 'JetBrains Mono',monospace;}
+.flight-entry-error p {margin:0 0 8px;}.flight-entry-error button {font:inherit;color:#d7f3ff;background:#173148;border:1px solid #72b2d8;padding:7px 12px;cursor:pointer;}.flight-entry-error button:disabled {opacity:.5;cursor:wait;}

@@ -52,9 +52,9 @@ export function MarsPreview() {
             </div>
           ))}
           <div>
-            <dt>Rock flight window</dt>
+            <dt>Game gravity</dt>
             <dd>
-              {gameplay.rockFlightSeconds} s <span>(game, g = {gameplay.gravity})</span>
+              {gameplay.gravity} m/s² <span>(rounded)</span>
             </dd>
           </div>
         </dl>

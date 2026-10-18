@@ -83,7 +83,7 @@ test("malformed join is rejected", async () => {
 });
 
 test("a socket that has not joined cannot send commands", async () => {
-  assert.deepEqual(await send(open(), { commandId: "c1", type: "throwRock" }), {
+  assert.deepEqual(await send(open(), { commandId: "c1", type: "ready" }), {
     commandId: "c1",
     status: "rejected",
     reason: "not_joined",
@@ -109,9 +109,8 @@ test("the match starts when both are ready, and a retried command isn't applied 
   await send(bob, { commandId: "ready-1", type: "ready" });
   await active;
 
-  const block = { commandId: "bob-block-1", type: "startBlock" } as const;
-  assert.deepEqual(await send(bob, block), { commandId: "bob-block-1", status: "accepted" });
-  assert.deepEqual(await send(bob, block), { commandId: "bob-block-1", status: "accepted" });
+  // A retry of an applied ready repeats its reply instead of being refused as match_not_active.
+  assert.deepEqual(await send(bob, { commandId: "ready-1", type: "ready" }), { commandId: "ready-1", status: "accepted" });
 });
 
 test("a phone pairs as a pilot's saber, and the arena shows the blade to both laptops", async () => {
@@ -148,9 +147,29 @@ test("a phone pairs as a pilot's saber, and the arena shows the blade to both la
   // Alice's laptop gets her own phone's readings for its setup checks.
   assert.deepEqual(await aliceSeesPhone, { seq: 1, tracked: true, top: [0, 0, 1], rate: 0 });
   const frame = await bobSeesBlade;
-  // Alice's right wrist, at slot 1's spot (hips 1 m up), blade straight up.
-  assert.deepEqual(frame.players[0].blade?.hilt, [0.2, 1.3, 0.3]);
-  assert.deepEqual(frame.players[0].blade?.tip.map((n) => Math.round(n * 100) / 100), [0.2, 2.2, 0.3]);
+  // Alice's right wrist, in her starting cell (a row back from the front line, hips 1 m up), blade straight up.
+  const round = (v: number[] | undefined) => v?.map((n) => Math.round(n * 100) / 100);
+  assert.deepEqual(round(frame.players[0].blade?.hilt), [0.2, 1.3, -1]);
+  assert.deepEqual(round(frame.players[0].blade?.tip), [0.2, 2.2, -1]);
+  assert.equal(frame.engaged, false);
+});
+
+test("a phone's thumb swipe steps its pilot, announced to both laptops at once", async () => {
+  const phone = open();
+  await new Promise((resolve) => phone.emit("pairSaber", { code: alicePairCode }, resolve));
+  const step = (stepId: string) =>
+    new Promise<CommandReply>((resolve) => phone.emit("saberStep", { stepId, direction: "forward" }, resolve));
+  const bobSees = new Promise<Parameters<ServerToClientEvents["stepped"]>[0]>((resolve) => bob.once("stepped", resolve));
+  assert.deepEqual(await step("swipe-1"), { commandId: "swipe-1", status: "accepted" });
+  assert.deepEqual(await bobSees, { slot: 1, cell: { q: 0, r: -1 } });
+  // A retried swipe repeats its reply instead of stepping again.
+  assert.deepEqual(await step("swipe-1"), { commandId: "swipe-1", status: "accepted" });
+
+  const stranger = open();
+  const refused = await new Promise<CommandReply>((resolve) =>
+    stranger.emit("saberStep", { stepId: "x", direction: "forward" }, resolve),
+  );
+  assert.equal(refused.status, "rejected");
 });
 
 test("a player who disconnects reclaims their match with the same playerId", async () => {

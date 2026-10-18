@@ -21,7 +21,7 @@ Record device/browser, observed result and remaining failures during actual test
 
 ## Phone QA — duel HUD on alex-dev (Alan + Alex)
 
-Run the **flight flow** duel HUD (not only `/?camera=1`). Lab harness remains available at `/?camera=1` for calibration debug.
+The rock/gun camera duel and its `/?camera=1` / `/?pvp=1` routes were removed October 18. The rows below are kept as a record and no longer apply; test the saber arena instead.
 
 ### Setup
 
@@ -48,6 +48,7 @@ Open the printed HTTPS URL on laptop; for phones tunnel e.g. `npx --yes cloudfla
 | Deny camera once → clear error, no crash | | | |
 | Return to cockpit; camera stopped | | | |
 | Optional: `/?camera=1` still shows full debug log/skeletons | | | |
+| `/?pvp=1` with the game server: palm → fist grab → fling throw damages rival after the Mars window; hold Block stops it; Gun: fist hold then index+middle extend (or Fire gun) hits in ~0.8 s | | | Gestures retuned 2026-10-17 evening. Not yet checked on two phones. |
 
 **Testers:** Alan (C), Alex (D help). **Date:** ________ **Result:** ________
 

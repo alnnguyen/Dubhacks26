@@ -1,4 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { DESTINATIONS, type DestinationId } from '../../destinations/config';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnchorRegistry } from '../components/spaceship/anchors';
 import { ProfileChip, ProfilePanel } from '../components/hud/PlayerProfile';
 import { BlipLabels, NearbyPlayersPanel } from '../components/hud/NearbyPlayers';
@@ -6,26 +7,41 @@ import { CommandConsole, CockpitShortcuts } from '../components/hud/CommandConso
 import { ChallengeModal } from '../components/hud/ChallengeModal';
 import { SettingsPanel } from '../components/hud/SettingsPanel';
 import { HoloButton } from '../components/hud/primitives';
+import { HologramCopilot } from '../../voice/HologramCopilot';
+import type { GameClient } from '../../networking';
 import { useMockLobby } from '../state/useMockLobby';
 import type { LobbyView, LobbyViewModel, NearbyPilot, SceneSettings } from '../state/lobbyTypes';
+import { preloadPlanetaryTextures } from '../cinematics/PlanetaryRoulette';
+import { PlanetaryTransition } from '../cinematics/PlanetaryTransition';
+import { PlanetarySound } from '../cinematics/PlanetarySound';
+import type { PlanetaryCinematicState } from '../cinematics/sequence';
 import '../styles/spaceship.css';
+import '../styles/explore.css';
+import '../../onboarding/onboarding.css';
+import { gameAudio } from '../../audio/gameAudio';
+import { useAudioScene } from '../../audio/useAudioScene';
 
 const SpaceshipScene = lazy(() => import('../components/spaceship/SpaceshipScene').then((m) => ({ default: m.SpaceshipScene })));
 
+const ExploreApp = lazy(() => import('./ExploreApp').then(m => ({ default: m.ExploreApp })));
+const HyperspaceTunnel = lazy(() => import('../../onboarding/HyperspaceTunnel').then(m => ({ default: m.HyperspaceTunnel })));
+type BridgePhase = 'bridge' | 'boarding' | 'warping' | 'drive';
+
 export interface SpaceshipHomeProps {
+  destination?: DestinationId;
   /** Real lobby adapter from the multiplayer module. Uses local mocks when omitted. */
   lobby?: LobbyViewModel;
-  /**
-   * Called once the launch transition finishes. Integration point for the
-   * battle setup flow (owned by the game lead). If omitted, a placeholder
-   * hand-off screen is shown.
-   */
+  /** Development-only local rehearsal callback; normal gameplay uses onTravelComplete. */
   onEnterBattle?: (opponent: NearbyPilot) => void;
+  /** Called once after travel ends or is skipped, with the world the server chose; the arena entry follows. */
+  onTravelComplete?: (destination: DestinationId) => void;
   /** Optional GLB cockpit to replace the procedural prototype. */
   cockpitModelUrl?: string;
+  /** Optional compact controls in the existing Radar / Console dock. */
+  cockpitControls?: ReactNode;
+  /** Read-only Grok access through this live player connection; omitted in Demo. */
+  copilotClient?: GameClient;
 }
-
-const LAUNCH_MS = 1700;
 
 function initialSettings(): SceneSettings {
   const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -38,18 +54,44 @@ function initialSettings(): SceneSettings {
   return { quality: 'high', reducedMotion: !!reduced, parallax: true, ...saved };
 }
 
-export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl }: SpaceshipHomeProps) {
+export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete, cockpitModelUrl, cockpitControls, copilotClient, destination:providedDestination }: SpaceshipHomeProps) {
+  // The server rolls the world; local rehearsals (no server) roll 50/50 here.
+  const [localDestination]=useState<DestinationId>(()=>Math.random()<0.5?'mars':'neptune');
+  const destination=providedDestination??localDestination;
   const mock = useMockLobby({ enabled: !external });
   const lobby = external ?? mock.lobby;
   const { challenge, actions } = lobby;
 
   const anchors = useMemo(() => new AnchorRegistry(), []);
   const [view, setView] = useState<LobbyView>('lobby');
+  const [phase, setPhase] = useState<BridgePhase>('bridge');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settings, setSettings] = useState<SceneSettings>(initialSettings);
   const [autoDowngraded, setAutoDowngraded] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
+  const [rouletteAssetsReady, setRouletteAssetsReady] = useState(false);
+  const [rouletteReady, setRouletteReady] = useState(false);
+  const markRouletteReady = useCallback((ready: boolean) => setRouletteReady(ready), []);
+  useEffect(() => {
+    let cancelled = false;
+    const finish = () => { if (!cancelled) setRouletteAssetsReady(true); };
+    const timeout = window.setTimeout(finish, 10000);
+    void preloadPlanetaryTextures().then(finish);
+    return () => { cancelled = true; window.clearTimeout(timeout); };
+  }, []);
   const [handoff, setHandoff] = useState<NearbyPilot | null>(null);
+  const [travelActive, setTravelActive] = useState(false);
+  const [cinematic, setCinematic] = useState<PlanetaryCinematicState>({ phase: 'idle', selectedPlanet: 'earth' });
+  const cinematicTick = useRef<((delta: number) => void) | null>(null);
+  const tickCinematic = useCallback((delta: number) => cinematicTick.current?.(delta), []);
+  const travelOpponent = useRef<NearbyPilot | null>(null);
+  const sound = useMemo(() => new PlanetarySound(), []);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [audioUnavailable, setAudioUnavailable] = useState(false);
+  useAudioScene(phase === 'drive' ? null : travelActive || phase === 'warping' ? 'travel' : 'cockpit');
+  useEffect(() => phase === 'warping' ? gameAudio.play('jump') : undefined, [phase]);
+  const matchupPilot = challenge.kind === 'accepted' || challenge.kind === 'ready' ? challenge.opponent.id : null;
+  useEffect(() => matchupPilot ? gameAudio.play('clash') : undefined, [matchupPilot]);
 
   useEffect(() => {
     try {
@@ -59,59 +101,120 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
     }
   }, [settings]);
 
-  // Launch transition -> hand off to battle setup.
+  // Latch an accepted launch until arrival. Lobby snapshots and reconnects must
+  // not tear down the in-progress video or restart it after completion.
+  const launchOpponentId = challenge.kind === 'launching' ? challenge.opponent.id : null;
+  const launchOpponent = useRef<NearbyPilot | null>(null);
+  if (challenge.kind === 'launching') launchOpponent.current = challenge.opponent;
   useEffect(() => {
-    if (challenge.kind !== 'launching') return;
-    const opp = challenge.opponent;
-    const id = setTimeout(() => {
-      if (onEnterBattle) onEnterBattle(opp);
-      else setHandoff(opp);
-    }, settings.reducedMotion ? 300 : LAUNCH_MS);
-    return () => clearTimeout(id);
-  }, [challenge, onEnterBattle, settings.reducedMotion]);
+    if (!launchOpponentId || !launchOpponent.current) return;
+    travelOpponent.current = launchOpponent.current;
+    setTravelActive(true);
+  }, [launchOpponentId]);
+
+  useEffect(() => () => sound.dispose(), [sound]);
 
   // Close side panels when a challenge takes over the bridge.
   useEffect(() => {
-    if (challenge.kind === 'outgoing' || challenge.kind === 'incoming' || challenge.kind === 'accepted') setView('lobby');
-  }, [challenge.kind]);
+    if (['outgoing', 'incoming', 'accepted', 'ready'].includes(challenge.kind)) {
+      setView('lobby');
+      if (phase === 'boarding' || phase === 'warping') setPhase('bridge');
+    }
+  }, [challenge.kind, phase]);
+
+  // A challenge launched from exploration uses the same accepted-match travel path.
+  useEffect(() => {
+    if (phase !== 'drive' || challenge.kind !== 'launching') return;
+    setPhase('bridge'); setView('lobby'); setSceneReady(false); setRouletteReady(false);
+  }, [phase, challenge.kind]);
+  useEffect(() => {
+    if (phase !== 'boarding') return;
+    const id = window.setTimeout(() => setPhase('warping'), settings.reducedMotion ? 280 : 1600);
+    return () => window.clearTimeout(id);
+  }, [phase, settings.reducedMotion]);
 
   // Drop the selection if that pilot leaves range.
   useEffect(() => {
     if (selectedId && !lobby.nearby.some((p) => p.id === selectedId)) setSelectedId(null);
   }, [lobby.nearby, selectedId]);
 
-  const navigate = useCallback((v: LobbyView) => setView(v), []);
-  const closePanel = useCallback(() => setView('lobby'), []);
+  const sitInPilot = useCallback(() => { setView('pilot'); setPhase('boarding'); }, []);
+  const navigate = useCallback((v: LobbyView) => {
+    if (v === 'pilot') { setView('pilot'); setPhase('boarding'); }
+    else setView(v);
+  }, []);
+  const closePanel = useCallback(() => { setPhase('bridge'); setView('lobby'); }, []);
+  const exitDrive = useCallback(() => { setPhase('bridge'); setView('lobby'); setSceneReady(false); setRouletteReady(false); }, []);
+  const updateCinematic = useCallback((state: PlanetaryCinematicState) => setCinematic(state), []);
+  const enableCinematicAudio = useCallback(() => {
+    void sound.unlock().then((enabled) => {
+      setAudioEnabled(enabled);
+      setAudioUnavailable(!enabled);
+      if (enabled) sound.activation();
+    });
+  }, [sound]);
+  const launch = useCallback(() => {
+    enableCinematicAudio();
+    actions.launch();
+  }, [actions, enableCinematicAudio]);
+  const finishTravel = useCallback(
+    (destination: DestinationId) => {
+      setTravelActive(false);
+      setCinematic({ phase: 'idle', selectedPlanet: destination });
+      const opponent = travelOpponent.current;
+      travelOpponent.current = null;
+      if (onTravelComplete) onTravelComplete(destination);
+      else if (onEnterBattle && opponent) onEnterBattle(opponent);
+      else if (opponent) setHandoff(opponent);
+    },
+    [onEnterBattle, onTravelComplete],
+  );
 
   // Panels close on Escape themselves; the console close-up has no panel, so handle it here.
   useEffect(() => {
-    if (view !== 'console') return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setView('lobby');
+    if (phase === 'drive' || (view !== 'console' && view !== 'pilot')) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePanel(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [view]);
+  }, [view, phase, closePanel]);
   const select = useCallback((id: string) => {
     setSelectedId(id);
     setView('radar');
   }, []);
 
-  const mood = challenge.kind === 'launching' ? 'launch' : challenge.kind === 'incoming' ? 'alert' : challenge.kind === 'ready' || challenge.kind === 'accepted' ? 'ready' : 'calm';
+  const mood = phase === 'warping' || (challenge.kind === 'launching' && cinematic.phase !== 'idle') ? 'launch' : challenge.kind === 'incoming' ? 'alert' : challenge.kind === 'ready' || challenge.kind === 'accepted' ? 'ready' : 'calm';
   const busy = challenge.kind !== 'idle' && challenge.kind !== 'declined';
-  const lobbyView = view === 'lobby' && !busy;
+  const lobbyView = view === 'lobby' && !busy && phase === 'bridge';
 
   const returnToBridge = () => {
     setHandoff(null);
     actions.dismiss();
+    setPhase('bridge');
     setView('lobby');
   };
 
+  if (phase === 'drive') return <Suspense fallback={<p className="sd-boot__line">Engaging drive…</p>}>
+    <ExploreApp lobby={lobby} settings={settings} onSettingsChange={setSettings} onExit={exitDrive} onBattleLaunch={launch} copilotClient={copilotClient} />
+  </Suspense>;
+
   return (
-    <div className="sd-root" data-quality={settings.quality} data-reduced-motion={settings.reducedMotion} data-mood={mood} data-ready={sceneReady}>
+    <div
+      className="sd-root"
+      data-quality={settings.quality}
+      data-reduced-motion={settings.reducedMotion}
+      data-mood={mood}
+      data-ready={sceneReady}
+      data-travel-active={travelActive}
+    >
       <Suspense fallback={null}>
         <SpaceshipScene
           settings={settings}
           view={view}
           mood={mood}
+          cinematic={cinematic}
+          prepareRoulette={rouletteAssetsReady}
+          onRoulettePrepared={markRouletteReady}
+          onCinematicFrame={tickCinematic}
           pilots={lobby.nearby}
           selectedId={selectedId}
           callsign={lobby.self.callsign}
@@ -128,14 +231,14 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
         />
       </Suspense>
 
-      <div className="sd-hud">
+      <div className="sd-hud" aria-hidden={travelActive}>
         <header className="sd-topbar">
           <p className="sd-brand">
             <span>Jedi Space Duels</span>
-            <span className="sd-brand__sub">Bridge // Lobby</span>
+            <span className="sd-brand__sub">{phase === 'boarding' || view === 'pilot' ? 'Pilot seat // Boarding' : 'Bridge // Lobby'}</span>
           </p>
           {view !== 'lobby' ? (
-            <HoloButton size="sm" onClick={closePanel} aria-label="Back to bridge">
+            <HoloButton size="sm" data-ui-sound="commit" onClick={closePanel} aria-label="Back to bridge">
               ‹ Bridge
             </HoloButton>
           ) : (
@@ -154,8 +257,11 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
           hidden={!lobbyView}
           onRadar={() => setView('radar')}
           onConsole={() => setView('console')}
+          onPilot={sitInPilot}
+          controls={cockpitControls}
         />
         <CommandConsole hidden={view !== 'console'} onNavigate={navigate} />
+        {phase === 'boarding' && <p className="sd-pilot-hint" aria-live="polite">Seated · engaging flight systems…</p>}
         {view === 'radar' && <BlipLabels anchors={anchors} pilots={lobby.nearby} selectedId={selectedId} onSelect={setSelectedId} />}
 
         <NearbyPlayersPanel
@@ -191,6 +297,8 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
           dev={external ? undefined : mock.dev}
         />
 
+        <HologramCopilot lobby={lobby} client={copilotClient} hidden={!lobbyView} onNavigate={navigate} onSelectPilot={select} />
+
         <ChallengeModal
           phase={challenge}
           self={lobby.self}
@@ -198,23 +306,42 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
           onDecline={actions.decline}
           onCancel={actions.cancelChallenge}
           onDismiss={actions.dismiss}
-          onLaunch={actions.launch}
+          onLaunch={launch}
         />
       </div>
 
-      <div className="sd-launch" data-active={challenge.kind === 'launching'} aria-hidden={challenge.kind !== 'launching'}>
+      <div className="sd-launch" data-active={challenge.kind === 'launching' && !travelActive} aria-hidden={challenge.kind !== 'launching' || travelActive}>
         <p>Expanding domain…</p>
       </div>
+
+      {phase === 'warping' && <Suspense fallback={<div className="ob-warp"/>}>
+        <HyperspaceTunnel active caption="Launching free flight…" durationMs={settings.reducedMotion ? 400 : 2000} onFinished={() => setPhase('drive')} />
+      </Suspense>}
+
+      {travelActive && (
+        <PlanetaryTransition
+          destination={destination}
+          sceneReady={sceneReady && rouletteReady}
+          frameTick={cinematicTick}
+          reducedMotion={settings.reducedMotion}
+          audio={sound}
+          audioEnabled={audioEnabled}
+          audioUnavailable={audioUnavailable}
+          onEnableAudio={enableCinematicAudio}
+          onStateChange={updateCinematic}
+          onComplete={finishTravel}
+        />
+      )}
 
       {handoff && (
         <div className="sd-handoff" role="dialog" aria-modal="true" aria-labelledby="sd-handoff-title">
           <div className="sd-challenge__card">
-            <p className="sd-eyebrow">Hand-off point</p>
+            <p className="sd-eyebrow">Destination locked // {DESTINATIONS[destination].displayName}</p>
             <h2 id="sd-handoff-title" className="sd-challenge__title">
-              Battle setup vs {handoff.callsign}
+              {DESTINATIONS[destination].displayName} arena connection
             </h2>
             <p className="sd-challenge__desc">
-              The lobby is finished here. Pass <code>onEnterBattle</code> to <code>SpaceshipHome</code> to continue into shared battle setup (owned by the game client).
+              Planetary travel is complete. Connect the accepted match to its server-backed briefing and readiness flow to enter the live arena.
             </p>
             <div className="sd-challenge__actions">
               <HoloButton variant="primary" onClick={returnToBridge} data-autofocus autoFocus>

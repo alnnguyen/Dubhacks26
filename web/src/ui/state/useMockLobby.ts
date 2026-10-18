@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { loadPilotIdentity, savePilotCallsign } from '../../app/pilotIdentity';
 import type { ChallengePhase, ConnectionStatus, LobbyViewModel, NearbyPilot, PilotProfile } from './lobbyTypes';
 
 /**
@@ -9,18 +10,31 @@ import type { ChallengePhase, ConnectionStatus, LobbyViewModel, NearbyPilot, Pil
 export const MOCK_SELF: PilotProfile = {
   id: 'self',
   callsign: 'STARHAWK',
+  shipName: 'Quiet Lance',
+  accent: 'cyan',
   rank: 'Knight',
   record: { wins: 12, losses: 5 },
 };
+
+function selfFromStorage(): PilotProfile {
+  const saved = loadPilotIdentity();
+  if (!saved) return MOCK_SELF;
+  return {
+    ...MOCK_SELF,
+    callsign: saved.callsign,
+    shipName: saved.shipName,
+    accent: saved.accent,
+  };
+}
 
 /** `declines` marks pilots that will reject an outgoing challenge in the mock. */
 type MockPilot = NearbyPilot & { declines?: boolean };
 
 export const MOCK_NEARBY: MockPilot[] = [
-  { id: 'p-nova', callsign: 'NOVA-7', rank: 'Knight', record: { wins: 9, losses: 4 }, status: 'available', distanceM: 4, bearingDeg: 35, signal: 0.94 },
-  { id: 'p-vex', callsign: 'VEX', rank: 'Padawan', record: { wins: 3, losses: 6 }, status: 'available', distanceM: 9, bearingDeg: 145, signal: 0.78 },
+  { id: 'p-nova', callsign: 'NOVA-7', rank: 'Knight', record: { wins: 9, losses: 4 }, status: 'available', distanceM: 4, bearingDeg: 35, signal: 0.94, location: { bodyId: 'jupiter', label: 'Jupiter' } },
+  { id: 'p-vex', callsign: 'VEX', rank: 'Padawan', record: { wins: 3, losses: 6 }, status: 'available', distanceM: 9, bearingDeg: 145, signal: 0.78, location: { bodyId: 'mars', label: 'Mars' } },
   { id: 'p-kestrel', callsign: 'KESTREL', rank: 'Master', record: { wins: 31, losses: 7 }, status: 'in-duel', distanceM: 14, bearingDeg: 238, signal: 0.61 },
-  { id: 'p-orbit', callsign: 'ORBIT', rank: 'Padawan', record: { wins: 1, losses: 2 }, status: 'available', distanceM: 21, bearingDeg: 310, signal: 0.42, declines: true },
+  { id: 'p-orbit', callsign: 'ORBIT', rank: 'Padawan', record: { wins: 1, losses: 2 }, status: 'available', distanceM: 21, bearingDeg: 310, signal: 0.42, location: { bodyId: 'moon', label: 'Moon' }, declines: true },
 ];
 
 const T = {
@@ -38,7 +52,7 @@ export interface MockLobbyDev {
 
 export function useMockLobby(opts: { enabled?: boolean } = {}) {
   const enabled = opts.enabled ?? true;
-  const [self, setSelf] = useState<PilotProfile>(MOCK_SELF);
+  const [self, setSelf] = useState<PilotProfile>(selfFromStorage);
   const [connection, setConnection] = useState<ConnectionStatus>('connecting');
   const [challenge, setChallenge] = useState<ChallengePhase>({ kind: 'idle' });
   const autoIncomingDone = useRef(false);
@@ -95,7 +109,8 @@ export function useMockLobby(opts: { enabled?: boolean } = {}) {
       decline: () => setChallenge((c) => (c.kind === 'incoming' ? { kind: 'idle' } : c)),
       dismiss: () => setChallenge({ kind: 'idle' }),
       launch: () => setChallenge((c) => (c.kind === 'ready' ? { kind: 'launching', opponent: c.opponent } : c)),
-      setCallsign: (callsign) => setSelf((s) => ({ ...s, callsign: callsign.toUpperCase().slice(0, 14) || s.callsign })),
+      setCallsign: (callsign) =>
+        setSelf((s) => ({ ...s, callsign: savePilotCallsign(callsign) ?? s.callsign })),
     }),
     [],
   );

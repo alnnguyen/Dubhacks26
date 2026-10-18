@@ -69,6 +69,11 @@ body,
   pointer-events: none;
 }
 
+.sd-root[data-travel-active='true'] .sd-hud {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .sd-hud > * {
   pointer-events: auto;
 }
@@ -883,6 +888,12 @@ body,
   color: var(--text);
 }
 
+.sd-emblem--amber {
+  color: #f0b429;
+}
+.sd-emblem--violet {
+  color: #b388ff;
+}
 .sd-emblem--orange {
   color: var(--accent);
 }

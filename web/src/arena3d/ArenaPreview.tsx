@@ -1,3 +1,4 @@
+import { destinationFromWorld } from '../destinations/config';
 import { useEffect, useRef, useState } from "react"
 import type { ArenaFrame, PlayerSlot, Vec3 } from "../../../server/src/contracts"
 import { ArenaScene, type ImpactFlash } from "./ArenaScene"
@@ -28,9 +29,9 @@ function body(): Vec3[] {
   return j
 }
 
-// Mirrors the server's placement: slot 2 stands 1.3 m away, turned around, hips 1 m up.
+// Mirrors the server's placement when engaged: both at the front line, 1.3 m apart along z, slot 2 turned around.
 function toWorld(p: Vec3, slot: PlayerSlot): Vec3 {
-  return slot === 1 ? [p[0], p[1] + 1, p[2]] : [-p[0], p[1] + 1, 1.3 - p[2]]
+  return slot === 1 ? [p[0], p[1] + 1, p[2] - 0.65] : [-p[0], p[1] + 1, 0.65 - p[2]]
 }
 
 function blade(slot: PlayerSlot, hand: Vec3, dir: Vec3): { hilt: Vec3; tip: Vec3 } {
@@ -56,15 +57,17 @@ export function ArenaPreview() {
       const a = (angle * Math.PI) / 180
       const j = body()
       frameRef.current = {
+        serverMs: performance.now(),
+        engaged: true,
         players: [
-          { slot: 1, joints: j.map((p) => toWorld(p, 1)), blade: blade(1, j[16], [Math.sin(a), 0, Math.cos(a)]), swinging: phase > 0.5 && phase < 0.65 },
-          { slot: 2, joints: j.map((p) => toWorld(p, 2)), blade: blade(2, [-0.455, -0.05, 0.336], [0, 1, 0]), swinging: false },
+          { slot: 1, cell: { q: 0, r: -1 }, facing: [0, 1], joints: j.map((p) => toWorld(p, 1)), blade: blade(1, j[16], [Math.sin(a), 0, Math.cos(a)]), swinging: phase > 0.5 && phase < 0.65, stamina: 100, winded: false, stunned: false },
+          { slot: 2, cell: { q: 0, r: 1 }, facing: [0, -1], joints: j.map((p) => toWorld(p, 2)), blade: blade(2, [-0.455, -0.05, 0.336], [0, 1, 0]), swinging: false, stamina: 100, winded: false, stunned: false },
         ],
       }
       const cycle = Math.floor(t / 2)
       if (phase > 0.55 && flashed !== cycle) {
         flashed = cycle
-        flashRef.current = { kind: "blocked", at: [-0.45, 1.25, 0.96], startedMs: performance.now() }
+        flashRef.current = { kind: "blocked", at: [-0.45, 1.25, 0.31], startedMs: performance.now() }
       }
       raf = requestAnimationFrame(tick)
     }
@@ -74,7 +77,7 @@ export function ArenaPreview() {
 
   return (
     <main className="arena-duel">
-      <ArenaScene frameRef={frameRef} flashRef={flashRef} mySlot={view} />
+      <ArenaScene destination={destinationFromWorld(new URLSearchParams(location.search).get("destination")??"mars")} getFrame={() => frameRef.current} flashRef={flashRef} mySlot={view} board={{ cellSize: 0.65, rows: 3 }} />
       <div className="arena-hud">
         <p className="arena-note">Dev preview: synthetic fighters (blue = the viewing player). Not a match.</p>
         <button type="button" className="arena-leave" onClick={() => setView(view === 1 ? 2 : 1)}>

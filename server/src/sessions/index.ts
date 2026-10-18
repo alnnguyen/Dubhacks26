@@ -5,11 +5,12 @@ import type {
   CommandReply,
   LobbyView,
   Pilot,
+  PilotLocation,
   PlayerSlot,
   PlayerView,
-  ProjectileLanded,
   RejectReason,
   ArenaFrame,
+  GridCell,
   SaberAim,
   SaberResolved,
   SaberStatus,
@@ -23,6 +24,8 @@ const PLAYER_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 const PAIR_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const PAIR_CODE_LENGTH = 6;
 const CALLSIGN_PATTERN = /^[A-Z0-9][A-Z0-9 _-]{0,13}$/;
+const LOCATION_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+const LOCATION_LABEL_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N}\p{Pd} .,'()+/·*]{0,47}$/u;
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -42,9 +45,11 @@ interface PilotRecord {
   // A phone opening /?saber=<pairCode> becomes this pilot's lightsaber.
   pairCode: string;
   saberPaired: boolean;
+  location: PilotLocation | null;
 }
 
 interface ChallengeRecord {
+  destination?: "mars" | "neptune";
   id: string;
   challenger: PilotRecord;
   defender: PilotRecord;
@@ -56,10 +61,11 @@ interface ChallengeRecord {
 export interface LobbyEvents {
   // Any lobby or match change; the server re-sends views to connected players.
   changed: () => void;
-  projectileLanded: (playerIds: string[], event: ProjectileLanded) => void;
   saberResolved: (playerIds: string[], event: SaberResolved) => void;
   // Both players in the arena, every server tick, to both laptops.
   arenaFrame: (playerIds: string[], frame: ArenaFrame) => void;
+  // A step was accepted, to both laptops at once.
+  stepped: (playerIds: string[], event: { slot: PlayerSlot; cell: GridCell }) => void;
 }
 
 export interface LobbyOptions {
@@ -71,6 +77,11 @@ export type JoinResult = { ok: true } | { ok: false; reason: "invalid_request" }
 
 // One shared demo room: pilots, challenges between them, and the matches accepted challenges start.
 // Every player action, from the app or a provider adapter, goes through handleCommand.
+/** The two built arenas, equally likely. */
+export function pickArenaWorld(random: () => number = Math.random): WorldId {
+  return random() < 0.5 ? "mars" : "neptune";
+}
+
 export class Lobby {
   private pilots = new Map<string, PilotRecord>();
   private challenges = new Map<string, ChallengeRecord>();
@@ -80,8 +91,8 @@ export class Lobby {
   private pickWorld: () => WorldId;
 
   constructor(private events: LobbyEvents, options: LobbyOptions = {}) {
-    // Every match is on Mars (the only built arena). Tests can still inject a world.
-    this.pickWorld = options.pickWorld ?? (() => "mars");
+    // Each accepted challenge lands on Mars or Neptune, 50/50, chosen once here. Tests can still inject a world.
+    this.pickWorld = options.pickWorld ?? (() => pickArenaWorld());
   }
 
   join(playerId: unknown, callsign?: unknown): JoinResult {
@@ -104,6 +115,7 @@ export class Lobby {
         replies: new Map(),
         pairCode: this.newPairCode(),
         saberPaired: false,
+        location: null,
       };
       this.pilots.set(playerId, pilot);
     }
@@ -167,7 +179,8 @@ export class Lobby {
         phase: view.phase,
         health: view.you.health,
         rivalHealth: view.rival.health,
-        armed: view.you.saber.bodyReady && view.you.saber.saberReady,
+        armed: pilot.match.match.saberCombatReady && view.you.saber.bodyReady && view.you.saber.saberReady && view.rival.saber.bodyReady && view.rival.saber.saberReady,
+        startsInMs: pilot.match.match.saberStartsInMs,
         setup: pilot.match.match.setupProgress(pilot.match.slot),
       },
     };
@@ -242,22 +255,37 @@ export class Lobby {
         if (!pilot.match) return "not_in_match";
         return pilot.match.match.setSaberCalibration(pilot.match.slot, command.calibration);
       }
+      case "step": {
+        if (!pilot.match) return "not_in_match";
+        return pilot.match.match.step(pilot.match.slot, command.direction);
+      }
       case "setCallsign": {
         const callsign = normalizeCallsign(command.callsign);
         if (!callsign) return "invalid_command";
         pilot.callsign = callsign;
         return null;
       }
+      case "setLocation": {
+        if (command.location === null) {
+          pilot.location = null;
+          return null;
+        }
+        const location = normalizeLocation(command.location);
+        if (!location) return "invalid_command";
+        pilot.location = location;
+        return null;
+      }
 
       case "challenge": {
         if (typeof command.pilotId !== "string") return "invalid_command";
+        if (command.destination !== undefined && command.destination !== "mars" && command.destination !== "neptune") return "invalid_command";
         if (pilot.match) return "in_match";
         if (this.pendingChallengeOf(pilot)) return "busy";
         const defender = [...this.pilots.values()].find((p) => p.id === command.pilotId);
         if (!defender || defender === pilot || !defender.connected || defender.match || this.pendingChallengeOf(defender)) {
           return "pilot_unavailable";
         }
-        this.open(pilot, defender);
+        this.open(pilot, defender, command.destination);
         return null;
       }
 
@@ -271,7 +299,7 @@ export class Lobby {
 
         if (command.type === "acceptChallenge") {
           this.close(challenge, "accepted");
-          this.startMatch(challenge.challenger, challenge.defender);
+          this.startMatch(challenge.challenger, challenge.defender, challenge.destination);
         } else {
           this.close(challenge, command.type === "declineChallenge" ? "declined" : "cancelled");
         }
@@ -295,11 +323,12 @@ export class Lobby {
     }
   }
 
-  private open(challenger: PilotRecord, defender: PilotRecord): void {
+  private open(challenger: PilotRecord, defender: PilotRecord, destination?: "mars" | "neptune"): void {
     const challenge: ChallengeRecord = {
       id: `ch${this.nextChallenge++}`,
       challenger,
       defender,
+      destination,
       status: "pending",
       expiresAt: Date.now() + RULES.challengeExpiryMs,
     };
@@ -322,20 +351,20 @@ export class Lobby {
     return challenge?.status === "pending" ? challenge : undefined;
   }
 
-  private startMatch(challenger: PilotRecord, defender: PilotRecord): void {
+  private startMatch(challenger: PilotRecord, defender: PilotRecord, destination?: "mars" | "neptune"): void {
     const seats = { 1: challenger, 2: defender } as const;
     const match = new Match(
       `m${this.nextMatch++}`,
-      this.pickWorld(),
+      destination ?? this.pickWorld(),
       {
         1: { pilotId: challenger.id, callsign: challenger.callsign },
         2: { pilotId: defender.id, callsign: defender.callsign },
       },
       {
         changed: () => this.events.changed(),
-        projectileLanded: (event) => this.events.projectileLanded([challenger.playerId, defender.playerId], event),
         saberResolved: (event) => this.events.saberResolved([challenger.playerId, defender.playerId], event),
         arenaFrame: (frame) => this.events.arenaFrame([challenger.playerId, defender.playerId], frame),
+        stepped: (event) => this.events.stepped([challenger.playerId, defender.playerId], event),
         finished: (result) => {
           if (result.winner === null) return;
           seats[result.winner].wins += 1;
@@ -358,6 +387,16 @@ function normalizeCallsign(callsign: unknown): string | null {
   return CALLSIGN_PATTERN.test(normalized) ? normalized : null;
 }
 
+// Location labels come from catalog names (e.g. "TRAPPIST-1 e", "67P/Churyumov–Gerasimenko").
+function normalizeLocation(location: unknown): PilotLocation | null {
+  if (typeof location !== "object" || location === null) return null;
+  const { bodyId, label } = location as Record<string, unknown>;
+  if (typeof bodyId !== "string" || typeof label !== "string") return null;
+  if (!LOCATION_ID_PATTERN.test(bodyId)) return null;
+  const normalized = label.trim().replace(/\s+/g, " ");
+  return LOCATION_LABEL_PATTERN.test(normalized) ? { bodyId, label: normalized } : null;
+}
+
 function publicPilot(pilot: PilotRecord): Pilot {
   return {
     id: pilot.id,
@@ -365,6 +404,7 @@ function publicPilot(pilot: PilotRecord): Pilot {
     status: pilot.match ? "in-duel" : "available",
     wins: pilot.wins,
     losses: pilot.losses,
+    ...(pilot.location ? { location: pilot.location } : {}),
   };
 }
 

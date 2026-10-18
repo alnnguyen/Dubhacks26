@@ -16,6 +16,10 @@ export default defineConfig({
       '.ngrok.io',
     ],
     proxy: {
+      '/replay': {
+        target: process.env.GAME_PROXY_TARGET || 'http://127.0.0.1:3001',
+        changeOrigin: true,
+      },
       // B's game server. One HTTPS tunnel to this dev server then serves both the page and the game socket.
       '/socket.io': {
         target: process.env.GAME_PROXY_TARGET || 'http://127.0.0.1:3001',

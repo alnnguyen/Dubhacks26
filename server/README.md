@@ -21,6 +21,6 @@ Node + TypeScript (compiled with `tsc` to `dist/`) + Socket.IO 4.8.4. One in-mem
 ## Environment variables
 
 - `PORT` — listen port, default `3001`.
-- `ALLOWED_ORIGIN` — comma-separated frontend origins allowed by CORS, default `http://localhost:5173`.
+- `ALLOWED_ORIGIN` — comma-separated frontend origins allowed by CORS, default `http://localhost:5173,https://localhost:5173` (Vite serves the camera page over HTTPS).
 
 `GET /health` returns `ok`.

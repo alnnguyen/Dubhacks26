@@ -5,6 +5,7 @@ const mars = { fixture: true, world: 'mars', gravityMps2: 3.7, rockFlightSeconds
 test('narration uses selected state and labels training; invalid state fails closed', () => {
   assert.match(briefingText(mars), /Training arena: Mars.*3.7.*1.3/);
   assert.match(briefingText({ ...mars, world: 'moon', gravityMps2: 1.6, rockFlightSeconds: 1.98 }), /Moon.*1.6.*1.98/);
+  assert.match(briefingText({ ...mars, world: 'neptune', gravityMps2: 11.2, rockFlightSeconds: 0.75 }), /Neptune.*11.2.*0.75.*Higher gravity/);
   assert.throws(() => briefingText({ ...mars, gravityMps2: NaN }));
   assert.throws(() => briefingText(null));
 });

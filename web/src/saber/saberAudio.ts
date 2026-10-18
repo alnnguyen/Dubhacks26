@@ -12,12 +12,21 @@ export interface SaberAudio {
   hit(): void
   /** A setup step passed. */
   chime(): void
+  /** A swipe was sent: a quick step. */
+  whoosh(): void
+  /** A step was refused: the center line or the back of your side. */
+  thud(): void
   hurt(): void
+  /** Silences every sound until unmuted, e.g. on the result screen while a rematch is still possible. */
+  setMuted(muted: boolean): void
+  /** Silences the hum and releases the audio hardware for good. */
+  stop(): void
 }
 
 export function createSaberAudio(): SaberAudio {
   let ctx: AudioContext | null = null
   let hum: { a: OscillatorNode; b: OscillatorNode; filter: BiquadFilterNode; gain: GainNode } | null = null
+  let muted = false
 
   function noiseBurst(c: AudioContext, seconds: number, freq: number, peak: number) {
     const buffer = c.createBuffer(1, Math.ceil(c.sampleRate * seconds), c.sampleRate)
@@ -63,7 +72,7 @@ export function createSaberAudio(): SaberAudio {
       filter.type = "lowpass"
       filter.frequency.value = 420
       const gain = ctx.createGain()
-      gain.gain.value = 0.12
+      gain.gain.value = muted ? 0 : 0.12
       a.connect(filter)
       b.connect(filter)
       filter.connect(gain).connect(ctx.destination)
@@ -72,7 +81,7 @@ export function createSaberAudio(): SaberAudio {
       hum = { a, b, filter, gain }
     },
     setSpeed(degPerSec) {
-      if (!ctx || !hum) return
+      if (!ctx || !hum || muted) return
       const s = Math.min(1, degPerSec / 600)
       const t = ctx.currentTime
       hum.a.frequency.setTargetAtTime(85 * (1 + 0.5 * s), t, 0.03)
@@ -81,22 +90,41 @@ export function createSaberAudio(): SaberAudio {
       hum.gain.gain.setTargetAtTime(0.12 + 0.3 * s, t, 0.03)
     },
     clash() {
-      if (!ctx) return
+      if (!ctx || muted) return
       noiseBurst(ctx, 0.18, 3200, 0.9)
       tone(ctx, 1900, 900, 0.25, 0.25, "square")
     },
     hit() {
-      if (!ctx) return
+      if (!ctx || muted) return
       noiseBurst(ctx, 0.25, 900, 0.7)
       tone(ctx, 220, 70, 0.3, 0.4, "sawtooth")
     },
     hurt() {
-      if (!ctx) return
+      if (!ctx || muted) return
       tone(ctx, 140, 50, 0.4, 0.5, "sine")
     },
     chime() {
-      if (!ctx) return
+      if (!ctx || muted) return
       tone(ctx, 880, 1320, 0.18, 0.3, "sine")
+    },
+    whoosh() {
+      if (!ctx || muted) return
+      noiseBurst(ctx, 0.12, 1400, 0.35)
+    },
+    thud() {
+      if (!ctx || muted) return
+      tone(ctx, 110, 60, 0.18, 0.5, "triangle")
+    },
+    setMuted(next) {
+      muted = next
+      if (!ctx || !hum) return
+      // The next setSpeed brings the hum back to its swing level.
+      hum.gain.gain.setTargetAtTime(muted ? 0 : 0.12, ctx.currentTime, 0.03)
+    },
+    stop() {
+      void ctx?.close()
+      ctx = null
+      hum = null
     },
   }
 }

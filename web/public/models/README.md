@@ -1,12 +1,9 @@
-# Vision models (role C)
+# Models (role C)
 
-The debug harness currently loads MediaPipe `.task` models from Google’s public model storage and wasm from the `@mediapipe/tasks-vision@1.1.1` CDN so phones do not need a separate download step during the framing gate.
+## Vision (MediaPipe)
 
-To vendor offline later, place:
+The saber arena loads the MediaPipe pose model (`pose_landmarker_full.task`) from Google’s public model storage and wasm from the `@mediapipe/tasks-vision@1.1.1` CDN, so laptops do not need a separate download step.
 
-- `hand_landmarker.task`
-- `pose_landmarker_lite.task`
+To vendor offline later, place `pose_landmarker_full.task` here and point `POSE_MODEL_URL` in `src/arena3d/ArenaDuel.tsx` at `/models/...` (and `WASM_ROOT` in `src/camera/mediapipeVision.ts` for the wasm).
 
-here and point `HAND_MODEL_URL` / `POSE_MODEL_URL` in `src/camera/mediapipeVision.ts` at `/models/...`.
-
-MediaPipe hand/pose tracking is not the Perceptron sponsor integration.
+MediaPipe pose tracking is not the Perceptron sponsor integration.

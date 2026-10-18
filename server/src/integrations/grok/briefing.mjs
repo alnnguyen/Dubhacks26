@@ -1,11 +1,11 @@
 // Server-owned narration: caller cannot supply arbitrary speech or a player ID.
 export function briefingText(state) {
-  const names = { earth: 'Earth', mars: 'Mars', moon: 'Moon' };
+  const names = { earth: 'Earth', mars: 'Mars', moon: 'Moon', neptune: 'Neptune' };
   const name = names[state?.world];
   if (!name || !Number.isFinite(state.gravityMps2) || state.gravityMps2 <= 0 ||
       !Number.isFinite(state.rockFlightSeconds) || state.rockFlightSeconds <= 0) throw new Error('Briefing state unavailable.');
   const prefix = state.fixture ? 'Training arena' : 'Arena selected';
-  return `${prefix}: ${name}. Gravity is ${state.gravityMps2} meters per second squared. Your rock defense window is ${state.rockFlightSeconds} seconds. ${state.world === 'earth' ? 'React quickly and time your block.' : 'Lower gravity gives you more time to block than on Earth.'} Prepare for the jump.`;
+  return `${prefix}: ${name}. Gravity is ${state.gravityMps2} meters per second squared. Your rock defense window is ${state.rockFlightSeconds} seconds. ${state.world === 'earth' ? 'React quickly and time your block.' : state.gravityMps2 > 9.8 ? 'Higher gravity gives you less time to block than on Earth.' : 'Lower gravity gives you more time to block than on Earth.'} Prepare for the jump.`;
 }
 
 export function createBriefingService({ port, key, fetchImpl = fetch }) {

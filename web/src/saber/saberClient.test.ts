@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { createSaberClient } from "./saberClient"
 
 type Ack = (err: Error | null, reply: unknown) => void
@@ -14,8 +14,14 @@ class FakeSocket {
     this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener])
   }
   timeout(_ms: number) {
-    return { emit: (event: string, payload: unknown, ack: Ack) => this.acks.push({ event, payload, ack }) }
+    return {
+      emit: (event: string, payload: unknown, ack: Ack) => {
+        this.acks.push({ event, payload, ack })
+        if (event === "saberStep") this.stepAcks.push({ payload, ack })
+      },
+    }
   }
+  stepAcks: { payload: any; ack: Ack }[] = []
   emit() {}
   disconnect() {
     this.connected = false
@@ -34,7 +40,20 @@ function setup() {
 
 const aim = { tracked: true, top: [0, 0, 1] as [number, number, number], rate: 0 }
 
+afterEach(() => vi.unstubAllEnvs())
+
 describe("saber client", () => {
+  it("pairs on the same configured shared server as the laptop", () => {
+    vi.stubEnv("VITE_GAME_SERVER_URL", "https://shared.example")
+    const socket = new FakeSocket()
+    const createSocket = vi.fn(() => socket)
+    const client = createSaberClient("ABC234", createSocket)
+    expect(createSocket).toHaveBeenCalledWith("https://shared.example")
+    socket.fire("connect")
+    expect(socket.acks[0]).toMatchObject({ event: "pairSaber", payload: { code: "ABC234" } })
+    client.close()
+  })
+
   it("pairs with its code on connect, then streams aims", () => {
     const { socket, client } = setup()
     expect(client.connection()).toBe("connecting")
@@ -45,6 +64,20 @@ describe("saber client", () => {
     expect(client.status()?.callsign).toBe("NOVA")
     client.sendAim(aim)
     expect(socket.volatileSent).toHaveLength(1)
+  })
+
+  it("sends a thumb swipe as a step with a fresh id and returns the server's reply", async () => {
+    const { socket, client } = setup()
+    expect(await client.step("forward")).toEqual({ status: "offline" })
+    socket.fire("connect")
+    socket.acks[0].ack(null, { ok: true, status: { callsign: "NOVA", match: null } })
+    const reply = client.step("left")
+    const sent = socket.stepAcks[0]
+    expect(sent.payload.direction).toBe("left")
+    sent.ack(null, { commandId: sent.payload.stepId, status: "rejected", reason: "blocked" })
+    expect(await reply).toMatchObject({ status: "rejected", reason: "blocked" })
+    void client.step("left")
+    expect(socket.stepAcks[1].payload.stepId).not.toBe(sent.payload.stepId)
   })
 
   it("doesn't send aims before pairing", () => {

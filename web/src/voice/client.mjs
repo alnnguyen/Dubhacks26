@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id);
 const base = location.pathname.startsWith('/copilot/') ? '/copilot' : '';
 const embeddedWorld = new URLSearchParams(location.search).get('world');
-const embedded = window.parent !== window && ['earth', 'mars', 'moon'].includes(embeddedWorld);
+const embedded = window.parent !== window && ['earth', 'mars', 'moon', 'neptune'].includes(embeddedWorld);
 let generation = 0;
 let briefingGeneration = 0, briefingAbort, briefingUrl;
 function stopBriefing() {

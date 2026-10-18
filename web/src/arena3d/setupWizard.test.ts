@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest"
 import type { Vec3 } from "../../../server/src/contracts"
-import type { HandTrack } from "../vision/types"
 import {
   applyCameraFix,
   calibrationOf,
   CAMERA_GIVE_UP_MS,
   createWizard,
-  HAND_GIVE_UP_MS,
   tickWizard,
   type WizardInput,
   type WizardState,
@@ -30,78 +28,52 @@ const LEVEL_AT_SCREEN: Vec3 = [0, 1, 0]
 const UP: Vec3 = [0, 0, 1]
 const EAST: Vec3 = [1, 0, 0]
 
-/** A free hand: wrist to middle knuckle 0.1 tall, thumb and index tips `gap` apart, pinch point shifted by `dx`, `dy`. */
-function hand(gap: number, dx = 0, dy = 0): HandTrack {
-  const lm = Array.from({ length: 21 }, () => ({ x: 0.3 + dx, y: 0.5 + dy }))
-  lm[0] = { x: 0.3 + dx, y: 0.6 + dy }
-  lm[9] = { x: 0.3 + dx, y: 0.5 + dy }
-  lm[4] = { x: 0.3 + dx - gap / 2, y: 0.45 + dy }
-  lm[8] = { x: 0.3 + dx + gap / 2, y: 0.45 + dy }
-  return { id: "free", landmarks: lm }
-}
-
-type Input = Omit<WizardInput, "nowMs" | "freeHand" | "aspect"> & { freeHand?: HandTrack | null }
+type Input = Omit<WizardInput, "nowMs">
 
 /** Feed the same input for `ms` at ~30 fps. */
 function holdFor(state: WizardState, input: Input, startMs: number, ms: number): [WizardState, number] {
   let now = startMs
-  for (; now <= startMs + ms; now += 33) state = tickWizard(state, { freeHand: null, aspect: 1, ...input, nowMs: now })
+  for (; now <= startMs + ms; now += 33) state = tickWizard(state, { ...input, nowMs: now })
   return [state, now]
 }
 
 /** Walk through setup; each pose arg says what the devices see at that step. */
 function runSetup(poses: {
-  up: Vec3[]
+  upright: Vec3[]
   right: { body: Vec3[]; top: Vec3 }
   reach: Vec3[]
 }) {
   let s = createWizard(0)
   let t = 0
-  ;[s, t] = holdFor(s, { body: body(), placement, phone: null }, t, 1100)
-  expect(s.step).toBe("phone")
-  ;[s, t] = holdFor(s, { body: body(), placement, phone: { top: LEVEL_AT_SCREEN, rate: 0 } }, t, 400)
-  expect(s.step).toBe("forward")
-  ;[s, t] = holdFor(s, { body: body(), placement, phone: { top: LEVEL_AT_SCREEN, rate: 5 } }, t, 1100)
-  expect(s.step).toBe("up")
-  ;[s, t] = holdFor(s, { body: poses.up, placement, phone: { top: UP, rate: 5 } }, t, 800)
+  ;[s, t] = holdFor(s, { body: body(), placement, phone: { top: UP, rate: 0 } }, t, 50)
+  expect(s.step).toBe("stand")
+  ;[s, t] = holdFor(s, { body: body(), placement, phone: null }, t, 700)
+  expect(s.step).toBe("upright")
+  ;[s, t] = holdFor(s, { body: poses.upright, placement, phone: { top: UP, rate: 5 } }, t, 600)
   expect(s.step).toBe("right")
-  ;[s, t] = holdFor(s, { body: poses.right.body, placement, phone: { top: poses.right.top, rate: 5 } }, t, 800)
+  ;[s, t] = holdFor(s, { body: poses.right.body, placement, phone: { top: poses.right.top, rate: 5 } }, t, 600)
   expect(s.step).toBe("reach")
-  ;[s, t] = holdFor(s, { body: poses.reach, placement, phone: { top: LEVEL_AT_SCREEN, rate: 5 } }, t, 600)
-  expect(s.step).toBe("open")
-  const idle = { body: body(), placement, phone: { top: LEVEL_AT_SCREEN, rate: 5 } }
-  ;[s, t] = holdFor(s, { ...idle, freeHand: hand(0.09) }, t, 800)
-  expect(s.step).toBe("pinch")
-  ;[s, t] = holdFor(s, { ...idle, freeHand: hand(0.01) }, t, 800)
-  expect(s.step).toBe("nudge")
-  // Pinched, nudging 0.05 image heights (half a hand size) back and forth.
-  for (let i = 0; i < 60 && s.step === "nudge"; i++) {
-    ;[s, t] = holdFor(s, { ...idle, freeHand: hand(0.01, i % 2 ? 0.05 : 0, 0) }, t, 33)
-  }
+  ;[s, t] = holdFor(s, { body: poses.reach, placement, phone: { top: LEVEL_AT_SCREEN, rate: 5 } }, t, 500)
   return s
 }
 
-const rightHandUp = body({ 16: [0.2, 1.0, 0.1] })
+const rightHandUpright = body({ 16: [0.2, 0.4, 0.3] })
 const rightHandOut = body({ 16: [0.8, 0.4, 0.1] })
 const rightHandForward = body({ 16: [0.25, 0.4, 0.6] })
 
 describe("setup wizard", () => {
   it("measures the spot, heading and saber hand when both devices read correctly", () => {
-    const s = runSetup({ up: rightHandUp, right: { body: rightHandOut, top: EAST }, reach: rightHandForward })
+    const s = runSetup({ upright: rightHandUpright, right: { body: rightHandOut, top: EAST }, reach: rightHandForward })
     expect(s.step).toBe("done")
     expect(s.baseline).toEqual(placement)
     expect(calibrationOf(s)).toEqual({ forward: [0, 1], hand: "right", mirror: false, done: true })
     expect(s.cameraFix).toEqual({ mirrorX: false, flipZ: false })
-    expect(s.move!.open).toBeCloseTo(0.9)
-    expect(s.move!.pinch).toBeCloseTo(0.1)
-    // Biggest nudge 0.5 hand sizes; full speed at 70% of it.
-    expect(s.move!.nudge).toBeCloseTo(0.35)
     expect(s.notes).toEqual([])
   })
 
-  it("finds a left-handed player from the raised wrist", () => {
+  it("finds a left-handed player from the higher wrist", () => {
     const s = runSetup({
-      up: body({ 15: [-0.2, 1.0, 0.1] }),
+      upright: body({ 15: [-0.2, 0.4, 0.3] }),
       right: { body: body({ 15: [0.3, 0.4, 0.3] }), top: EAST },
       reach: body({ 15: [-0.25, 0.4, 0.6] }),
     })
@@ -109,14 +81,16 @@ describe("setup wizard", () => {
   })
 
   it("detects a phone that reads right as left", () => {
-    const s = runSetup({ up: rightHandUp, right: { body: rightHandOut, top: [-1, 0, 0] }, reach: rightHandForward })
+    const s = runSetup({ upright: rightHandUpright, right: { body: rightHandOut, top: [-1, 0, 0] }, reach: rightHandForward })
+    expect(s.step).toBe("done")
     expect(s.mirrorAim).toBe(true)
+    expect(s.forward).toEqual([0, 1])
   })
 
   it("detects a mirrored camera and swaps the hand it picked", () => {
-    // Mirrored: the raised right hand is labeled left, and it moves to the player's "left".
+    // Mirrored: the upright right hand is labeled left, and it moves to the player's "left".
     const s = runSetup({
-      up: body({ 15: [-0.2, 1.0, 0.1] }),
+      upright: body({ 15: [-0.2, 0.4, 0.3] }),
       right: { body: body({ 15: [-0.8, 0.4, 0.1] }), top: EAST },
       // From here the duel page applies the fix, so the saber hand arrives as the right wrist.
       reach: body({ 16: [0.25, 0.4, 0.6] }),
@@ -126,43 +100,37 @@ describe("setup wizard", () => {
   })
 
   it("detects reversed camera depth", () => {
-    const s = runSetup({ up: rightHandUp, right: { body: rightHandOut, top: EAST }, reach: body({ 16: [0.25, 0.4, -0.6] }) })
+    const s = runSetup({ upright: rightHandUpright, right: { body: rightHandOut, top: EAST }, reach: body({ 16: [0.25, 0.4, -0.6] }) })
     expect(s.cameraFix.flipZ).toBe(true)
   })
 
-  it("won't take a heading while the phone is moving or tilted", () => {
-    let s: WizardState = { ...createWizard(0), step: "forward" }
-    ;[s] = holdFor(s, { body: body(), placement, phone: { top: [0, 0.5, 0.86], rate: 5 } }, 0, 2000)
-    expect(s.step).toBe("forward")
-    ;[s] = holdFor(s, { body: body(), placement, phone: { top: LEVEL_AT_SCREEN, rate: 200 } }, 0, 2000)
-    expect(s.step).toBe("forward")
+  it("skips the phone step when the phone is already live", () => {
+    const s = tickWizard(createWizard(0), { nowMs: 0, body: body(), placement, phone: { top: UP, rate: 0 } })
+    expect(s.step).toBe("stand")
   })
 
-  it("assumes the right hand, with a note, when the camera never sees a raised hand", () => {
-    let s: WizardState = { ...createWizard(0), step: "up", forward: [0, 1] }
-    ;[s] = holdFor(s, { body: body(), placement, phone: { top: UP, rate: 0 } }, 0, CAMERA_GIVE_UP_MS + 800)
+  it("won't take a thrust that points the same way as right", () => {
+    let s: WizardState = { ...createWizard(0), step: "reach", hand: "right", rightTop: EAST, forward: [0, 1] }
+    ;[s] = holdFor(s, { body: rightHandForward, placement, phone: { top: EAST, rate: 5 } }, 0, 2000)
+    expect(s.step).toBe("reach")
+  })
+
+  it("won't read a pose mid-swing", () => {
+    let s: WizardState = { ...createWizard(0), step: "upright" }
+    ;[s] = holdFor(s, { body: rightHandUpright, placement, phone: { top: UP, rate: 300 } }, 0, 2000)
+    expect(s.step).toBe("upright")
+  })
+
+  it("assumes the right hand, with a note, when the camera can't tell which hand is up", () => {
+    let s: WizardState = { ...createWizard(0), step: "upright" }
+    ;[s] = holdFor(s, { body: body(), placement, phone: { top: UP, rate: 0 } }, 0, CAMERA_GIVE_UP_MS + 600)
     expect(s.step).toBe("right")
     expect(s.hand).toBe("right")
     expect(s.notes).toHaveLength(1)
   })
 
-  it("skips the movement steps with defaults when the free hand never shows", () => {
-    let s: WizardState = { ...createWizard(0), step: "open", forward: [0, 1], hand: "right" }
-    ;[s] = holdFor(s, { body: body(), placement, phone: null }, 0, HAND_GIVE_UP_MS + 100)
-    expect(s.step).toBe("done")
-    expect(s.move).not.toBeNull()
-    expect(s.notes[0]).toMatch(/free hand/)
-  })
-
-  it("an open hand that keeps flickering doesn't count as steady", () => {
-    let s: WizardState = { ...createWizard(0), step: "open" }
-    let t = 0
-    for (let i = 0; i < 40; i++) [s, t] = holdFor(s, { body: body(), placement, phone: null, freeHand: hand(i % 2 ? 0.09 : 0.05) }, t, 33)
-    expect(s.step).toBe("open")
-  })
-
   it("sends a calibration as soon as there is a heading, marked done only at the end", () => {
-    const s = { ...createWizard(0), step: "up" as const, forward: [0, 1] as [number, number] }
+    const s = { ...createWizard(0), step: "reach" as const, forward: [0, 1] as [number, number] }
     expect(calibrationOf(s)).toEqual({ forward: [0, 1], hand: "right", mirror: false, done: false })
     expect(calibrationOf(createWizard(0))).toBeNull()
   })

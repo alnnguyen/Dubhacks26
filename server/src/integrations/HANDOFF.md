@@ -46,21 +46,12 @@ For Voice, mount ephemeralToken/runVoiceTool in B's authenticated server. Derive
 
 1. B's actual challenge: create from lobby, accept via real Photon message, confirm both game clients update. Verify decline, expiry and repeated command behavior.
 2. B's actual selected world: ask from a real microphone and hear an answer grounded in that match; test permission denial and disconnect on target devices.
-3. Official Grok Bot planning bonus: run an actual official product team session. Suggested prompt: “Review our spaceship lobby → Photon challenge → gravity wheel → camera rock duel plan. Assign A UI, B authoritative game state, C camera gestures, D integrations; identify blockers and cut extras before 10 p.m.” Save the actual session link/output and decisions. API copilot code does not establish this bonus.
+3. Official Grok Bot planning bonus: **claimed** — team used the official Grok Bot / team-bot product for PLAN.md, roles, infrastructure, and research orchestration. Evidence: `docs/sponsor-evidence.md` (Bot section). In-game LYRA Voice is separate and does not substitute for this bonus.
 
-Do not mark D fully accepted until the first two real-game checks pass. Do not claim official Grok Bot use without the actual session.
+Do not mark D fully accepted until Photon live-challenge binding and physical-phone Voice QA pass. Bot planning claim is recorded in sponsor-evidence.
 
 Automatic briefing is in grok/briefing.mjs: state-derived text → server-only Grok TTS, cached by public script. Browser can listen without requesting microphone access; optional realtime questions remain separate. Mount the same briefing service against B’s real authenticated getMatchState adapter when ready.
 
-## Justin server network smoke — October 17
+## Justin server network smoke — October 17 (removed October 18)
 
-Run from repository root:
-
-```sh
-npm --prefix server test
-node server/src/integrations/game-smoke.mjs
-```
-
-The first command builds/runs B’s 24 tests. The second starts a fresh temporary B server on an OS-assigned port and exercises actual Socket.IO clients: shared join snapshot; invalid/unjoined/third-player rejection; unblocked 20-damage throw; duplicate command replay; cooldown; blocked zero-damage throw; endBlock; reconnect with same player ID and preserved health. It closes its clients and server afterward and never joins an existing match on 3001. Both passed locally. This is a Node network check, not browser CORS, two-phone, camera or provider-game integration evidence.
-
-The current web FlightApp still uses reduceDemo; clicking cockpit attacks does not test Justin’s server. Commands still need an agreed adapter: releaseRock → throwRock; palm lift/cancel currently have no B equivalent; block input must have defined start/end semantics. C’s colon-separated IDs must be converted to B’s allowed alphanumeric/underscore/hyphen format, with stable retry IDs. Do not merely rename event strings: render damage, cooldown and result from server snapshots, and keep lift as local animation until the server contract defines it.
+`game-smoke.mjs` exercised the rock throw/block commands over real Socket.IO clients. It was deleted on October 18 with the rest of the rock/gun path; the duel is lightsaber-only. `npm --prefix server test` still covers the socket server (`server.test.ts`), including joins, challenges, readiness, duplicate commands and saber pairing.
