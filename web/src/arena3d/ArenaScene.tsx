@@ -1,4 +1,5 @@
 import { NeptuneEnvironment } from '../arena/neptune/NeptuneEnvironment';
+import { NeptuneDust } from '../arena/neptune/NeptuneDust';
 import type { DestinationId } from '../destinations/config';
 import { Suspense, use, useMemo, useRef, type RefObject } from "react"
 import * as THREE from "three"
@@ -394,6 +395,7 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
       <FrameSampler getFrame={getFrame} frameRef={frameRef} />
       {destination==='neptune'?<>
         <NeptuneEnvironment/>
+        {!basicGraphics && <NeptuneDust/>}
         <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0}/>
       </>:basicGraphics ? <>
         <color attach="background" args={["#1b0f0b"]} />

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { CloudPuffs, NeptuneEnvironment, arrivalVeil, type PuffSpec } from './NeptuneEnvironment';
 import { render } from './neptuneConfig';
 import { DESTINATIONS } from '../../destinations/config';
+import { NeptuneDust } from './NeptuneDust';
 import './neptune.css';
 
 /** The video fades out over its final 0.55 s, uncovering the matched cockpit and cloud layers. */
@@ -178,6 +179,7 @@ export function NeptuneArrival({ active, skip = false, reducedMotion = false, on
           <Suspense fallback={null}>
             <NeptuneEnvironment reducedMotion={reducedMotion} />
             <CloudPuffs puffs={FLIGHT_PUFFS} opacity={0.9} near={3} />
+            <NeptuneDust active={active} />
             <Reveal video={video} veil={veil} cockpit={cockpit} active={active} skip={skip} reduced={reducedMotion} onReady={markReady} onComplete={onComplete} />
           </Suspense>
         </Canvas>
