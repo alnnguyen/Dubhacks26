@@ -4,6 +4,7 @@ import { ArenaDuel } from '../arena3d/ArenaDuel';
 import { useServerLobby } from '../lobby/useServerLobby';
 import { getGameClient, useGameLobby, useGameView, type ClientReply, type GameClient, type PlayerView } from '../networking';
 import './flight.css';
+import { clearArenaJourney, journeyFor, matchesJourney, readArenaJourney, saveArenaJourney } from './arenaJourney';
 import { useAudioScene } from '../audio/useAudioScene';
 
 // Every match number below comes from the game server's view; this screen only displays it.
@@ -13,14 +14,15 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const view = useGameView(client);
   // Private pair code: a phone opening /?saber=<code> becomes this pilot's lightsaber.
   const pairCode = useGameLobby(client)?.pairCode ?? '';
-  // The match this phone engaged into. A reload lands back in the cockpit with the match ready to re-engage.
-  const [entered, setEntered] = useState<string | null>(null);
+  // Preserve this tab's entered match across development reloads; verify both pilot IDs before restoring it.
+  const [journey, setJourney] = useState(readArenaJourney);
+  const entered = !!view && journey?.stage === "arena" && matchesJourney(view, journey);
   const [entering, setEntering] = useState(false);
   const [note, setNote] = useState('');
   const [travelDestination, setTravelDestination] = useState<'mars' | null>(null);
   const readyAttempt = useRef<{ matchId: string; client: GameClient } | null>(null);
   const [entryError, setEntryError] = useState('');
-  const audioScene = !view || entered !== view.matchId ? null : view.phase === 'finished' ? 'result' : 'battle';
+  const audioScene = !view || !entered ? null : view.phase === 'finished' ? 'result' : 'battle';
   useAudioScene(audioScene);
 
   const beginArena = useCallback((destination: 'mars') => {
@@ -41,7 +43,9 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       return;
     }
     setNote('');
-    setEntered(view.matchId);
+    const nextJourney = journeyFor(view, "arena");
+    saveArenaJourney(nextJourney);
+    setJourney(nextJourney);
     setTravelDestination(null);
   }, [travelDestination, view]);
 
@@ -62,7 +66,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     });
   }, [client]);
 
-  const arrivedMatch = view && entered === view.matchId ? view.matchId : null;
+  const arrivedMatch = view && entered ? view.matchId : null;
   const needsReady = view?.phase === 'waiting' && !view.you.ready;
   useEffect(() => {
     if (!arrivedMatch || !needsReady) return;
@@ -76,18 +80,15 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     else setNote(mine ? `Hit! −${event.damage} rival health.` : `You were hit: −${event.damage} health.`);
   }), [client]);
 
-  // A match that ended while this phone was in the cockpit (e.g. after a reload) has no result
-  // screen to leave from, so leave it here and stay challengeable.
-  const finishedUnseen = view?.phase === 'finished' && entered !== view.matchId;
-  useEffect(() => { if (finishedUnseen) void client.leaveMatch(); }, [client, finishedUnseen]);
-
+  // A finished match is shown explicitly, including a forfeit during travel.
+  // Never auto-leave it and silently replace the travel screen with the cockpit.
   function leave() {
     readyAttempt.current = null;
-    setEntering(false); setEntryError(''); setNote(''); setEntered(null);
+    setEntering(false); setEntryError(''); setNote(''); setJourney(null); clearArenaJourney();
     void client.leaveMatch();
   }
 
-  if (!view || entered !== view.matchId) {
+  if (!view || (!entered && view.phase !== 'finished')) {
     return (
       <>
         <SpaceshipHome

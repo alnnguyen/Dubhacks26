@@ -118,7 +118,7 @@ export function SaberInitiation(p: SaberInitiationProps) {
         <div className="si-pairing-art"><div className="si-qr-large">{p.qr ? <img src={p.qr} width="280" height="280" alt="Scan to connect your saber phone" /> : <p>Preparing your QR…</p>}</div><div className="si-phone-illustration" aria-hidden="true"><i /><span>SABER<br />ONLINE</span><b>IGNITE SABER ↗</b></div></div>
         {p.saberUrl && <a href={p.saberUrl} target="_blank" rel="noreferrer">Open phone controller ↗</a>}
       </div> : movement ? <div className="si-panel"><SwipeLesson /></div> : (!p.running || !p.bodySeen) && <div className="si-avatar-empty">{p.loading ? "STARTING CAMERA…" : p.running ? "STEP INTO VIEW" : "YOUR AVATAR APPEARS HERE"}<small>{p.running ? "Face your laptop and show your upper body." : "Start your camera to see your movements."}</small></div>}
-      <b>{pairing ? p.phonePaired ? "LINKED · AWAITING MOTION" : "SCAN TO LINK" : movement ? "ONE SWIPE · ONE MOVE" : p.running && p.bodySeen ? "● BODY TRACKED" : "○ AWAITING BODY"}{!pairing && !movement && <em>{p.phoneLive ? "SABER ONLINE" : "SABER STANDBY"}</em>}</b>
+      <b>{pairing ? p.phonePaired ? "LINKED · AWAITING MOTION" : "SCAN TO LINK" : movement ? "ONE SWIPE · ONE MOVE" : p.running && p.bodySeen ? "● BODY TRACKED" : "○ AWAITING BODY"}{!pairing && !movement && <em>{p.step !== "done" ? "SABER PREVIEW" : p.phoneLive ? "SABER ONLINE" : "SABER STANDBY"}</em>}</b>
     </div>
     <div key={`${p.step}-${movement}`} className="si-laser" aria-hidden="true" />
   </section>;

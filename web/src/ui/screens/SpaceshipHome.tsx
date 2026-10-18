@@ -96,17 +96,16 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
     }
   }, [settings]);
 
-  // An authoritative lobby adapter must only report launching after match acceptance.
+  // Latch an accepted launch until arrival. Lobby snapshots and reconnects must
+  // not tear down the in-progress video or restart it after completion.
+  const launchOpponentId = challenge.kind === 'launching' ? challenge.opponent.id : null;
+  const launchOpponent = useRef<NearbyPilot | null>(null);
+  if (challenge.kind === 'launching') launchOpponent.current = challenge.opponent;
   useEffect(() => {
-    if (challenge.kind === 'launching') {
-      travelOpponent.current = challenge.opponent;
-      setTravelActive(true);
-      return;
-    }
-    setTravelActive(false);
-    setCinematic({ phase: 'idle', selectedPlanet: 'earth' });
-    travelOpponent.current = null;
-  }, [challenge]);
+    if (!launchOpponentId || !launchOpponent.current) return;
+    travelOpponent.current = launchOpponent.current;
+    setTravelActive(true);
+  }, [launchOpponentId]);
 
   useEffect(() => () => sound.dispose(), [sound]);
 

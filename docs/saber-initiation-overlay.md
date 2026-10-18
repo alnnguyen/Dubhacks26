@@ -83,3 +83,10 @@ The obsolete Flight Systems briefing page and Voice iframe are removed from Flig
 ## Immediate local setup avatar
 
 Setup now renders fresh stabilized local camera joints before a calibrated saber or echoed arena frame exists. It uses a display-only fallback frame when needed, maps the body to the current slot/facing, and preserves available server metadata and blade. Missing/stale local tracking hides the model; timestamps are recorded after inference completes so a slow inference call does not instantly expire its new sample. This path is used only outside combat. Calibration/readiness/damage and normal combat local prediction are unchanged. Pairing and movement panels still deliberately cover the model. Build/typecheck and 31 focused tests passed, including four early-visibility/tracking-loss regressions; physical device QA pending.
+
+
+## Travel reset hardening and immediate setup saber
+
+Accepted travel is latched by opponent identity until arrival instead of being cancelled/restarted by every lobby-state update. A per-tab journey record restores launched travel or entered setup after a frontend remount/reload, only when match ID and both authoritative pilot IDs match. Explicit Stand down/Leave clears restoration. Finished matches now show their actual result even if they ended before arrival; the frontend no longer auto-leaves them unseen and silently returns to the cockpit. The precise intermittent device failure is not yet reproduced, so full travel testing remains pending.
+
+A fresh tracked body now includes an upright wrist-anchored setup saber immediately. Once a calibrated heading and fresh phone direction are available the preview uses that aim; an available real blade is retained. This display-only fallback never sets readiness, emits an attack, or changes server damage; the frame labels it SABER PREVIEW until setup completes. Pairing/swipe overlays still cover the avatar by design. Build/typecheck and 72 focused tests passed.

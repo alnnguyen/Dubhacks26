@@ -23,6 +23,7 @@ import {
   calibrationOf,
   createWizard,
   mirrorIndex,
+  phoneInBody,
   tickWizard,
   type WizardState,
 } from "./setupWizard";
@@ -413,10 +414,15 @@ export function ArenaDuel({
     // A missing/stale camera sample hides the body rather than freezing it.
     const localBody = own.joints && now - own.bodyAtMs <= 300 ? own.joints : null;
     const showSetup = !mayStep.current;
-    if (!frame) return showSetup
-      ? withSetupBody(null, slotRef.current, localBody, boardRef.current.cellSize, now)
-      : null;
     const wizard = wizardRef.current;
+    const setupAim = {
+      hand: wizard.hand ?? "right",
+      direction: own.top && wizard.forward && now - own.topAtMs <= PHONE_FRESH_MS
+        ? phoneInBody(own.top, wizard.forward, wizard.mirrorAim) : [0, 1, 0] as Vec3,
+    };
+    if (!frame) return showSetup
+      ? withSetupBody(null, slotRef.current, localBody, boardRef.current.cellSize, now, setupAim)
+      : null;
     const fresh =
       own.joints &&
       own.top &&
@@ -449,7 +455,7 @@ export function ArenaDuel({
         : null,
       root,
     );
-    return showSetup ? withSetupBody(drawn, slotRef.current, localBody, cellSize, now) : drawn;
+    return showSetup ? withSetupBody(drawn, slotRef.current, localBody, cellSize, now, setupAim) : drawn;
   }, []);
 
   function redoSetup() {

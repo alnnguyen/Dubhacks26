@@ -92,7 +92,9 @@ describe("setup body feedback before saber calibration", () => {
     const f = withSetupBody(null, 1, bodyFrame(), .65, 1000)
     expect(f.players[0].joints).not.toBeNull()
     close(f.players[0].joints![16], [.25, 1.25, .4])
-    expect(f.players[0].blade).toBeNull()
+    expect(f.players[0].blade).not.toBeNull()
+    close(f.players[0].blade!.hilt, f.players[0].joints![16])
+    close(f.players[0].blade!.tip, [.25, 2.15, .4])
     expect(f.saberStart).toBeUndefined()
     expect(f.players[0].swinging).toBe(false)
   })
@@ -103,7 +105,8 @@ describe("setup body feedback before saber calibration", () => {
     frame.players[0].cell = {q:1,r:2}
     const f = withSetupBody(frame, 2, bodyFrame(), .65, 1000)
     close(f.players[0].joints![16], [.4, 1.25, .9])
-    expect(f.players[0].blade).toBeNull()
+    expect(f.players[0].blade).not.toBeNull()
+    expect(frame.players[0].blade).toBeNull()
     expect(frame.players[0].joints).toBeNull()
   })
 
@@ -127,3 +130,13 @@ describe("setup body feedback before saber calibration", () => {
     close(f.players[0].joints![16], [.75, 1.25, .2])
   })
 })
+
+
+it("setup saber follows the selected hand and measured phone direction before server calibration", () => {
+  const body = bodyFrame(); body[15] = [-.3,.4,.2];
+  const f = withSetupBody(null, 1, body, .65, 1000, {hand:"left",direction:[1,0,0]});
+  close(f.players[0].blade!.hilt, [-.3,1.4,.2]);
+  close(f.players[0].blade!.tip, [.6,1.4,.2]);
+  expect(f.saberStart).toBeUndefined();
+  expect(f.players[0].swinging).toBe(false);
+});

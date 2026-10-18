@@ -75,7 +75,7 @@ export function withLocalFighter(
 
 
 /** Setup-only display: show the camera body before phone calibration or any server echo.
- * Does not mark the pilot ready, fabricate a blade, or change authoritative state.
+ * The upright pre-calibration saber is display-only; it never arms the pilot or changes authoritative state.
  */
 export function withSetupBody(
   frame: ArenaFrame | null,
@@ -83,6 +83,7 @@ export function withSetupBody(
   body: Vec3[] | null,
   cellSize: number,
   nowMs: number,
+  preview?: { hand: Hand; direction: Vec3 },
 ): ArenaFrame {
   const me = frame?.players.find(p => p.slot === slot)
   const facing: [number, number] = me?.facing ?? (slot === 1 ? [0, 1] : [0, -1])
@@ -93,10 +94,14 @@ export function withSetupBody(
     const v = turn([j[0] - hips[0], j[1] - hips[1], j[2] - hips[2]], facing)
     return [root[0] + v[0], root[1] + v[1], root[2] + v[2]] as Vec3
   }) : null
+  const hilt = joints?.[(preview?.hand ?? "right") === "left" ? LEFT_WRIST : RIGHT_WRIST];
+  const dir = turn(preview?.direction ?? [0, 1, 0], facing);
+  const scale = .9 / (Math.hypot(...dir) || 1);
+  const previewBlade = hilt ? { hilt, tip: [hilt[0] + dir[0] * scale, hilt[1] + dir[1] * scale, hilt[2] + dir[2] * scale] as Vec3 } : null;
   const player = {
     ...(me ?? { slot, cell: { q: 0, r: 0 }, facing }),
     joints,
-    blade: joints ? me?.blade ?? null : null,
+    blade: joints ? me?.blade ?? previewBlade : null,
     swinging: false,
   }
   return {

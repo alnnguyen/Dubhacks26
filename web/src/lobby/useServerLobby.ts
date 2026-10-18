@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { clearArenaJourney, journeyFor, matchesJourney, readArenaJourney, saveArenaJourney } from '../app/arenaJourney';
 import {
   getGameClient,
   useGameLobby,
@@ -20,7 +21,8 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
   const connection = useGameStatus(client);
   const lobby = useGameLobby(client);
   const view = useGameView(client);
-  const [launchingMatch, setLaunchingMatch] = useState<string | null>(null);
+  const [launchingJourney, setLaunchingJourney] = useState(readArenaJourney);
+  const launchingMatch = view && launchingJourney?.stage === "travel" && matchesJourney(view, launchingJourney) ? view.matchId : null;
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
 
   const nearby = useMemo(() => (lobby && connection === 'online' ? lobby.pilots.map(toNearby) : []), [lobby, connection]);
@@ -34,11 +36,19 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
       accept: () => challengeId && void client.acceptChallenge(challengeId),
       decline: () => challengeId && void client.declineChallenge(challengeId),
       dismiss: () => {
+        clearArenaJourney();
+        setLaunchingJourney(null);
         // Dismissing a ready match backs out of it on the server too.
         if (client.view()) void client.leaveMatch();
         if (challengeId) setDismissed((d) => new Set(d).add(challengeId));
       },
-      launch: () => setLaunchingMatch(client.view()?.matchId ?? null),
+      launch: () => {
+        const current = client.view();
+        if (!current || current.phase === 'finished') return;
+        const journey = journeyFor(current, 'travel');
+        saveArenaJourney(journey);
+        setLaunchingJourney(journey);
+      },
       setCallsign: (callsign) => {
         const trimmed = callsign.trim().toUpperCase().slice(0, 14);
         if (trimmed) void client.setCallsign(trimmed);
