@@ -123,7 +123,7 @@ export function SaberInitiation(p: SaberInitiationProps) {
   </section>;
 }
 
-/** Silent visual guidance for now: no network or speech API calls. */
+/** Visual guidance; spoken lines are driven separately via server Grok TTS (allowlisted cues). */
 function LyraSetupCue({ text }: { text: string }) {
   const [replay, setReplay] = useState(0);
   const [animating, setAnimating] = useState(false);

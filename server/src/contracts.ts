@@ -321,6 +321,8 @@ export interface ClientToServerEvents {
   'replay:ticket': (request: { matchId: string }, reply: (result: ReplayTicketReply) => void) => void;
   'copilot:session': (request: Record<string, never>, reply: (result: CopilotSessionReply) => void) => void;
   'copilot:context': (request: Record<string, never>, reply: (result: CopilotContextReply) => void) => void;
+  /** Allowlisted LYRA arena lines via server Grok TTS. Cue id only — no free text. */
+  'lyra:narrate': (request: { cue: string }, reply: (result: LyraNarrateReply) => void) => void;
   join: (request: JoinRequest, reply: (result: JoinReply) => void) => void;
   command: (command: Command, reply: (result: CommandReply) => void) => void;
   bodyPose: (pose: BodyPose) => void;
@@ -335,6 +337,11 @@ export interface ClientToServerEvents {
 export type CopilotFailure = { ok: false; reason: 'not_joined' | 'invalid_request' | 'offline' | 'no_response' | 'unavailable' | 'rate_limited' | 'provider_error' };
 export type CopilotSessionReply = CopilotFailure | { ok: true; clientSecret: string; expiresAt?: number; session: Record<string, unknown> };
 export type CopilotContextReply = CopilotFailure | { ok: true; context: { source: 'live'; lobby: LobbyView; match: PlayerView | null } };
+
+/** Server-owned LYRA TTS. Permanent xAI key stays on the server. */
+export type LyraNarrateReply =
+  | CopilotFailure
+  | { ok: true; cue: string; contentType: 'audio/mpeg'; audioBase64: string };
 
 export type ReplayFailure = { ok: false; reason: 'not_joined' | 'invalid_request' | 'unavailable' | 'not_finished' | 'unauthorized' | 'too_large' | 'unsupported_media' | 'rate_limited' | 'provider_error' | 'no_moments' | 'offline' | 'no_response' };
 export type ReplayTicketReply = ReplayFailure | { ok: true; ticket: string };
