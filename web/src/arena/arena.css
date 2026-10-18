@@ -1,0 +1,106 @@
+.arena-root {
+  position: fixed;
+  inset: 0;
+  background: #2a1a12;
+  color: #f6e7da;
+  font-family: 'Rajdhani', 'Avenir Next Condensed', system-ui, sans-serif;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.arena-root canvas {
+  display: block;
+}
+
+.arena-facts {
+  position: absolute;
+  top: max(env(safe-area-inset-top), 14px);
+  left: max(env(safe-area-inset-left), 14px);
+  width: min(300px, calc(100vw - 28px));
+  padding: 14px 16px;
+  background: linear-gradient(180deg, rgba(38, 20, 12, 0.72), rgba(20, 10, 6, 0.8));
+  box-shadow: inset 0 0 0 1px rgba(255, 186, 140, 0.32);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.arena-eyebrow {
+  margin: 0;
+  font: 600 10.5px/1.2 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #ffb98a;
+}
+
+.arena-facts h1 {
+  margin: 2px 0 8px;
+  font-size: 28px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.arena-facts dl {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.arena-facts dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-top: 1px solid rgba(255, 186, 140, 0.14);
+  font-size: 15px;
+}
+
+.arena-facts dt {
+  color: #d9bba6;
+}
+
+.arena-facts dd {
+  margin: 0;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  text-align: right;
+}
+
+.arena-facts dd span {
+  color: #b99b87;
+}
+
+.arena-source {
+  margin: 10px 0 0;
+  font: 11px/1.4 'JetBrains Mono', ui-monospace, monospace;
+  color: #c9ab96;
+}
+
+.arena-source a {
+  color: #ffc9a3;
+}
+
+.arena-quality {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.arena-quality button {
+  flex: 1;
+  min-height: 36px;
+  border: 0;
+  font: 700 13px var(--display, 'Rajdhani', sans-serif);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f6e7da;
+  background: rgba(255, 186, 140, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 186, 140, 0.35);
+  cursor: pointer;
+}
+
+.arena-quality button[aria-pressed='true'] {
+  color: #2a140a;
+  background: #ffb98a;
+}

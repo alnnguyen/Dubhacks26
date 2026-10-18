@@ -5,8 +5,15 @@ const search = new URLSearchParams(window.location.search);
 // Alex rehearsal: /?pvp=1 → LiveDuel. Alan harness: /?debug=camera or legacy /?camera=1.
 const cameraDebug = search.has('camera') || search.get('debug') === 'camera';
 const live = search.has('pvp');
+// Mars arena preview (no camera/networking): /?arena=mars
+const marsPreview = search.get('arena') === 'mars';
 
-const Screen = live
+const Screen = marsPreview
+  ? lazy(async () => {
+      const m = await import('./arena/MarsPreview');
+      return { default: m.MarsPreview };
+    })
+  : live
   ? lazy(async () => {
       const m = await import('./app/LiveDuel');
       return { default: m.LiveDuel };
