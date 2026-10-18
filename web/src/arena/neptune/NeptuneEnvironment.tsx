@@ -462,20 +462,20 @@ function Platform() {
 }
 
 /**
- * Distant lightning inside the storm clouds: every 4–10 s a quick double
+ * Distant lightning inside the storm clouds: every 1.5–4 s a quick double
  * flicker somewhere on the horizon lights the clouds around it, with a faint
  * matching flash of light on the platform.
  */
 function Lightning({ reducedMotion }: { reducedMotion: boolean }) {
   const light = useRef<THREE.DirectionalLight>(null);
-  const next = useRef(2.5);
+  const next = useRef(1.2);
   const start = useRef(-10);
   useEffect(() => () => { lightning.flash.value = 0; }, []);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
     if (t >= next.current) {
       start.current = t;
-      next.current = t + 4 + Math.random() * 6;
+      next.current = t + 1.5 + Math.random() * 2.5;
       // Ahead of or behind the duel (along z), where both players' cameras look.
       const side = Math.random() < 0.5 ? -1 : 1;
       lightning.pos.value.set((Math.random() - 0.5) * 1100, 20 + Math.random() * 70, side * (450 + Math.random() * 450));
