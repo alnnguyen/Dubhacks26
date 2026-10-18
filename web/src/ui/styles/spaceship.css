@@ -888,6 +888,12 @@ body,
   color: var(--text);
 }
 
+.sd-emblem--amber {
+  color: #f0b429;
+}
+.sd-emblem--violet {
+  color: #b388ff;
+}
 .sd-emblem--orange {
   color: var(--accent);
 }

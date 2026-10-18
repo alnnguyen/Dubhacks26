@@ -4,7 +4,16 @@ import { createHandLock, resetHandLock, tickHandLock, type HandLockState } from 
 import { classifyGesture } from "../vision/landmarks"
 import type { BattleCommand, Phase, TouchInput } from "../vision/types"
 import {
+  createTracerShot,
+  DEFAULT_MUZZLE,
+  muzzleFromHand,
+  tickTracers,
+  type TracerShot,
+} from "../overlay/bulletTracer"
+import { createGunModel, gunPoseFromLandmarks, type GunModelHandle } from "../overlay/gunModel"
+import {
   createRockVisual,
+  DEFAULT_AIM,
   opponentTarget,
   tickRockVisual,
   type RockVisualState,
@@ -32,6 +41,7 @@ const MarsDuelBackdrop = lazy(() => import("../arena/MarsDuelBackdrop"))
 const SESSION_ID = "debug-pilot"
 const MATCH_ID = "debug-match"
 const POSE_EVERY_N_FRAMES = 2
+const DEFAULT_GUN_FLIGHT_MS = 800
 const idleTouch: TouchInput = { lift: false, throw: false, block: false, cancel: false }
 
 type LogLine = { at: string; text: string }
@@ -54,6 +64,19 @@ export type DuelHudProps = {
   immersive?: boolean
   /** Optional custom arena formations. Defaults to a Jezero layout. */
   arenaObstacles?: ArenaObstacle[]
+  /** Active server weapon, used to highlight Rock / Gun. */
+  weapon?: "rock" | "gun"
+  onSelectRock?: () => void
+  onSelectGun?: () => void
+  onFireGun?: () => void
+  /** When set, spawn a forward tracer from the muzzle (Fire gun button / accepted shot). */
+  boltStartedAt?: number | null
+  /** Server gun flight window in ms. */
+  boltFlightMs?: number
+  /** Bumps when the server resolves our rock, so the arc stops with the hit. */
+  rockResolvedAt?: number
+  /** Latest server reply / status line from LiveDuel. */
+  serverNote?: string
 }
 
 function nowLabel() {
@@ -85,8 +108,16 @@ export function CameraDebugPage({
   const commandSessionRef = useRef(SESSION_ID)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const gunCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const gunModelRef = useRef<GunModelHandle | null>(null)
   const battleRef = useRef<BattleInputState>(createBattleInput(performance.now()))
   const rockRef = useRef<RockVisualState>(createRockVisual(flightSeconds))
+  const tracersRef = useRef<TracerShot[]>([])
+  const lastTracerSpawnMs = useRef(0)
+  const boltStartedSeen = useRef(0)
+  const flightSecondsRef = useRef(flightSeconds)
+  flightSecondsRef.current = flightSeconds
+  const rockResolvedSeen = useRef(0)
   const lockRef = useRef<HandLockState>(createHandLock())
   const touchRef = useRef<TouchInput>({ ...idleTouch })
   const visionRef = useRef<VisionBundle | null>(null)
@@ -111,6 +142,9 @@ export function CameraDebugPage({
   const [lockPhase, setLockPhase] = useState<HandLockState["phase"]>("calibrating")
   const [lockProgress, setLockProgress] = useState(0)
   const [commandLog, setCommandLog] = useState<LogLine[]>([])
+  const [handSpeed, setHandSpeed] = useState(0)
+  const [handVy, setHandVy] = useState(0)
+  const [handUpDelta, setHandUpDelta] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
   const [touchUi, setTouchUi] = useState<TouchInput>({ ...idleTouch })
@@ -118,16 +152,15 @@ export function CameraDebugPage({
   function pushCommands(commands: BattleCommand[]) {
     if (commands.length === 0) return
     commandSinkRef.current?.(commands)
-    if (isDuel) return
     setCommandLog((prev) => {
       const next = [
         ...commands.map((command) => ({
           at: nowLabel(),
-          text: `${command.name} · ${command.commandId}`,
+          text: `→ ${command.name}`,
         })),
         ...prev,
       ]
-      return next.slice(0, 12)
+      return next.slice(0, isDuel ? 6 : 12)
     })
   }
 
@@ -222,6 +255,8 @@ export function CameraDebugPage({
     stopCameraRef.current = null
     visionRef.current?.close()
     visionRef.current = null
+    gunModelRef.current?.dispose()
+    gunModelRef.current = null
     const video = videoRef.current
     if (video) video.srcObject = null
     setRunning(false)
@@ -272,6 +307,7 @@ export function CameraDebugPage({
         matchId: MATCH_ID,
         lockHint: lock.phase === "locked" ? lock.hint : null,
         gesturesPaused,
+        weapon: duelRef.current?.weapon ?? "rock",
       })
       battleRef.current = stepped.state
       pushCommands(stepped.commands)
@@ -281,24 +317,70 @@ export function CameraDebugPage({
       setSelection(stepped.selection.status)
       setHandCount(hands.length)
       setPoseOk(Boolean(poseRef.current))
+      setHandSpeed(stepped.handSpeed)
+      setHandVy(stepped.handVy)
+      setHandUpDelta(stepped.handUpDelta)
+
+      const flightSecondsNow = flightSecondsRef.current
+      if (rockRef.current.flightSeconds !== flightSecondsNow && rockRef.current.mode !== "flying") {
+        rockRef.current = { ...rockRef.current, flightSeconds: flightSecondsNow }
+      }
+      const resolvedAt = duelRef.current?.rockResolvedAt ?? 0
+      if (resolvedAt !== rockResolvedSeen.current) {
+        rockResolvedSeen.current = resolvedAt
+        if (resolvedAt > 0 && rockRef.current.mode === "flying") {
+          rockRef.current = createRockVisual(flightSecondsNow)
+        }
+      }
 
       const ownHand = hands.find((hand) => hand.id === stepped.ownHandId) ?? null
       const rockHand =
         ownHand ??
         (gesturesPaused ? null : hands.find((hand) => hand.landmarks.length >= 21) ?? null)
+      const activeWeapon = duelRef.current?.weapon ?? "rock"
+      const aim = opponentTarget(poseRef.current) ?? DEFAULT_AIM
+      const muzzle =
+        muzzleFromHand(ownHand?.landmarks) ??
+        muzzleFromHand(rockHand?.landmarks) ??
+        DEFAULT_MUZZLE
+      const flightMs = duelRef.current?.boltFlightMs ?? DEFAULT_GUN_FLIGHT_MS
+
+      // Dedupe local CV fire + server boltStartedAt so one shot = one tracer.
+      const spawnTracer = (id: string) => {
+        if (nowMs - lastTracerSpawnMs.current < 350) return
+        lastTracerSpawnMs.current = nowMs
+        tracersRef.current = [
+          ...tracersRef.current,
+          createTracerShot(muzzle, aim, nowMs, flightMs, id),
+        ]
+      }
+      for (const command of stepped.commands) {
+        if (command.name === "fireGun") spawnTracer(`cmd-${command.commandId}`)
+      }
+      const boltAt = duelRef.current?.boltStartedAt ?? null
+      if (boltAt != null && boltAt !== boltStartedSeen.current) {
+        boltStartedSeen.current = boltAt
+        spawnTracer(`bolt-${boltAt}`)
+      }
+
       const rockFrame = tickRockVisual(rockRef.current, {
         nowMs,
         phase: stepped.phase,
         commands: stepped.commands,
         ownHand: rockHand,
-        target: opponentTarget(poseRef.current),
+        target: aim,
+        weapon: activeWeapon,
         palmOpen:
-          stepped.gesture === "palm" ||
-          touchRef.current.lift ||
-          (rockHand ? classifyGesture(rockHand.landmarks) === "palm" : false),
+          activeWeapon === "rock" &&
+          (stepped.gesture === "palm" ||
+            touchRef.current.lift ||
+            (rockHand ? classifyGesture(rockHand.landmarks) === "palm" : false)),
       })
       rockRef.current = rockFrame.state
       setRockMode(rockFrame.state.mode)
+
+      const tracerFrame = tickTracers(tracersRef.current, nowMs)
+      tracersRef.current = tracerFrame.shots
 
       const width = video.videoWidth || 640
       const height = video.videoHeight || 480
@@ -309,10 +391,31 @@ export function CameraDebugPage({
       const ctx = canvas.getContext("2d")
       if (ctx) {
         drawCameraOverlay(ctx, width, height, hands, stepped.ownHandId, poseRef.current, rockFrame.draw.rocks, {
-          showLandmarks: !isDuel,
+          // Keep the hand skeleton visible while tuning CV on phones.
+          showLandmarks: true,
           rivalHealth: duelRef.current?.rivalHealth ?? 100,
           rockScale: isDuel ? 1.35 : 1,
+          tracers: tracerFrame.draw,
         })
+      }
+
+      const gunCanvas = gunCanvasRef.current
+      let gun = gunModelRef.current
+      if (gunCanvas && !gun) {
+        gun = createGunModel(gunCanvas)
+        gunModelRef.current = gun
+      }
+      if (gun && gunCanvas) {
+        if (gunCanvas.width !== width || gunCanvas.height !== height) {
+          gunCanvas.width = width
+          gunCanvas.height = height
+          gun.resize(width, height)
+        }
+        const showGun = activeWeapon === "gun"
+        const pose = showGun ? gunPoseFromLandmarks(ownHand?.landmarks ?? rockHand?.landmarks) : null
+        const newest = tracerFrame.draw[tracerFrame.draw.length - 1]
+        const recoil = newest && newest.progress < 0.35 ? 1 - newest.progress / 0.35 : 0
+        gun.draw(pose, recoil)
       }
     }
 
@@ -373,9 +476,39 @@ export function CameraDebugPage({
         onPointerDown={() => setTouch({ block: true })}
         onPointerUp={() => setTouch({ block: false })}
         onPointerLeave={() => setTouch({ block: false })}
+        onPointerCancel={() => setTouch({ block: false })}
       >
         Block
       </button>
+      {duel?.onSelectRock || duel?.onSelectGun ? (
+        <span className="weapon-switch" role="group" aria-label="Switch weapon">
+          {duel?.onSelectRock ? (
+            <button
+              type="button"
+              className={duel.weapon === "rock" ? "on" : ""}
+              aria-pressed={duel.weapon === "rock"}
+              onClick={duel.onSelectRock}
+            >
+              Rock
+            </button>
+          ) : null}
+          {duel?.onSelectGun ? (
+            <button
+              type="button"
+              className={duel.weapon === "gun" ? "on" : ""}
+              aria-pressed={duel.weapon === "gun"}
+              onClick={duel.onSelectGun}
+            >
+              Gun
+            </button>
+          ) : null}
+        </span>
+      ) : null}
+      {duel?.onFireGun ? (
+        <button type="button" className="primary" onClick={duel.onFireGun}>
+          Fire gun
+        </button>
+      ) : null}
       <button
         type="button"
         className={touchUi.cancel ? "on" : ""}
@@ -412,6 +545,7 @@ export function CameraDebugPage({
           ) : null}
           <video ref={videoRef} className={`video${immersive ? " video--source" : ""}`} playsInline muted autoPlay />
           <canvas ref={canvasRef} className="overlay" />
+          <canvas ref={gunCanvasRef} className="overlay gun-layer" />
           {immersive ? null : <div className="duel-tint" aria-hidden />}
           {immersive && running ? (
             <p className={`mars-target ${poseOk ? "locked" : ""}`} role="status">
@@ -447,14 +581,39 @@ export function CameraDebugPage({
             <p className="duel-phase" role="status">
               {duel.note ?? (running ? `Rock ${rockMode} · ${phase}` : "Start camera to begin")}
             </p>
+            {running ? (
+              <div className="duel-cv" role="status">
+                <p>
+                  CV · sign <strong>{gesture}</strong> · intent <strong>{intent}</strong> · phase{" "}
+                  <strong>{phase}</strong>
+                </p>
+                <p>
+                  lock <strong>{lockPhase}</strong> · hands {handCount} · speed {handSpeed.toFixed(2)} · vy{" "}
+                  {handVy.toFixed(2)} · Δy {handUpDelta.toFixed(2)} · rock <strong>{rockMode}</strong> · weapon{" "}
+                  <strong>{duel.weapon ?? "—"}</strong>
+                </p>
+                <p className="duel-cv-server">{duel.serverNote ?? duel.note ?? "No server reply yet."}</p>
+                {commandLog.length > 0 ? (
+                  <ul className="duel-cv-log">
+                    {commandLog.slice(0, 4).map((line) => (
+                      <li key={`${line.at}-${line.text}`}>
+                        {line.at} {line.text}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="duel-cv-log-empty">No battle commands sent yet.</p>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
         {controls}
         {error ? <p className="error">{error}</p> : null}
         {!running ? (
           <p className="duel-hint">
-            Palm hold lifts a rock; fist throws. Calibrate your hand first. Tracking loss cancels. Touch buttons mirror
-            gestures.
+            Start camera, recalibrate if needed. Rock: palm → fist grab → fling. Gun: fist holds the grip, extend
+            index + middle to fire. Rock/Gun buttons switch weapons; Fire gun still works as a touch backup.
           </p>
         ) : null}
       </main>
@@ -475,6 +634,7 @@ export function CameraDebugPage({
       <section className="stage">
         <video ref={videoRef} className="video" playsInline muted autoPlay />
         <canvas ref={canvasRef} className="overlay" />
+        <canvas ref={gunCanvasRef} className="overlay gun-layer" />
         {running ? <div className={`lock-banner ${lockPhase}`}>{lockBanner}</div> : null}
       </section>
 
@@ -509,8 +669,8 @@ export function CameraDebugPage({
           <p className="warn">Wide lens unavailable — default rear. Use rear / 0.5 if the phone offers it.</p>
         ) : null}
         <p className="hint">
-          Calibrate your near hand first. Rocks sit in the lower third — open palm (or Lift) to pick up; swipe + fist or
-          Throw to fling toward upper-center / shoulders. Cancel drops. No gun/saber yet.
+          Calibrate your near hand first. Palm near a rock, fist to grab, fling open (or Throw) to release. Gun pose
+          fist to hold, index + middle out to fire. Cancel drops. Saber still deferred.
         </p>
       </section>
 

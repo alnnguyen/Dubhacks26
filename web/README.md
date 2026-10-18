@@ -77,3 +77,8 @@ Both pilots accept the server challenge, then each engages from the cockpit. The
 The live arena preserves the existing MediaPipe opponent segmentation, hand/pose tracking, and touch controls. The server remains authoritative for health, attacks, cooldowns, and results. See `docs/flight-integration.md` from the repository root for local connection details and device-test limitations.
 
 The interactive roulette takes 3.6 seconds before the flight video. It uses the supplied 2K planetary maps, Earth day/night/cloud layers, directional sunlight, and lightweight procedural Saturn rings; the available files and attribution are recorded in `public/textures/planets/ATTRIBUTION.md`. No Uranus surface map or Saturn ring texture was supplied, so Uranus keeps its procedural fallback. Sounds are synthesized with the browser Web Audio API and can be enabled from the Engage gesture or the in-sequence sound control.
+
+
+## Shared Live backend (Alex integration, October 18)
+
+The default root now uses BridgeApp for onboarding and the compact Demo/Live switch. To connect this UI to a teammate’s working shared game, copy `.env.example` to `.env.local`, set `VITE_GAME_SERVER_URL` to the shared HTTPS Socket.IO site, and `VITE_SABER_CONTROLLER_URL` to the public frontend serving the paired phone page. Restart Vite. The game and phone clients share the configured backend; Demo stays local. See `../docs/shared-live-server.md` for current setup and verified limitations. The earlier rock-only instructions above describe the older camera harness; the current Live FlightApp uses the laptop + paired-phone lightsaber arena.

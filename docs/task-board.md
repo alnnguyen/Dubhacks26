@@ -4,10 +4,9 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 
 ## Doing
 
-- B (Justin), branch `saber-duel`, 2026-10-17 ~23:50: **laptop + iPhone lightsaber duel in a shared 3D arena** (PLAN.md, docs/contracts.md). Server 3D collision/pairing, laptop arena (`web/src/arena3d`), phone saber (`web/src/saber`, route `/?saber=CODE`) implemented. Verified: server tests, web tests/typecheck/build, scripted 2-laptop + 2-phone socket duel against the real server (block then hit). **Not yet run on real laptops/iPhones or viewed in a browser** — first check axis directions (raise right arm / point phone up) and `/?dev=arena`. The earlier phone-camera version is saved as `git stash@{0}`.
-
-- C (Alan) + Alex QA: phone framing + gestures on **duel HUD** (FlightApp / LiveDuel) and full harness at `/?debug=camera` or `/?camera=1`. Hand lock + wide rear merged into alex-dev Oct 17. Checklist in `docs/qa-checklist.md`. Gun/saber deferred.
-- D (Alex): Grok Bot bonus session (template in `docs/sponsor-evidence.md`). Live Photon/Voice on real challenges **blocked on B**.
+- B (Justin): **laptop + iPhone lightsaber duel in a shared 3D arena** merged via `main`/`saber-duel` into `alex-dev`. Server 3D collision/pairing, laptop arena (`web/src/arena3d`), phone saber (`web/src/saber`, `/?saber=CODE`). Scripted socket proof done; real laptop/iPhone QA still open — check `/?dev=arena` first.
+- C (Alan): rock/gun CV still on harness (`/?camera=1`); FlightApp live duel path is now saber arena. Phone QA in `docs/qa-checklist.md`.
+- D (Alex): Grok Bot planning bonus **claimed** (`docs/sponsor-evidence.md`). Remaining: Photon live-challenge binding + physical-phone LYRA mic QA.
 - A (Ally): **pull `alex-dev`** — Alan’s latest camera is merged; cockpit default + turn-to-look remain on ally paths. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
 
 ## Ready — unblock first
@@ -58,12 +57,20 @@ Full text: `server/src/integrations/HANDOFF.md`.
 
 ## Integrated local rehearsal — October 17
 
-- A/C/D composition on alex-dev: cockpit → server-backed world/Voice briefing → **duel HUD** camera → result → cockpit. Duel mode hides lab chrome; `/?camera=1` remains the full MediaPipe harness.
-- Provider proofs (Photon fixtures, Grok TTS/S2S/narration) are recorded in `docs/sponsor-evidence.md`.
-- The server-backed lobby, accepted match, Mars selection, readiness, and combat are integrated. Provider-specific Photon/Voice flows and full two-phone/device validation remain separate follow-up checks.
+- A/C/D composition on alex-dev: cockpit → planetary travel → world/Voice briefing → **saber arena duel** (Justin) → result → cockpit. `/?camera=1` remains full MediaPipe harness; rock/gun CV still Alan’s path.
+- Provider proofs (Photon fixtures, Grok TTS/S2S/narration) recorded in `docs/sponsor-evidence.md`.
+- Server-backed lobby, accepted match, Mars selection, readiness, and saber combat are merged. Photon live binding + physical LYRA mic remain follow-up.
 
-## Planetary travel roulette — integrated on `mars-arena`
+## Planetary travel roulette — merged from `mars-arena`
 
-- The accepted server match enters the cockpit roulette when a pilot engages. Mars is selected deterministically; the travel video then hands off to the existing server-backed Mars briefing. The arena starts when the server reports both players ready. Room scanning is intentionally skipped.
-- The existing MediaPipe opponent segmentation, hand/pose tracking, touch controls, server-authoritative combat, and Mars arena remain the live duel path.
-- The 3.6-second roulette, locally supplied planet textures, Sun map, flight video, and texture attribution are committed with the feature. Mobile Safari and real two-device behavior still require manual verification.
+- Accepted match → cockpit roulette (Mars) → travel video → server-backed briefing → arena when both ready. Room scanning skipped.
+- Roulette assets (textures, Sun map, flight video, attribution) committed. Mobile Safari / two-device QA still open.
+
+## Cockpit Demo / Live + LYRA — on alex-dev
+
+- Demo/Live switch, dock controls, hologram Voice: see `docs/hologram-copilot.md` and BridgeApp. Grok Bot planning bonus claimed in `docs/sponsor-evidence.md`.
+
+
+## Live connected to Justin shared server — October 18
+
+Alex: configured the merged frontend to Justin’s public Cloudflare multiplayer server; phone QR and saber client routing now use that same backend. Real test join + controller pairing passed; the shared roster saw the merged preview pilot. Build and 156 frontend tests pass (one opt-in skipped). No game/server rules changed. Justin’s running server lacks copilot RPC replies, so shared Voice still needs his backend updated. Physical two-player saber testing remains. Changes prepared on alex-dev for team integration; `.env.local` stays ignored. Handoff: `docs/shared-live-server.md`.

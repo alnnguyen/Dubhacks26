@@ -46,9 +46,9 @@ For Voice, mount ephemeralToken/runVoiceTool in B's authenticated server. Derive
 
 1. B's actual challenge: create from lobby, accept via real Photon message, confirm both game clients update. Verify decline, expiry and repeated command behavior.
 2. B's actual selected world: ask from a real microphone and hear an answer grounded in that match; test permission denial and disconnect on target devices.
-3. Official Grok Bot planning bonus: run an actual official product team session. Suggested prompt: “Review our spaceship lobby → Photon challenge → gravity wheel → camera rock duel plan. Assign A UI, B authoritative game state, C camera gestures, D integrations; identify blockers and cut extras before 10 p.m.” Save the actual session link/output and decisions. API copilot code does not establish this bonus.
+3. Official Grok Bot planning bonus: **claimed** — team used the official Grok Bot / team-bot product for PLAN.md, roles, infrastructure, and research orchestration. Evidence: `docs/sponsor-evidence.md` (Bot section). In-game LYRA Voice is separate and does not substitute for this bonus.
 
-Do not mark D fully accepted until the first two real-game checks pass. Do not claim official Grok Bot use without the actual session.
+Do not mark D fully accepted until Photon live-challenge binding and physical-phone Voice QA pass. Bot planning claim is recorded in sponsor-evidence.
 
 Automatic briefing is in grok/briefing.mjs: state-derived text → server-only Grok TTS, cached by public script. Browser can listen without requesting microphone access; optional realtime questions remain separate. Mount the same briefing service against B’s real authenticated getMatchState adapter when ready.
 

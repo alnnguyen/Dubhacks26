@@ -9,7 +9,7 @@ let shared: GameClient | null = null
  * without it the page's own origin is used (Vite proxies /socket.io locally).
  */
 export function getGameClient(): GameClient {
-  shared ??= createGameClient({ url: import.meta.env.VITE_GAME_SERVER_URL || undefined })
+  shared ??= createGameClient()
   return shared
 }
 

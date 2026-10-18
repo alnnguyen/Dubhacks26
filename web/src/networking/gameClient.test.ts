@@ -77,9 +77,20 @@ function joinOnline(matchView: PlayerView | null = view(100)) {
   socket.last("join").ack(null, { ok: true, lobby: lobbyView(), view: matchView })
 }
 
-afterEach(() => vi.useRealTimers())
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
 
 describe("connecting", () => {
+  it("routes to the configured shared server while preserving an explicit override", () => {
+    vi.stubEnv("VITE_GAME_SERVER_URL", "https://shared.example")
+    const createSocket = vi.fn(() => new FakeSocket())
+    const shared = createGameClient({ storage: null, createSocket })
+    expect(createSocket).toHaveBeenLastCalledWith("https://shared.example")
+    shared.close()
+    const local = createGameClient({ url: "http://localhost:3001", storage: null, createSocket })
+    expect(createSocket).toHaveBeenLastCalledWith("http://localhost:3001")
+    local.close()
+  })
+
   it("joins with a stored playerId and goes online with the server's view", () => {
     setup(memoryStorage({ "jedi.playerId": "stored-player-id" }))
     expect(client.status()).toBe("connecting")
@@ -283,3 +294,23 @@ describe("commands", () => {
     expect(REPLY_TIMEOUT_MS).toBe(3000)
   })
 })
+
+
+describe("read-only copilot transport", () => {
+  it("never queues provider access while offline", async () => {
+    setup();
+    expect(await client.copilotSession()).toEqual({ok: false, reason: "offline"});
+    expect(await client.copilotContext()).toEqual({ok: false, reason: "offline"});
+    expect(socket.sent).toHaveLength(0);
+  });
+  it("requests state without accepting a caller-supplied identity and handles missing replies", async () => {
+    setup(); joinOnline(null);
+    const context = client.copilotContext();
+    expect(socket.last("copilot:context").payload).toEqual({});
+    socket.last("copilot:context").ack(null, {ok: true, context: {source: "live", lobby: lobbyView(), match: null}});
+    expect(await context).toMatchObject({ok: true, context: {source: "live"}});
+    const session = client.copilotSession();
+    socket.last("copilot:session").ack(new Error("timeout"), undefined);
+    expect(await session).toEqual({ok: false, reason: "no_response"});
+  });
+});

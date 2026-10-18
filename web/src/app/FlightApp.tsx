@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { SpaceshipHome } from '../ui/screens/SpaceshipHome';
 import { ArenaDuel } from '../arena3d/ArenaDuel';
 import { useServerLobby } from '../lobby/useServerLobby';
-import { getGameClient, useGameLobby, useGameView, type ClientReply, type PlayerView } from '../networking';
+import { getGameClient, useGameLobby, useGameView, type ClientReply, type GameClient, type PlayerView } from '../networking';
 import './flight.css';
 
 // Every match number below comes from the game server's view; this screen only displays it.
-export function FlightApp() {
-  const client = getGameClient();
+export function FlightApp({client: providedClient, cockpitControls}: {client?: GameClient; cockpitControls?: ReactNode} = {}) {
+  const client = providedClient ?? getGameClient();
   const lobby = useServerLobby(client);
   const view = useGameView(client);
   // Private pair code: a phone opening /?saber=<code> becomes this pilot's lightsaber.
@@ -81,12 +81,19 @@ export function FlightApp() {
     void client.leaveMatch();
   }
 
-  if (!view || entered !== view.matchId) return (
-    <>
-      <SpaceshipHome lobby={lobby} onTravelComplete={beginBriefing} />
-      {note && <p className="flight-muted" role="status">{note}</p>}
-    </>
-  );
+  if (!view || entered !== view.matchId) {
+    return (
+      <>
+        <SpaceshipHome
+          lobby={lobby}
+          onTravelComplete={beginBriefing}
+          cockpitControls={cockpitControls}
+          copilotClient={client}
+        />
+        {note && <p className="flight-muted" role="status">{note}</p>}
+      </>
+    );
+  }
 
   const { world, you, rival } = view;
   const screen = view.phase === 'finished' ? 'result' : view.phase === 'waiting' && !you.ready ? 'briefing' : 'duel';

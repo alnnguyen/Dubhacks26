@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { Server, type Socket } from "socket.io";
 import type { Config } from "./config.js";
 import type { ClientToServerEvents, ServerToClientEvents } from "./contracts.js";
+import { createCopilotService, type CopilotOptions } from './integrations/copilot.js';
 import { Lobby, type LobbyOptions } from "./sessions/index.js";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -12,7 +13,7 @@ export interface RunningServer {
   close: () => Promise<void>;
 }
 
-export async function startServer(config: Config, options: LobbyOptions = {}): Promise<RunningServer> {
+export async function startServer(config: Config, options: LobbyOptions & { copilot?: CopilotOptions } = {}): Promise<RunningServer> {
   const httpServer = createServer((req, res) => {
     if (req.url === "/health") {
       res.writeHead(200, { "content-type": "text/plain" }).end("ok");
@@ -27,6 +28,7 @@ export async function startServer(config: Config, options: LobbyOptions = {}): P
 
   // Latest socket per player, so a second tab or a reconnect replaces the old one.
   const socketsByPlayerId = new Map<string, GameSocket>();
+  const copilot = createCopilotService(options.copilot);
   // Each pilot's paired phone (their lightsaber). A newer phone replaces the old one.
   const phonesByPlayerId = new Map<string, GameSocket>();
 
@@ -64,6 +66,9 @@ export async function startServer(config: Config, options: LobbyOptions = {}): P
 
   io.on("connection", (socket) => {
     let playerId: string | null = null;
+    // A phone becomes a pilot's saber with their pair code. It controls only
+    // that pilot's blade and never joins as a pilot itself.
+    let saberOf: string | null = null;
 
     socket.on("join", (request, reply) => {
       if (typeof reply !== "function") return;
@@ -95,14 +100,26 @@ export async function startServer(config: Config, options: LobbyOptions = {}): P
       reply(lobby.handleCommand(playerId, command));
     });
 
+    // Both requests use the same joined socket identity as game commands, not an actor ID from the browser.
+    socket.on('copilot:session', async (request, reply) => {
+      if (typeof reply !== 'function') return;
+      if (playerId === null || socketsByPlayerId.get(playerId) !== socket) return reply({ ok: false, reason: 'not_joined' });
+      if (!request || typeof request !== 'object' || Array.isArray(request) || Object.keys(request).length) return reply({ ok: false, reason: 'invalid_request' });
+      const actor = playerId;
+      const result = await copilot.open(actor);
+      reply(socketsByPlayerId.get(actor) === socket && playerId === actor ? result : { ok: false, reason: 'not_joined' });
+    });
+    socket.on('copilot:context', (request, reply) => {
+      if (typeof reply !== 'function') return;
+      if (playerId === null || socketsByPlayerId.get(playerId) !== socket) return reply({ ok: false, reason: 'not_joined' });
+      if (!request || typeof request !== 'object' || Array.isArray(request) || Object.keys(request).length) return reply({ ok: false, reason: 'invalid_request' });
+      reply({ ok: true, context: { source: 'live', lobby: lobby.lobbyView(playerId), match: lobby.matchView(playerId) } });
+    });
+
     socket.on("bodyPose", (pose) => {
       if (playerId === null || socketsByPlayerId.get(playerId) !== socket) return;
       lobby.handleBodyPose(playerId, pose);
     });
-
-    // A phone becomes a pilot's saber with their pair code. It controls only
-    // that pilot's blade and never joins as a pilot itself.
-    let saberOf: string | null = null;
 
     socket.on("pairSaber", (request, reply) => {
       if (typeof reply !== "function") return;
