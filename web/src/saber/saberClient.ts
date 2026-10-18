@@ -1,4 +1,5 @@
 import { io } from "socket.io-client"
+import { gameServerUrl } from "../networking/gameEndpoint"
 import type { SocketLike } from "../networking/gameClient"
 import type { PairReply, SaberAim, SaberResolved, SaberStatus } from "../../../server/src/contracts"
 
@@ -22,9 +23,9 @@ export interface SaberClient {
  */
 export function createSaberClient(
   code: string,
-  createSocket: () => SocketLike & { emit(event: string, payload: unknown): unknown } = () => io(),
+  createSocket: (url: string | undefined) => SocketLike & { emit(event: string, payload: unknown): unknown } = (url) => url ? io(url) : io(),
 ): SaberClient {
-  const socket = createSocket()
+  const socket = createSocket(gameServerUrl())
   let connection: SaberConnection = "connecting"
   let error: string | null = null
   let status: SaberStatus | null = null

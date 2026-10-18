@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { FilesetResolver, HandLandmarker, PoseLandmarker } from "@mediapipe/tasks-vision"
 import QRCode from "qrcode"
+import { saberControllerUrl } from "../networking/gameEndpoint"
 import type { ArenaFrame, PlayerView, SaberAim, SetupStep, Vec3 } from "../../../server/src/contracts"
 import type { GameClient } from "../networking"
 import { HAND_MODEL_URL, handsFromLandmarker, WASM_ROOT } from "../camera/mediapipeVision"
@@ -125,7 +126,7 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
     }
   }, [])
   const { you, rival } = view
-  const saberUrl = `${location.origin}/?saber=${pairCode}`
+  const saberUrl = saberControllerUrl(pairCode)
 
   useEffect(() => {
     if (!pairCode) return

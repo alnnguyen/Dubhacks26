@@ -6,6 +6,7 @@ import '../../app/flight.css';
 import { OnboardingFlow } from '../../onboarding';
 import { SpaceshipHome } from './SpaceshipHome';
 import './bridge-mode.css';
+import { gameServerUrl } from '../../networking/gameEndpoint';
 
 type LobbyMode = 'demo' | 'live';
 const MODE_KEY = 'sd.lobby.mode.v1';
@@ -23,7 +24,8 @@ function ModeControls({mode, identity, locked = false, connection, onMode, onRes
   onMode: (mode: LobbyMode) => void;
   onReset: () => void;
 }) {
-  const status = locked ? 'Finish or cancel challenge to switch' : mode === 'demo' ? 'Demo: simulated pilots, no multiplayer' : connection === 'online' ? 'Live: players on the shared server' : connection === 'offline' ? 'Server offline; switch to Demo' : 'Connecting to game server';
+  const serverName = new URL(gameServerUrl() || location.origin).host;
+  const status = locked ? 'Finish or cancel challenge to switch' : mode === 'demo' ? 'Demo: simulated pilots, no multiplayer' : connection === 'online' ? `Live: shared server ${serverName}` : connection === 'offline' ? 'Server offline; switch to Demo' : 'Connecting to game server';
   return <>
     <div className="sd-shortcut bridge-mode" title={status}>
       <span className="sd-shortcut__label bridge-mode__label">Lobby</span>
@@ -47,7 +49,7 @@ function LiveBridge({identity, onMode, onReset}: {
 }) {
   const [client, setClient] = useState<GameClient | null>(null);
   useEffect(() => {
-    const next = createGameClient({url: import.meta.env.VITE_GAME_SERVER_URL || undefined});
+    const next = createGameClient();
     setClient(next);
     return () => next.close();
   }, []);

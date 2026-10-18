@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { createSaberClient } from "./saberClient"
 
 type Ack = (err: Error | null, reply: unknown) => void
@@ -34,7 +34,20 @@ function setup() {
 
 const aim = { tracked: true, top: [0, 0, 1] as [number, number, number], rate: 0 }
 
+afterEach(() => vi.unstubAllEnvs())
+
 describe("saber client", () => {
+  it("pairs on the same configured shared server as the laptop", () => {
+    vi.stubEnv("VITE_GAME_SERVER_URL", "https://shared.example")
+    const socket = new FakeSocket()
+    const createSocket = vi.fn(() => socket)
+    const client = createSaberClient("ABC234", createSocket)
+    expect(createSocket).toHaveBeenCalledWith("https://shared.example")
+    socket.fire("connect")
+    expect(socket.acks[0]).toMatchObject({ event: "pairSaber", payload: { code: "ABC234" } })
+    client.close()
+  })
+
   it("pairs with its code on connect, then streams aims", () => {
     const { socket, client } = setup()
     expect(client.connection()).toBe("connecting")

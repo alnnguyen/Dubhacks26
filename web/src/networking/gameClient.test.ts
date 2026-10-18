@@ -77,9 +77,20 @@ function joinOnline(matchView: PlayerView | null = view(100)) {
   socket.last("join").ack(null, { ok: true, lobby: lobbyView(), view: matchView })
 }
 
-afterEach(() => vi.useRealTimers())
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
 
 describe("connecting", () => {
+  it("routes to the configured shared server while preserving an explicit override", () => {
+    vi.stubEnv("VITE_GAME_SERVER_URL", "https://shared.example")
+    const createSocket = vi.fn(() => new FakeSocket())
+    const shared = createGameClient({ storage: null, createSocket })
+    expect(createSocket).toHaveBeenLastCalledWith("https://shared.example")
+    shared.close()
+    const local = createGameClient({ url: "http://localhost:3001", storage: null, createSocket })
+    expect(createSocket).toHaveBeenLastCalledWith("http://localhost:3001")
+    local.close()
+  })
+
   it("joins with a stored playerId and goes online with the server's view", () => {
     setup(memoryStorage({ "jedi.playerId": "stored-player-id" }))
     expect(client.status()).toBe("connecting")

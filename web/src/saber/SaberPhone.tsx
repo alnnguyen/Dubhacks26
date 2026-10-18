@@ -5,6 +5,7 @@ import { angularSpeed, topEdgeDirection } from "./aimMath"
 import { createSaberAudio } from "./saberAudio"
 import { createSaberClient, type SaberClient } from "./saberClient"
 import "./saber.css"
+import { gameServerUrl } from "../networking/gameEndpoint"
 
 const AIM_SEND_MS = 33
 
@@ -122,7 +123,7 @@ export function SaberPhone({ code }: { code: string }) {
         {connection === "invalid_code" ? <p>Scan the QR code on your laptop's duel screen again.</p> : null}
         {connection === "offline" ? (
           <p className="saber-error">
-            Can't reach the game server at {location.host}
+            Can't reach the game server at {new URL(gameServerUrl() || location.origin).host}
             {connectionError ? ` (${connectionError})` : ""}. Retrying… Check the game server is running and this is the
             same address your laptop uses.
           </p>

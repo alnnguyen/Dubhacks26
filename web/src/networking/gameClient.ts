@@ -1,3 +1,4 @@
+import { gameServerUrl } from "./gameEndpoint"
 import { io } from "socket.io-client"
 // Temporary cross-folder import until server/src/contracts.ts moves to packages/contracts.
 import type {
@@ -69,7 +70,7 @@ export interface SocketLike {
 }
 
 export interface GameClientOptions {
-  /** Defaults to the page's own origin, which Vite proxies to the game server. */
+  /** Defaults to VITE_GAME_SERVER_URL, or the page origin when unset (Vite proxies locally). */
   url?: string
   storage?: Pick<Storage, "getItem" | "setItem"> | null
   createSocket?: (url: string | undefined) => SocketLike
@@ -127,7 +128,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   const now = options.now ?? Date.now
   const storage = options.storage === undefined ? safeLocalStorage() : options.storage
   const playerId = loadPlayerId(storage)
-  const socket = (options.createSocket ?? defaultSocket)(options.url)
+  const socket = (options.createSocket ?? defaultSocket)(options.url ?? gameServerUrl())
 
   let status: ConnectionStatus = "connecting"
   let joinError: string | null = null
