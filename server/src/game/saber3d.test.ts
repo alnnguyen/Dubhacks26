@@ -4,7 +4,7 @@ import type { ArenaFrame, Hand, PlayerSlot, SaberResolved, Vec3 } from "../contr
 import { bodyDirection, Match } from "./match.js";
 import { SABER } from "./rules.js";
 import { bodyToWorld, resolveSweep, segmentDistance, worldToDirection } from "./saber3d.js";
-import { HEX_SPACING, hexDistance, hexToWorld, neighbors, onBoard } from "./hex.js";
+import { CELL_SIZE, cellToWorld, inReach, ownRow, ROWS_PER_SIDE } from "./grid.js";
 
 const PILOTS = { 1: { pilotId: "p1", callsign: "ONE" }, 2: { pilotId: "p2", callsign: "TWO" } };
 const close = (a: number[], b: number[], eps = 1e-9) =>
@@ -26,16 +26,14 @@ describe("saber3d geometry", () => {
     close(worldToDirection([-0.2, 0, -0.3], [0, -1]), [0.2, 0, 0.3]);
   });
 
-  test("hexes: neighbors are all one spacing apart; the board has 19 cells", () => {
-    const [cx, cz] = hexToWorld({ q: 1, r: -1 });
-    for (const n of neighbors({ q: 1, r: -1 })) {
-      const [x, z] = hexToWorld(n);
-      assert.ok(Math.abs(Math.hypot(x - cx, z - cz) - HEX_SPACING) < 1e-9);
-      assert.equal(hexDistance(n, { q: 1, r: -1 }), 1);
-    }
-    let cells = 0;
-    for (let q = -3; q <= 3; q++) for (let r = -3; r <= 3; r++) if (onBoard({ q, r })) cells++;
-    assert.equal(cells, 19);
+  test("grid: front rows 1.3 m apart, three rows a side, columns without end", () => {
+    assert.ok(Math.abs(cellToWorld({ q: 0, r: 1 })[1] - cellToWorld({ q: 0, r: -1 })[1] - 1.3) < 1e-9);
+    assert.deepEqual([-4, -3, -1, 0, 1].map((r) => ownRow(1, r)), [false, true, true, false, false]);
+    assert.deepEqual([-1, 0, 1, 3, 4].map((r) => ownRow(2, r)), [false, false, true, true, false]);
+    assert.equal(ROWS_PER_SIDE, 3);
+    assert.equal(inReach({ q: 5, r: -1 }, { q: 6, r: 1 }), true);
+    assert.equal(inReach({ q: 5, r: -1 }, { q: 7, r: 1 }), false, "two columns apart");
+    assert.equal(inReach({ q: 0, r: -2 }, { q: 0, r: 1 }), false, "one player back a row");
   });
 
   test("a blade touching the defender's blade blocks before the body behind it", () => {
@@ -90,9 +88,10 @@ describe("saber duel in the arena", () => {
     match.setSaberPaired(2, true);
     match.handleCommand(1, { commandId: "r1", type: "ready" });
     match.handleCommand(2, { commandId: "r2", type: "ready" });
-    // Players start two hexes apart; slot 1 steps in to the center so they're engaged,
-    // 1.3 m apart along z, facing each other.
+    // Players start in their middle rows; both step up to the front line so they're
+    // engaged, 1.3 m apart along z, facing each other.
     assert.equal(match.step(1, "forward"), null);
+    assert.equal(match.step(2, "forward"), null);
     mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
   });
 
@@ -226,10 +225,10 @@ describe("saber duel in the arena", () => {
   test("the arena frame places slot 2 across from slot 1, facing them", () => {
     step({}, {});
     const [one, two] = frames.at(-1)!.players;
-    close(one.joints![24], [0.12, SABER.hipHeight, 0]);
-    close(two.joints![24], [-0.12, SABER.hipHeight, HEX_SPACING]);
-    assert.ok(two.blade!.hilt[2] < HEX_SPACING, "slot 2's hands are in front of them, toward slot 1");
-    assert.deepEqual([one.cell, two.cell], [{ q: 0, r: 0 }, { q: 0, r: 1 }]);
+    close(one.joints![24], [0.12, SABER.hipHeight, -CELL_SIZE]);
+    close(two.joints![24], [-0.12, SABER.hipHeight, CELL_SIZE]);
+    assert.ok(two.blade!.hilt[2] < CELL_SIZE, "slot 2's hands are in front of them, toward slot 1");
+    assert.deepEqual([one.cell, two.cell], [{ q: 0, r: -1 }, { q: 0, r: 1 }]);
     assert.equal(frames.at(-1)!.engaged, true);
   });
 
@@ -237,7 +236,7 @@ describe("saber duel in the arena", () => {
 
   const settle = () => mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
 
-  test("players start two hexes apart, not engaged, and swings there don't count", () => {
+  test("players start a row back from the front line, not engaged, and swings there don't count", () => {
     const fresh = new Match("start", "mars", PILOTS, {
       changed: () => {},
       projectileLanded: () => {},
@@ -253,43 +252,58 @@ describe("saber duel in the arena", () => {
     assert.equal(fresh.engaged, false);
     mock.timers.tick(SABER.tickMs);
     const [one, two] = frames.at(-1)!.players;
-    assert.equal(hexDistance(one.cell, two.cell), 2);
+    assert.deepEqual([one.cell, two.cell], [{ q: 0, r: -2 }, { q: 0, r: 2 }]);
     assert.equal(frames.at(-1)!.engaged, false);
     fresh.dispose();
   });
 
-  test("forward and back are toward and away from the rival; you can't step into them", () => {
-    assert.equal(match.step(1, "forward"), "blocked", "the rival's hex");
+  test("forward and back move between your own three rows; the center line and your back row stop you", () => {
+    assert.equal(match.step(1, "forward"), "blocked", "the center line");
     assert.equal(match.step(1, "back"), null);
     settle();
     step();
-    close(hips(1), [0.12, SABER.hipHeight, -HEX_SPACING]);
+    close(hips(1), [0.12, SABER.hipHeight, -2 * CELL_SIZE]);
     assert.equal(frames.at(-1)!.engaged, false);
-  });
-
-  test("left and right circle the rival, staying engaged, and the turn to face them follows", () => {
-    assert.equal(match.step(1, "right"), null);
+    assert.equal(match.step(1, "back"), null);
     settle();
-    step({ dir: [0, 0, 1] });
-    const [one, two] = frames.at(-1)!.players;
-    assert.equal(frames.at(-1)!.engaged, true);
-    assert.ok(one.joints![24][0] > 0.5, "moved to the player's right (+x when facing +z)");
-    // Pointing the saber forward points it at the rival, even off the z axis.
-    const blade = one.blade!;
-    // Facing runs between cell centers.
-    const [ax, az] = hexToWorld(one.cell);
-    const [bx, bz] = hexToWorld(two.cell);
-    const toRival = [bx - ax, bz - az];
-    const d = Math.hypot(toRival[0], toRival[1]);
-    const dir = [blade.tip[0] - blade.hilt[0], blade.tip[2] - blade.hilt[2]];
-    const dl = Math.hypot(dir[0], dir[1]);
-    close([dir[0] / dl, dir[1] / dl], [toRival[0] / d, toRival[1] / d], 0.05);
-  });
-
-  test("the board's edge blocks a step", () => {
+    assert.equal(match.step(1, "back"), "blocked", "the back row");
+    // Slot 2 faces -z: their back is +z.
+    assert.equal(match.step(2, "back"), null);
+    settle();
     assert.equal(match.step(2, "back"), null);
     settle();
     assert.equal(match.step(2, "back"), "blocked");
+    step();
+    assert.deepEqual(frames.at(-1)!.players.map((p) => p.cell), [{ q: 0, r: -3 }, { q: 0, r: 3 }]);
+  });
+
+  test("left and right sidestep along the lane without end, facing stays straight down it", () => {
+    for (let i = 0; i < 25; i++) {
+      assert.equal(match.step(1, "right"), null);
+      settle();
+    }
+    step({ dir: [0, 0, 1] });
+    const [one] = frames.at(-1)!.players;
+    assert.deepEqual(one.cell, { q: 25, r: -1 });
+    close(one.facing, [0, 1]);
+    close([one.joints![24][0], one.joints![24][2]], [25 * CELL_SIZE + 0.12, -CELL_SIZE]);
+    assert.equal(frames.at(-1)!.engaged, false, "far out of reach");
+    // Slot 2 is turned around: their right is -x.
+    assert.equal(match.step(2, "right"), null);
+    settle();
+    step();
+    assert.deepEqual(frames.at(-1)!.players[1].cell, { q: -1, r: 1 });
+  });
+
+  test("a sidestep of one column stays engaged; two breaks it", () => {
+    assert.equal(match.step(1, "left"), null);
+    settle();
+    step();
+    assert.equal(frames.at(-1)!.engaged, true);
+    assert.equal(match.step(1, "left"), null);
+    settle();
+    step();
+    assert.equal(frames.at(-1)!.engaged, false);
   });
 
   test("a swipe mid-glide is buffered and taken the moment the step lands; a third waits", () => {
@@ -310,7 +324,7 @@ describe("saber duel in the arena", () => {
     mock.timers.tick(SABER.tickMs);
     step();
     const midway = hips(1)[2];
-    assert.ok(midway < 0 && midway > -HEX_SPACING, `gliding: ${midway}`);
+    assert.ok(midway < -CELL_SIZE && midway > -2 * CELL_SIZE, `gliding: ${midway}`);
     settle();
     assert.equal(match.step(1, "forward"), null);
     assert.equal(match.step(1, "sideways"), "invalid_command");
@@ -320,7 +334,7 @@ describe("saber duel in the arena", () => {
     match.step(1, "back");
     settle();
     swingAcross();
-    assert.equal(resolved.length, 0, "two hexes apart");
+    assert.equal(resolved.length, 0, "a row back from the front line");
     // Rest the blade where the next swing starts, so stepping in doesn't jump it mid-air.
     step(slash(60));
     match.step(1, "forward");
@@ -334,17 +348,17 @@ describe("saber duel in the arena", () => {
     match.step(1, "back");
     for (let t = 0; t < 3000; t += SABER.tickMs) step();
     assert.equal(frames.at(-1)!.engaged, false);
-    assert.deepEqual(frames.at(-1)!.players.map((p) => p.cell), [{ q: 0, r: -1 }, { q: 0, r: 1 }]);
+    assert.deepEqual(frames.at(-1)!.players.map((p) => p.cell), [{ q: 0, r: -2 }, { q: 0, r: 1 }]);
   });
 
   test("an accepted step is announced at once; a refused one isn't", () => {
     stepped = [];
     assert.equal(match.step(1, "forward"), "blocked");
     assert.equal(match.step(1, "back"), null);
-    assert.deepEqual(stepped, [{ slot: 1, cell: { q: 0, r: -1 } }]);
+    assert.deepEqual(stepped, [{ slot: 1, cell: { q: 0, r: -2 } }]);
   });
 
-  test("circling with the blade held still isn't a swing", () => {
+  test("sidestepping with the blade held still isn't a swing", () => {
     step(slash(30));
     step(slash(30));
     match.step(1, "right");

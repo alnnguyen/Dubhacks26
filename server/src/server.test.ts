@@ -148,7 +148,7 @@ test("a phone pairs as a pilot's saber, and the arena shows the blade to both la
   // Alice's laptop gets her own phone's readings for its setup checks.
   assert.deepEqual(await aliceSeesPhone, { seq: 1, tracked: true, top: [0, 0, 1], rate: 0 });
   const frame = await bobSeesBlade;
-  // Alice's right wrist, at her starting hex (two hexes from Bob, hips 1 m up), blade straight up.
+  // Alice's right wrist, in her starting cell (a row back from the front line, hips 1 m up), blade straight up.
   const round = (v: number[] | undefined) => v?.map((n) => Math.round(n * 100) / 100);
   assert.deepEqual(round(frame.players[0].blade?.hilt), [0.2, 1.3, -1]);
   assert.deepEqual(round(frame.players[0].blade?.tip), [0.2, 2.2, -1]);
@@ -162,7 +162,7 @@ test("a phone's thumb swipe steps its pilot, announced to both laptops at once",
     new Promise<CommandReply>((resolve) => phone.emit("saberStep", { stepId, direction: "forward" }, resolve));
   const bobSees = new Promise<Parameters<ServerToClientEvents["stepped"]>[0]>((resolve) => bob.once("stepped", resolve));
   assert.deepEqual(await step("swipe-1"), { commandId: "swipe-1", status: "accepted" });
-  assert.deepEqual(await bobSees, { slot: 1, cell: { q: 0, r: 0 } });
+  assert.deepEqual(await bobSees, { slot: 1, cell: { q: 0, r: -1 } });
   // A retried swipe repeats its reply instead of stepping again.
   assert.deepEqual(await step("swipe-1"), { commandId: "swipe-1", status: "accepted" });
 

@@ -14,7 +14,7 @@ export interface SaberAudio {
   chime(): void
   /** A swipe was sent: a quick step. */
   whoosh(): void
-  /** A step was refused: the edge of the arena or the rival's hex. */
+  /** A step was refused: the center line or the back of your side. */
   thud(): void
   hurt(): void
 }

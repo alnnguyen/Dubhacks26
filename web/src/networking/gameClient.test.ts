@@ -52,7 +52,7 @@ const view = (health: number): PlayerView => {
     phase: "active",
     world,
     result: null,
-    board: { hexSize: 0.75, radius: 2, stepMs: 110 },
+    board: { cellSize: 0.65, rows: 3, stepMs: 110 },
     you: player(1),
     rival: player(2),
   }

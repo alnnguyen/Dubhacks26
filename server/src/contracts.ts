@@ -42,10 +42,12 @@ export interface BodyPose {
   setup: SetupProgress | null;
 }
 
-// One step to a neighboring hex, relative to the way the player faces (forward is toward the rival).
+// One step to a neighboring cell, relative to the way the player faces (forward is toward the rival's side).
 export type StepDirection = "forward" | "back" | "left" | "right";
 
-export interface HexCell {
+// A board cell: q is the column along x (unbounded), r the row along z
+// (slot 1 owns rows -rows..-1, slot 2 rows 1..rows).
+export interface GridCell {
   q: number;
   r: number;
 }
@@ -107,9 +109,9 @@ export interface ArenaBlade {
 
 export interface ArenaPlayer {
   slot: PlayerSlot;
-  // The hex the player stands in (or is stepping to).
-  cell: HexCell;
-  // Which way they face, a horizontal unit vector (world x, z): always toward the rival.
+  // The cell the player stands in (or is stepping to).
+  cell: GridCell;
+  // Which way they face, a horizontal unit vector (world x, z): straight down the lane, slot 1 +z, slot 2 -z.
   facing: [number, number];
   // World-frame joints; null while the body isn't tracked.
   joints: Vec3[] | null;
@@ -123,7 +125,7 @@ export interface ArenaFrame {
   // despite network jitter. Only differences matter; clocks aren't synced.
   serverMs: number;
   players: ArenaPlayer[];
-  // The players are in neighboring hexes: only then do swings count.
+  // Both players at the front line within a column of each other: only then do swings count.
   engaged: boolean;
 }
 
@@ -206,9 +208,9 @@ export interface PlayerView {
   phase: MatchPhase;
   world: World;
   result: MatchResult | null;
-  // The hex board, so laptops draw the same one: cell size (center to corner, m), radius in
-  // cells, and how long a step glides (laptops start your own glide the moment a step is accepted).
-  board: { hexSize: number; radius: number; stepMs: number };
+  // The lane board, so laptops draw the same one: cell size (center to center, m), rows on
+  // each side, and how long a step glides (laptops start your own glide the moment a step is accepted).
+  board: { cellSize: number; rows: number; stepMs: number };
   you: PlayerState;
   rival: PlayerState;
 }
@@ -286,7 +288,7 @@ export type RejectReason =
   | "projectile_in_flight"
   | "not_blocking"
   | "pilot_unavailable"
-  // A step off the board, or into the rival's hex.
+  // A step past the center line or the back of your side.
   | "blocked"
   | "challenge_unavailable";
 
@@ -318,7 +320,7 @@ export interface ServerToClientEvents {
   // To the pilot's laptop: their own phone's latest reading, for the setup checks.
   phoneAim: (aim: SaberAim) => void;
   // To both laptops, the moment a step is accepted (ahead of the next arena frame).
-  stepped: (event: { slot: PlayerSlot; cell: HexCell }) => void;
+  stepped: (event: { slot: PlayerSlot; cell: GridCell }) => void;
 }
 
 export interface ClientToServerEvents {

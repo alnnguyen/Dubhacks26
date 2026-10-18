@@ -20,7 +20,7 @@ export const SABER = {
   headRadius: 0.12,
   // Hips stand this high over the center of their hex (hex spacing is in hex.ts).
   hipHeight: 1.0,
-  // A step glides to the next hex over stepMs; the next step can start stepCooldownMs after it lands.
+  // A step glides to the next cell over stepMs; the next step can start stepCooldownMs after it lands.
   stepMs: 110,
   stepCooldownMs: 60,
   // Tip speed that starts a swing, and the lower speed that ends it.

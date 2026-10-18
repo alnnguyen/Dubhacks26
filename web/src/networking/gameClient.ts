@@ -95,7 +95,7 @@ export interface GameClient {
   calibrateSaber(calibration: SaberCalibration): Promise<ClientReply>
   /** A step was accepted (yours or your rival's), ahead of the next arena frame. */
   onStepped(listener: (event: { slot: 1 | 2; cell: { q: number; r: number } }) => void): () => void
-  /** One step to a neighboring hex, relative to the way you face (forward is toward your rival). */
+  /** One step to a neighboring cell, relative to the way you face (forward is toward your rival's side). */
   step(direction: StepDirection): Promise<ClientReply>
   /**
    * Stream your own body from the laptop camera (~20 Hz). No reply; a stale

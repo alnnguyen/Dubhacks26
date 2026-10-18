@@ -10,7 +10,7 @@ import type {
   ProjectileLanded,
   RejectReason,
   ArenaFrame,
-  HexCell,
+  GridCell,
   SaberAim,
   SaberResolved,
   SaberStatus,
@@ -62,7 +62,7 @@ export interface LobbyEvents {
   // Both players in the arena, every server tick, to both laptops.
   arenaFrame: (playerIds: string[], frame: ArenaFrame) => void;
   // A step was accepted, to both laptops at once.
-  stepped: (playerIds: string[], event: { slot: PlayerSlot; cell: HexCell }) => void;
+  stepped: (playerIds: string[], event: { slot: PlayerSlot; cell: GridCell }) => void;
 }
 
 export interface LobbyOptions {

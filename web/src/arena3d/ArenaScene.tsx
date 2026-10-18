@@ -4,7 +4,7 @@ import { Canvas, useFrame } from "@react-three/fiber"
 import { Bloom, EffectComposer } from "@react-three/postprocessing"
 import type { ArenaFrame, PlayerSlot, Vec3 } from "../../../server/src/contracts"
 import { MarsEnvironment, loadTerrainSampler } from "../arena/mars/MarsEnvironment"
-import { boardCells, hexCorners, hexToWorld, type Board } from "./hexBoard"
+import { cellToWorld, type Board } from "./gridBoard"
 
 /**
  * The shared saber arena as this laptop sees it: both players as glowing
@@ -259,7 +259,7 @@ function ShoulderCamera({ frameRef, mySlot, groundY }: {
   const target = useRef(new THREE.Vector3())
   useFrame(({ camera }, delta) => {
     const player = frameRef.current?.players.find((p) => p.slot === mySlot)
-    // Always behind you, looking toward your rival: it swings around as you circle.
+    // Always behind you, looking down the lane toward your rival's side.
     const [fx, fz] = player?.facing ?? [0, mySlot === 1 ? 1 : -1]
     const forward = toThree([fx, 0, fz])
     const right = toThree([fz, 0, -fx])
@@ -295,40 +295,45 @@ function MarsFighters(props: FightersProps) {
   return <Fighters {...props} groundY={sampler.heightAt(0, 0)} />
 }
 
-const HEX_LINE = new THREE.Color("#ffd7a0")
+const GRID_LINE = new THREE.Color("#ffd7a0")
+// Columns drawn either side of you. The lane has no end: the drawing follows
+// you a whole column at a time, so it looks the same wherever you are.
+const DRAWN_COLUMNS = 20
 
 /**
- * The hex board on the ground: faint outlines, your cell blue, your rival's
- * red; while you're engaged (neighboring cells) both glow and a link joins them.
+ * The lane board on the ground: faint cell outlines on each side of the center
+ * line, your cell blue, your rival's red; while you're engaged both glow and a
+ * link joins them.
  */
-function HexBoard({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFrame | null>; mySlot: PlayerSlot; board: Board }) {
-  const cells = useMemo(() => boardCells(board.radius), [board.radius])
+function LaneBoard({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFrame | null>; mySlot: PlayerSlot; board: Board }) {
+  const { cellSize, rows } = board
   const outline = useMemo(() => {
-    // One line segment list for every hex edge.
-    const corners = hexCorners(board.hexSize * 0.96)
     const points: number[] = []
-    for (const cell of cells) {
-      const [cx, cz] = hexToWorld(cell, board.hexSize)
-      for (let i = 0; i < 6; i++) {
-        const [ax, az] = corners[i]
-        const [bx, bz] = corners[(i + 1) % 6]
-        points.push(cx + ax, 0.02, -(cz + az), cx + bx, 0.02, -(cz + bz))
+    const xEdge = (DRAWN_COLUMNS + 0.5) * cellSize
+    // Each side spans z from half a cell off the center line to its back row's far edge (three's z flips).
+    for (const side of [-1, 1]) {
+      const near = side * 0.5 * cellSize
+      const far = side * (rows + 0.5) * cellSize
+      for (let i = 0; i <= rows; i++) {
+        const z = near + side * i * cellSize
+        points.push(-xEdge, 0.02, -z, xEdge, 0.02, -z)
+      }
+      for (let q = -DRAWN_COLUMNS; q <= DRAWN_COLUMNS + 1; q++) {
+        const x = (q - 0.5) * cellSize
+        points.push(x, 0.02, -near, x, 0.02, -far)
       }
     }
     const g = new THREE.BufferGeometry()
     g.setAttribute("position", new THREE.Float32BufferAttribute(points, 3))
     return g
-  }, [cells, board.hexSize])
-  const fill = useMemo(() => {
-    const shape = new THREE.Shape(hexCorners(board.hexSize * 0.92).map(([x, z]) => new THREE.Vector2(x, z)))
-    return new THREE.ShapeGeometry(shape)
-  }, [board.hexSize])
+  }, [cellSize, rows])
+  const fill = useMemo(() => new THREE.PlaneGeometry(cellSize * 0.92, cellSize * 0.92), [cellSize])
+  const grid = useRef<THREE.Group>(null)
   const mine = useRef<THREE.Mesh>(null)
   const theirs = useRef<THREE.Mesh>(null)
   const link = useRef<THREE.Mesh>(null)
   const mineMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: COLORS.you, transparent: true, opacity: 0.25, depthWrite: false }), [])
   const theirsMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: COLORS.rival, transparent: true, opacity: 0.25, depthWrite: false }), [])
-  const rim = (board.radius + 0.75) * board.hexSize * Math.sqrt(3)
 
   useFrame(() => {
     const frame = frameRef.current
@@ -337,12 +342,13 @@ function HexBoard({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFrame 
       if (!mesh) return null
       mesh.visible = Boolean(cell)
       if (!cell) return null
-      const [x, z] = hexToWorld(cell, board.hexSize)
+      const [x, z] = cellToWorld(cell, cellSize)
       mesh.position.set(x, 0.015, -z)
       return mesh.position
     }
     const a = place(mine.current, mySlot)
     const b = place(theirs.current, mySlot === 1 ? 2 : 1)
+    if (grid.current && a) grid.current.position.x = a.x
     const engaged = Boolean(frame?.engaged)
     mineMaterial.opacity = engaged ? 0.55 : 0.25
     theirsMaterial.opacity = engaged ? 0.55 : 0.25
@@ -354,19 +360,21 @@ function HexBoard({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFrame 
 
   return (
     <group>
-      <lineSegments geometry={outline}>
-        <lineBasicMaterial color={HEX_LINE} transparent opacity={0.35} />
-      </lineSegments>
-      {/* The shape is drawn in x, z; laying it flat this way keeps its visible side facing up (z flips to three's -z). */}
+      <group ref={grid}>
+        <lineSegments geometry={outline}>
+          <lineBasicMaterial color={GRID_LINE} transparent opacity={0.35} />
+        </lineSegments>
+        {/* The center line between the two sides. */}
+        <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[(DRAWN_COLUMNS * 2 + 1) * cellSize, 0.05]} />
+          <meshBasicMaterial color={GRID_LINE} transparent opacity={0.6} />
+        </mesh>
+      </group>
       <mesh ref={mine} geometry={fill} material={mineMaterial} rotation={[-Math.PI / 2, 0, 0]} />
       <mesh ref={theirs} geometry={fill} material={theirsMaterial} rotation={[-Math.PI / 2, 0, 0]} />
       <mesh ref={link}>
         <cylinderGeometry args={[0.02, 0.02, 1, 8]} />
         <meshBasicMaterial color={new THREE.Color(3, 1.2, 0.8)} toneMapped={false} />
-      </mesh>
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[rim - 0.05, rim, 96]} />
-        <meshBasicMaterial color="#ffd7a0" transparent opacity={0.45} />
       </mesh>
     </group>
   )
@@ -382,7 +390,7 @@ function Fighters({ frameRef, flashRef, mySlot, board, groundY }: FightersProps 
       <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} />
       <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} />
       <Impact flashRef={flashRef} />
-      <HexBoard frameRef={frameRef} mySlot={mySlot} board={board} />
+      <LaneBoard frameRef={frameRef} mySlot={mySlot} board={board} />
     </group>
   )
 }

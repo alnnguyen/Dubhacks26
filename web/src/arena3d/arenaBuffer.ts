@@ -64,7 +64,7 @@ export function blendFrames(a: ArenaFrame, b: ArenaFrame, u: number): ArenaFrame
 function blendPlayer(a: ArenaPlayer, b: ArenaPlayer, u: number): ArenaPlayer {
   const joints = a.joints && b.joints ? b.joints.map((j, i) => lerp(a.joints![i], j, u)) : b.joints
   const blade = a.blade && b.blade ? blendBlade(a.blade, b.blade, u) : b.blade
-  // Facing turns smoothly as players circle.
+  // Facing turns smoothly if it ever changes between frames.
   const fx = a.facing[0] + (b.facing[0] - a.facing[0]) * u
   const fz = a.facing[1] + (b.facing[1] - a.facing[1]) * u
   const fl = Math.hypot(fx, fz) || 1

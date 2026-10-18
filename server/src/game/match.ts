@@ -39,7 +39,7 @@ import {
   worldToDirection,
   type Facing,
 } from "./saber3d.js";
-import { BOARD_RADIUS, HEX_SIZE, hexDistance, hexToWorld, neighborToward, onBoard, sameHex, type Hex } from "./hex.js";
+import { CELL_SIZE, cellToWorld, inReach, ownRow, ROWS_PER_SIDE, type Cell } from "./grid.js";
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -74,8 +74,8 @@ interface Saber {
   // own body frame, to tell a swing from stepping or turning to face the rival.
   lastBlade: ArenaBlade | null;
   lastBodyTip: Vec3 | null;
-  // The hex the player stands in (or is stepping to), and the glide there from the last one.
-  cell: Hex;
+  // The cell the player stands in (or is stepping to), and the glide there from the last one.
+  cell: Cell;
   glide: { from: [number, number]; startedAt: number };
   // No new step until this time: the glide plus a short pause.
   stepReadyAt: number;
@@ -89,8 +89,10 @@ interface Saber {
 
 const HANDS: readonly Hand[] = ["left", "right"];
 const STEP_DIRECTIONS: readonly StepDirection[] = ["forward", "back", "left", "right"];
-// Start two cells apart, straight across the center from each other.
-const START_CELLS: Record<PlayerSlot, Hex> = { 1: { q: 0, r: -1 }, 2: { q: 0, r: 1 } };
+// Start in the middle row of each side, straight across from each other: one step each to engage.
+const START_CELLS: Record<PlayerSlot, Cell> = { 1: { q: 0, r: -2 }, 2: { q: 0, r: 2 } };
+// Each player faces down the lane toward the other side, whatever column either is in.
+const FACING: Record<PlayerSlot, Facing> = { 1: [0, 1], 2: [0, -1] };
 
 const SETUP_STEPS: readonly SetupStep[] = ["stand", "phone", "forward", "up", "right", "reach", "done"];
 
@@ -99,7 +101,7 @@ export interface MatchEvents {
   projectileLanded: (event: ProjectileLanded) => void;
   saberResolved: (event: SaberResolved) => void;
   // A step was accepted: sent at once, ahead of the next arena frame.
-  stepped: (event: { slot: PlayerSlot; cell: Hex }) => void;
+  stepped: (event: { slot: PlayerSlot; cell: Cell }) => void;
   // Both players in the arena, every tick.
   arenaFrame: (frame: ArenaFrame) => void;
   finished: (result: MatchResult) => void;
@@ -257,9 +259,9 @@ export class Match {
     return null;
   }
 
-  // One step to a neighboring hex, relative to the player's facing: forward is
-  // toward the rival, left/right circle around them. Allowed from the briefing
-  // on so players can practise during setup.
+  // One step to a neighboring cell, relative to the player's facing: forward is
+  // toward the rival's side, left/right sidestep along the lane without limit.
+  // Allowed from the briefing on so players can practise during setup.
   step(slot: PlayerSlot, direction: unknown): RejectReason | null {
     if (this.phase === "finished") return "match_not_active";
     if (!STEP_DIRECTIONS.includes(direction as StepDirection)) return "invalid_command";
@@ -279,22 +281,22 @@ export class Match {
     return this.stepTo(player, direction as StepDirection, now);
   }
 
-  // The one way a player changes hex.
+  // The one way a player changes cell.
   private stepTo(player: Player, direction: StepDirection, now: number): RejectReason | null {
-    const rival = this.players.get(player.slot === 1 ? 2 : 1)!;
     if (now < player.saber.stepReadyAt) return "busy";
 
-    const [fx, fz] = this.facing(player, now);
-    // Body-frame direction to world: right of facing (fx, fz) is (fz, -fx).
-    const world: Record<StepDirection, [number, number]> = {
-      forward: [fx, fz],
-      back: [-fx, -fz],
-      right: [fz, -fx],
-      left: [-fz, fx],
-    };
-    const target = neighborToward(player.saber.cell, world[direction]);
-    // The rival's cell is theirs even while they're still gliding into it.
-    if (!onBoard(target) || sameHex(target, rival.saber.cell)) return "blocked";
+    // Slot 1 faces +z with +x on their right; slot 2 is turned around.
+    const ahead = player.slot === 1 ? 1 : -1;
+    const [dq, dr]: [number, number] = {
+      forward: [0, ahead],
+      back: [0, -ahead],
+      right: [ahead, 0],
+      left: [-ahead, 0],
+    }[direction] as [number, number];
+    const { q, r } = player.saber.cell;
+    const target = { q: q + dq, r: r + dr };
+    // Columns never run out; rows stop at the center line and the back of your side.
+    if (!ownRow(player.slot, target.r)) return "blocked";
 
     player.saber.glide = { from: this.rootXZ(player, now), startedAt: now };
     player.saber.cell = target;
@@ -304,9 +306,9 @@ export class Match {
     return null;
   }
 
-  // Neighboring hexes: the only time swings count.
+  // Both at the front line within a column of each other: the only time swings count.
   get engaged(): boolean {
-    return hexDistance(this.players.get(1)!.saber.cell, this.players.get(2)!.saber.cell) === 1;
+    return inReach(this.players.get(1)!.saber.cell, this.players.get(2)!.saber.cell);
   }
 
   // The player's current setup step, for their phone.
@@ -369,7 +371,7 @@ export class Match {
       phase: snapshot.phase,
       world: snapshot.world,
       result: snapshot.result,
-      board: { hexSize: HEX_SIZE, radius: BOARD_RADIUS, stepMs: SABER.stepMs },
+      board: { cellSize: CELL_SIZE, rows: ROWS_PER_SIDE, stepMs: SABER.stepMs },
       you: snapshot.players.find((p) => p.slot === slot)!,
       rival: snapshot.players.find((p) => p.slot !== slot)!,
     };
@@ -469,7 +471,7 @@ export class Match {
     const elapsedMs = this.lastTickAt === null ? SABER.tickMs : Math.max(1, now - this.lastTickAt);
     this.lastTickAt = now;
     const players = [...this.players.values()].sort((a, b) => a.slot - b.slot);
-    // Swings count only between fully set-up players in neighboring hexes.
+    // Swings count only between fully set-up players within reach on the board.
     const fighting = this.phase === "active" && this.engaged && players.every((p) => this.armed(p, now));
     const blades = new Map(players.map((p) => [p.slot, this.blade(p, now)]));
     const previous = new Map(players.map((p) => [p.slot, p.saber.lastBlade]));
@@ -567,9 +569,9 @@ export class Match {
     return this.bodyReady(p, now) && this.saberReady(p, now);
   }
 
-  // Where the player's hips are over the board (x, z), gliding from the last hex into the current one.
+  // Where the player's hips are over the board (x, z), gliding from the last cell into the current one.
   private rootXZ(p: Player, now: number): [number, number] {
-    const to = hexToWorld(p.saber.cell);
+    const to = cellToWorld(p.saber.cell);
     const { from, startedAt } = p.saber.glide;
     const t = Math.max(0, Math.min(1, (now - startedAt) / SABER.stepMs));
     // Ease-out cubic: most of the move happens in the first few frames, so a step feels instant.
@@ -586,17 +588,9 @@ export class Match {
     return worldToDirection(sub(blade.tip, this.root(p, now)), this.facing(p, now));
   }
 
-  // Each player always faces the other, so they can circle around each other.
-  private facing(p: Player, now: number): Facing {
-    const rival = this.players.get(p.slot === 1 ? 2 : 1)!;
-    const [x, z] = this.rootXZ(p, now);
-    const [rx, rz] = this.rootXZ(rival, now);
-    const dx = rx - x;
-    const dz = rz - z;
-    const d = Math.hypot(dx, dz);
-    // Never on top of each other, but face the default way if it happens.
-    if (d < 1e-6) return p.slot === 1 ? [0, 1] : [0, -1];
-    return [dx / d, dz / d];
+  // Straight down the lane, so left and right on the screen stay left and right on the board.
+  private facing(p: Player, _now: number): Facing {
+    return FACING[p.slot];
   }
 
   private worldJoints(p: Player, now: number): Vec3[] | null {
@@ -687,7 +681,7 @@ function parseCommand(command: unknown): { commandId: string; type: InMatchComma
   return { commandId, type: type as InMatchCommandType };
 }
 
-function newSaber(cell: Hex): Saber {
+function newSaber(cell: Cell): Saber {
   return {
     body: { seq: -1, at: null, pose: null },
     aim: { seq: -1, at: null, aim: null },
@@ -696,7 +690,7 @@ function newSaber(cell: Hex): Saber {
     lastBlade: null,
     lastBodyTip: null,
     cell,
-    glide: { from: hexToWorld(cell), startedAt: 0 },
+    glide: { from: cellToWorld(cell), startedAt: 0 },
     stepReadyAt: 0,
     queuedStep: null,
     swinging: false,

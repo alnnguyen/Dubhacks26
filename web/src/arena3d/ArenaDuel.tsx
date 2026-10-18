@@ -157,8 +157,8 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
     // Your own accepted steps start gliding right away, ahead of the frames.
     const offStepped = client.onStepped((event) => {
       if (event.slot !== slotRef.current) return
-      const { hexSize, stepMs } = boardRef.current
-      ownGlideRef.current = onOwnStep(ownGlideRef.current, event.cell, hexSize, stepMs, performance.now())
+      const { cellSize, stepMs } = boardRef.current
+      ownGlideRef.current = onOwnStep(ownGlideRef.current, event.cell, cellSize, stepMs, performance.now())
     })
     const offPhone = client.onPhoneAim((aim) => {
       const now = performance.now()
@@ -298,10 +298,10 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
     const wizard = wizardRef.current
     const fresh = own.joints && own.top && now - own.topAtMs <= PHONE_FRESH_MS && wizard.forward
     // Where your own step glide has you: frames only overrule it when they keep disagreeing.
-    const { hexSize, stepMs } = boardRef.current
+    const { cellSize, stepMs } = boardRef.current
     const myCell = frame.players.find((p) => p.slot === slotRef.current)?.cell
-    if (myCell) ownGlideRef.current = reconcile(ownGlideRef.current, myCell, hexSize, now)
-    const root = ownGlideRef.current ? glideRoot(ownGlideRef.current, hexSize, stepMs, now) : undefined
+    if (myCell) ownGlideRef.current = reconcile(ownGlideRef.current, myCell, cellSize, now)
+    const root = ownGlideRef.current ? glideRoot(ownGlideRef.current, cellSize, stepMs, now) : undefined
     return withLocalFighter(
       frame,
       slotRef.current,
@@ -400,7 +400,7 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
       {engaged && wizard.step === "done" ? <div className="arena-engaged">ENGAGED</div> : null}
       {toast ? <div className="arena-toast" role="status">{toast}</div> : null}
       {wizard.step === "done" ? (
-        <p className="arena-controls">Swipe on your phone with your thumb to move: ↑ in · ↓ out · ← → circle · or WASD</p>
+        <p className="arena-controls">Swipe on your phone with your thumb to move: ↑ in · ↓ out · ← → sidestep · or WASD</p>
       ) : null}
       <video ref={videoRef} className={`arena-self ${running ? "" : "hidden"}`} playsInline muted autoPlay />
     </main>
