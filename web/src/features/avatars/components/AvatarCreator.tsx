@@ -17,8 +17,11 @@ const ACTION_LABELS: Record<AvatarAction, string> = {
 };
 
 export interface AvatarCreatorProps {
-  /** Onboarding mode: the creator is a step. Shows "Save & continue" and a Skip option. */
-  onContinue?: () => void;
+  /**
+   * Onboarding mode: the creator is a step. Shows "Save & continue" and a Skip option.
+   * Receives the saved fighter name after Save; nothing after Skip.
+   */
+  onContinue?: (savedName?: string) => void;
   /** Onboarding mode: go back to the previous step instead of linking to the bridge. */
   onBack?: () => void;
   /** Name a fresh avatar after the pilot (only while it still has the default name). */
@@ -165,14 +168,14 @@ export function AvatarCreator({ onContinue, onBack, defaultName }: AvatarCreator
               className="av-btn av-btn--primary av-btn--block"
               onClick={() => {
                 const saved = avatar.save();
-                if (saved && embedded) onContinue?.();
+                if (saved && embedded) onContinue?.(sanitizeName(config.name));
               }}
               disabled={avatar.saveState === 'saving'}
             >
               {embedded ? 'Save & continue' : saveLabel}
             </button>
             {embedded && (
-              <button type="button" className="av-btn av-btn--ghost av-btn--block" onClick={onContinue}>
+              <button type="button" className="av-btn av-btn--ghost av-btn--block" onClick={() => onContinue?.()}>
                 Skip for now
               </button>
             )}

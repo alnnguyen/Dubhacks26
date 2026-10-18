@@ -25,9 +25,11 @@ export function OnboardingFlow({onComplete}:{onComplete:(identity:PilotIdentity)
  useEffect(() => { if (boardingWarp) return gameAudio.play('introJump'); }, [boardingWarp]);
 
  const finish=()=>onComplete(savePilotIdentity(identity));
+ // The fighter name saved in the creator becomes the pilot callsign (callsigns allow A-Z, 0-9, _ and -).
+ function applyFighterName(savedName?:string){const next=savedName&&sanitizeCallsign(savedName.trim().replace(/\s+/g,'-'));if(next)setCallsign(next);setStep('bridge')}
  function submit(e:FormEvent){e.preventDefault();if(step==='callsign'&&identity.callsign)setStep('ship');if(step==='ship'&&identity.shipName)setStep('avatar')}
  // The astronaut creator is a full-screen step of its own; it saves to this device and continues to the bridge.
- if(step==='avatar')return <Suspense fallback={<main className="obn-root"><div className="obn-atmosphere" aria-hidden/></main>}><AvatarCreator defaultName={identity.callsign} onBack={()=>setStep('ship')} onContinue={()=>setStep('bridge')}/></Suspense>;
+ if(step==='avatar')return <Suspense fallback={<main className="obn-root"><div className="obn-atmosphere" aria-hidden/></main>}><AvatarCreator defaultName={identity.callsign} onBack={()=>setStep('ship')} onContinue={applyFighterName}/></Suspense>;
  if (step === 'welcome') return <KorbitIntro actionLabel="Begin transmission" onContinue={()=>setStep('callsign')} reducedMotion={reduce}/>;
  return <main className="obn-root" data-step={step}>
   <div className="obn-atmosphere" aria-hidden/><div className="obn-horizon" aria-hidden/>
