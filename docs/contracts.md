@@ -67,6 +67,10 @@ Cockpit controls placement: `SpaceshipHome.cockpitControls?: ReactNode` forwards
 
 Added joined-socket RPCs `copilot:session({})` and `copilot:context({})`, typed in `server/src/contracts.ts` and wrapped by GameClient. Context reads the same running lobby/match for the current player; identity arguments are rejected. Session mints a short-lived xAI Voice client secret; the permanent key stays server-only. The Voice tool `getFlightState` is read-only. No existing combat/challenge commands changed. A UI entry point passes `SpaceshipHome.copilotClient?: GameClient` from FlightApp. See `docs/hologram-copilot.md` for lifecycle, limits, verification, and merge instructions.
 
+## LYRA arena narration (Grok TTS) — Alex, October 18
+
+Joined-socket RPC `lyra:narrate({ cue })` returns allowlisted MP3 audio from server-only xAI TTS (`voice_id: iris`). Clients may send only a fixed cue id (`setup_*`, `fight_go`, `result_win` / `result_lose` / `result_draw`); free-text speech is rejected. Audio is cached per cue in-process; per-actor rate limiting applies. Permanent `XAI_API_KEY` stays on the server (same `server/.env.grok.local` load path as Voice). ArenaDuel speaks setup steps, fight unlock, and match result; muted master audio skips playback. No combat rules changed.
+
 ## Planetary travel hand-off — A, October 17, 2026
 
 `SpaceshipHome` begins planetary travel only when its authoritative lobby adapter reports `challenge.kind === "launching"` after both players have accepted and the pilot chooses Engage. The cinematic always selects Mars and calls `onTravelComplete("mars")` once when the video ends or is skipped. `FlightApp` then enters the server-backed Mars briefing; the arena opens only after the server reports both players ready.

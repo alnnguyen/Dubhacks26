@@ -4,6 +4,7 @@ import { Server, type Socket } from "socket.io";
 import { isAllowedOrigin, type Config } from "./config.js";
 import type { ClientToServerEvents, ServerToClientEvents } from "./contracts.js";
 import { createCopilotService, type CopilotOptions } from './integrations/copilot.js';
+import { createLyraNarration, type LyraNarrationOptions } from './integrations/lyraNarration.js';
 import { Lobby, type LobbyOptions } from "./sessions/index.js";
 import { createReplayService, type ReplayOptions } from './integrations/perceptron/replay.js';
 
@@ -14,7 +15,7 @@ export interface RunningServer {
   close: () => Promise<void>;
 }
 
-export async function startServer(config: Config, options: LobbyOptions & { copilot?: CopilotOptions; replay?: ReplayOptions } = {}): Promise<RunningServer> {
+export async function startServer(config: Config, options: LobbyOptions & { copilot?: CopilotOptions; replay?: ReplayOptions; lyraNarration?: LyraNarrationOptions } = {}): Promise<RunningServer> {
   const replay = createReplayService(options.replay);
   const httpServer = createServer((req, res) => {
     const replayPath = req.url?.match(/^\/replay\/([A-Za-z0-9_-]{1,100})$/);
@@ -47,6 +48,7 @@ export async function startServer(config: Config, options: LobbyOptions & { copi
   // Latest socket per player, so a second tab or a reconnect replaces the old one.
   const socketsByPlayerId = new Map<string, GameSocket>();
   const copilot = createCopilotService(options.copilot);
+  const lyraNarration = createLyraNarration(options.lyraNarration);
   // Each pilot's paired phone (their lightsaber). A newer phone replaces the old one.
   const phonesByPlayerId = new Map<string, GameSocket>();
 
@@ -141,6 +143,16 @@ export async function startServer(config: Config, options: LobbyOptions & { copi
       if (playerId === null || socketsByPlayerId.get(playerId) !== socket) return reply({ ok: false, reason: 'not_joined' });
       if (!request || typeof request !== 'object' || Array.isArray(request) || Object.keys(request).length) return reply({ ok: false, reason: 'invalid_request' });
       reply({ ok: true, context: { source: 'live', lobby: lobby.lobbyView(playerId), match: lobby.matchView(playerId) } });
+    });
+    socket.on('lyra:narrate', async (request, reply) => {
+      if (typeof reply !== 'function') return;
+      if (playerId === null || socketsByPlayerId.get(playerId) !== socket) return reply({ ok: false, reason: 'not_joined' });
+      if (!request || typeof request !== 'object' || Array.isArray(request) || typeof (request as { cue?: unknown }).cue !== 'string') {
+        return reply({ ok: false, reason: 'invalid_request' });
+      }
+      const actor = playerId;
+      const result = await lyraNarration.speak(actor, (request as { cue: string }).cue);
+      reply(socketsByPlayerId.get(actor) === socket && playerId === actor ? result : { ok: false, reason: 'not_joined' });
     });
 
     socket.on("bodyPose", (pose) => {

@@ -13,6 +13,7 @@ import type {
 } from "../../../server/src/contracts";
 import type { GameClient } from "../networking";
 import { saberControllerUrl } from "../networking/gameEndpoint";
+import { gameAudio } from "../audio/gameAudio";
 import { WASM_ROOT } from "../camera/mediapipeVision";
 import { placement, worldToBody } from "./bodyFrame";
 import { createArenaBuffer, pushFrame, sampleFrame } from "./arenaBuffer";
@@ -31,6 +32,7 @@ import {
 } from "./setupWizard";
 import "./arena3d.css";
 import { SaberInitiation, SaberCountdown, saberCountdown } from "./SaberInitiation";
+import { useLyraArenaSpeak } from "./useLyraArenaSpeak";
 
 /** Keep renderer failures from taking down the match controls. */
 class ArenaRenderBoundary extends Component<{ children: ReactNode; onLeave: () => void; onBasic: () => void }, { error: boolean }> {
@@ -268,6 +270,13 @@ export function ArenaDuel({
     });
     // Clash sparks between the blades; a hit flashes at the defender's chest.
     const offResolved = client.onSaberResolved((event) => {
+      // Hit layers clash underneath — contact + damage land together.
+      if (event.outcome === "blocked") gameAudio.play("saberBlock");
+      else if (event.outcome === "guardBreak") gameAudio.play("saberClash");
+      else {
+        gameAudio.play("saberHit");
+        gameAudio.play("saberClash", 0.55);
+      }
       const players = frameRef.current?.players ?? [];
       const attacker = players.find((p) => p.slot === event.attackerSlot);
       const defender = players.find((p) => p.slot !== event.attackerSlot);
@@ -494,8 +503,18 @@ export function ArenaDuel({
   const fighting = view.phase === "active" && wizard.step === "done" && youArmed && rivalArmed && Boolean(saberStart?.unlocked) && serverFresh;
   mayStep.current = fighting;
   const finished = view.phase === "finished";
+  useLyraArenaSpeak(client, {
+    step: wizard.step,
+    fighting,
+    finished,
+    winner: view.result?.winner,
+    mySlot: you.slot,
+  });
   // Rematches reuse this component, but must wait for the new round's server gate.
   useEffect(() => { if (finished) setSaberStart(null); }, [finished]);
+  useEffect(() => {
+    if (finished && view.result?.reason === "knockout") gameAudio.play("saberKo");
+  }, [finished, view.result?.reason, view.matchId, view.round]);
   useEffect(() => {
     if (fighting && running && !loading && replayEnabled && videoRef.current && onReplaySource) return onReplaySource(videoRef.current);
   }, [fighting, running, loading, replayEnabled, onReplaySource]);

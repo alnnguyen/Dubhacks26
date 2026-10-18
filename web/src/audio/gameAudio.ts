@@ -13,6 +13,11 @@ export const AUDIO_FILES = {
   engine: { path: 'travel/engine_thrust_loop', volume: .20 },
   clash: { path: 'impact/vs_slam_a', volume: .38 },
   impact: { path: 'impact/impact_boom', volume: .25 },
+  /** Live saber outcomes (blade contact). */
+  saberClash: { path: 'impact/saber_clash_c', volume: .55 },
+  saberHit: { path: 'impact/saber_hit_b', volume: .58 },
+  saberBlock: { path: 'impact/saber_block_a', volume: .52 },
+  saberKo: { path: 'impact/saber_ko_hit', volume: .72 },
   hover: { path: 'ui/ui_tap_b', volume: .22 },
   click: { path: 'ui/click_f', volume: .5 },
   /** Stronger confirm for Radar / Enter Hyperspace. */

@@ -54,10 +54,16 @@ export function SaberPhone({ code }: { code: string }) {
     // The server drops a pilot's match only when they leave it, which always ends it (a knockout,
     // a forfeit or leaving mid-duel), so losing the match means back in the lobby with no rematch.
     let hadMatch = false
+    let sawKnockout = false
     const off = client.onChange(() => {
       const match = client.status()?.match ?? null
       if (match) hadMatch = true
       else if (hadMatch && client.connection() === "paired") setEnded(true)
+      if (match?.phase === "finished" && match.result?.reason === "knockout" && !sawKnockout) {
+        sawKnockout = true
+        audio.ko()
+      }
+      if (match?.phase !== "finished") sawKnockout = false
       // A chime each time the laptop's setup moves on.
       const step = client.status()?.match?.setup?.step ?? null
       if (step && lastStepRef.current && step !== lastStepRef.current) audio.chime()
@@ -65,7 +71,8 @@ export function SaberPhone({ code }: { code: string }) {
       rerender((n) => n + 1)
     })
     const offResolved = client.onResolved((event) => {
-      if (event.outcome === "blocked") audio.clash()
+      if (event.outcome === "blocked") audio.block()
+      else if (event.outcome === "guardBreak") audio.clash()
       else if (event.attackerSlot === client.status()?.match?.slot) audio.hit()
       else audio.hurt()
     })
