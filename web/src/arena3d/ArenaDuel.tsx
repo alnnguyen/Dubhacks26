@@ -15,7 +15,7 @@ import { WASM_ROOT } from "../camera/mediapipeVision";
 import { placement, worldToBody } from "./bodyFrame";
 import { createArenaBuffer, pushFrame, sampleFrame } from "./arenaBuffer";
 import { createStabilizer, stabilize } from "./bodyStabilizer";
-import { withLocalFighter } from "./localFighter";
+import { withLocalFighter, withSetupBody } from "./localFighter";
 import { glideRoot, onOwnStep, reconcile, type OwnGlide } from "./ownGlide";
 import { ArenaScene, type ImpactFlash } from "./ArenaScene";
 import {
@@ -117,9 +117,10 @@ export function ArenaDuel({
   // This laptop's own body and phone reading, to draw your fighter without the server round trip.
   const ownRef = useRef<{
     joints: Vec3[] | null;
+    bodyAtMs: number;
     top: Vec3 | null;
     topAtMs: number;
-  }>({ joints: null, top: null, topAtMs: 0 });
+  }>({ joints: null, bodyAtMs: 0, top: null, topAtMs: 0 });
   const slotRef = useRef(view.you.slot);
   slotRef.current = view.you.slot;
   const flashRef = useRef<ImpactFlash | null>(null);
@@ -293,7 +294,6 @@ export function ArenaDuel({
         const image = result.landmarks[0];
         const aspect = video.videoWidth / video.videoHeight || 16 / 9;
         const place = placement(image, aspect);
-        setBodySeen(Boolean(world));
 
         // Setup's camera fix corrects a mirrored or depth-reversed camera before anything uses the body;
         // the stabilizer then keeps only head, torso and arms, smoothed.
@@ -311,11 +311,13 @@ export function ArenaDuel({
           const stable = stabilize(stabilizer, fixed, visibility, now);
           stabilizer = stable.state;
           body = stable.joints;
-          ownRef.current = { ...ownRef.current, joints: body };
+          ownRef.current = { ...ownRef.current, joints: body, bodyAtMs: performance.now() };
         } else {
-          ownRef.current = { ...ownRef.current, joints: null };
+          ownRef.current = { ...ownRef.current, joints: null, bodyAtMs: 0 };
           stabilizer = createStabilizer();
         }
+
+        setBodySeen(body !== null);
 
         // The free hand, matched to where the body tracker sees the free wrist.
 
@@ -397,6 +399,7 @@ export function ArenaDuel({
       cancelled = true;
       cancelAnimationFrame(raf);
       tracker?.close();
+      ownRef.current = { ...ownRef.current, joints: null, bodyAtMs: 0 };
       stream?.getTracks().forEach((track) => track.stop());
     };
   }, [running, client]);
@@ -405,8 +408,14 @@ export function ArenaDuel({
   const getFrame = useCallback(() => {
     const now = performance.now();
     const frame = sampleFrame(bufferRef.current, now);
-    if (!frame) return null;
     const own = ownRef.current;
+    // Setup feedback must not wait for a calibrated phone or a round trip.
+    // A missing/stale camera sample hides the body rather than freezing it.
+    const localBody = own.joints && now - own.bodyAtMs <= 300 ? own.joints : null;
+    const showSetup = !mayStep.current;
+    if (!frame) return showSetup
+      ? withSetupBody(null, slotRef.current, localBody, boardRef.current.cellSize, now)
+      : null;
     const wizard = wizardRef.current;
     const fresh =
       own.joints &&
@@ -426,7 +435,7 @@ export function ArenaDuel({
     const root = ownGlideRef.current
       ? glideRoot(ownGlideRef.current, cellSize, stepMs, now)
       : undefined;
-    return withLocalFighter(
+    const drawn = withLocalFighter(
       frame,
       slotRef.current,
       fresh
@@ -440,6 +449,7 @@ export function ArenaDuel({
         : null,
       root,
     );
+    return showSetup ? withSetupBody(drawn, slotRef.current, localBody, cellSize, now) : drawn;
   }, []);
 
   function redoSetup() {

@@ -78,3 +78,8 @@ Latest revision removes the sensor cards, duplicate hold percentage and next-ste
 ## Direct arena arrival
 
 The obsolete Flight Systems briefing page and Voice iframe are removed from FlightApp. Completing (or skipping) the accepted-match travel animation now renders ArenaDuel immediately. FlightApp sends the existing ready command once per arrived match/client; rejected entry has an explicit Retry arena entry action. It does not automatically request camera/microphone access. Calibration and authoritative combat countdown still apply. Duel rendering also avoids the old flight-flow wrapper so its broad button/text styles do not override initiation styling. Production build/typecheck and 58 focused client/cinematic/setup/countdown/swipe tests passed. Full physical two-player arrival testing remains pending.
+
+
+## Immediate local setup avatar
+
+Setup now renders fresh stabilized local camera joints before a calibrated saber or echoed arena frame exists. It uses a display-only fallback frame when needed, maps the body to the current slot/facing, and preserves available server metadata and blade. Missing/stale local tracking hides the model; timestamps are recorded after inference completes so a slow inference call does not instantly expire its new sample. This path is used only outside combat. Calibration/readiness/damage and normal combat local prediction are unchanged. Pairing and movement panels still deliberately cover the model. Build/typecheck and 31 focused tests passed, including four early-visibility/tracking-loss regressions; physical device QA pending.

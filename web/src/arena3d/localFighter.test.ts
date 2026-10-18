@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ArenaFrame, PlayerSlot, Vec3 } from "../../../server/src/contracts"
-import { turn, withLocalFighter, type LocalFighter } from "./localFighter"
+import { turn, withLocalFighter, withSetupBody, type LocalFighter } from "./localFighter"
 
 function bodyFrame(): Vec3[] {
   const j: Vec3[] = Array.from({ length: 33 }, () => [0, 0, 0] as Vec3)
@@ -83,5 +83,47 @@ describe("withLocalFighter", () => {
     expect(withLocalFighter(noBlade, 1, local([0, 1, 0]))).toBe(noBlade)
     const frame = serverFrame(1, [0, 1, 0])
     expect(withLocalFighter(frame, 1, null)).toBe(frame)
+  })
+})
+
+
+describe("setup body feedback before saber calibration", () => {
+  it("shows the first camera body before any arena frame or phone data arrives", () => {
+    const f = withSetupBody(null, 1, bodyFrame(), .65, 1000)
+    expect(f.players[0].joints).not.toBeNull()
+    close(f.players[0].joints![16], [.25, 1.25, .4])
+    expect(f.players[0].blade).toBeNull()
+    expect(f.saberStart).toBeUndefined()
+    expect(f.players[0].swinging).toBe(false)
+  })
+
+  it("draws a tracked body even if the server has not echoed it and no blade exists", () => {
+    const frame = serverFrame(2, [0, 1, 0], false)
+    frame.players[0].joints = null
+    frame.players[0].cell = {q:1,r:2}
+    const f = withSetupBody(frame, 2, bodyFrame(), .65, 1000)
+    close(f.players[0].joints![16], [.4, 1.25, .9])
+    expect(f.players[0].blade).toBeNull()
+    expect(frame.players[0].joints).toBeNull()
+  })
+
+  it("hides a lost or stale local body despite an older body/blade in the server frame", () => {
+    const frame = serverFrame(1, [0, 1, 0])
+    const f = withSetupBody(frame, 1, null, .65, 1000)
+    expect(f.players[0].joints).toBeNull()
+    expect(f.players[0].blade).toBeNull()
+    expect(frame.players[0].joints).not.toBeNull()
+  })
+
+  it("preserves the rival, server countdown and calibrated blade during setup", () => {
+    const frame = serverFrame(1, [.5, 1, -.2])
+    const rival = serverFrame(2, [0, 1, 1.3]).players[0]
+    frame.players.push(rival)
+    frame.saberStart = { startsAtMs: 6000, unlocked: false }
+    const f = withSetupBody(frame, 1, bodyFrame(), .65, 1000)
+    expect(f.players[1]).toBe(rival)
+    expect(f.saberStart).toBe(frame.saberStart)
+    expect(f.players[0].blade).toBe(frame.players[0].blade)
+    close(f.players[0].joints![16], [.75, 1.25, .2])
   })
 })

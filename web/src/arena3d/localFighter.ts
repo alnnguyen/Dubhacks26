@@ -72,3 +72,35 @@ export function withLocalFighter(
 
   return { ...frame, players: frame.players.map((p) => (p.slot === slot ? { ...p, facing, joints, blade } : p)) }
 }
+
+
+/** Setup-only display: show the camera body before phone calibration or any server echo.
+ * Does not mark the pilot ready, fabricate a blade, or change authoritative state.
+ */
+export function withSetupBody(
+  frame: ArenaFrame | null,
+  slot: PlayerSlot,
+  body: Vec3[] | null,
+  cellSize: number,
+  nowMs: number,
+): ArenaFrame {
+  const me = frame?.players.find(p => p.slot === slot)
+  const facing: [number, number] = me?.facing ?? (slot === 1 ? [0, 1] : [0, -1])
+  const root: Vec3 = me?.joints ? mid(me.joints[LEFT_HIP], me.joints[RIGHT_HIP])
+    : [me ? me.cell.q * cellSize : 0, 1, me ? me.cell.r * cellSize : 0]
+  const hips = body ? mid(body[LEFT_HIP], body[RIGHT_HIP]) : null
+  const joints = body && hips ? body.map(j => {
+    const v = turn([j[0] - hips[0], j[1] - hips[1], j[2] - hips[2]], facing)
+    return [root[0] + v[0], root[1] + v[1], root[2] + v[2]] as Vec3
+  }) : null
+  const player = {
+    ...(me ?? { slot, cell: { q: 0, r: 0 }, facing }),
+    joints,
+    blade: joints ? me?.blade ?? null : null,
+    swinging: false,
+  }
+  return {
+    ...(frame ?? { serverMs: nowMs, engaged: false }),
+    players: me ? frame!.players.map(p => p.slot === slot ? player : p) : [...(frame?.players ?? []), player],
+  }
+}
