@@ -99,7 +99,6 @@ export function SaberInitiation(p: SaberInitiationProps) {
       <h1 className="si-title" data-long={title.lead.length + title.word.length > 20}><span>{title.lead}</span><strong>{title.word}</strong></h1>
       <p className="si-description">{description}</p>
     </header>
-    {movement && <SwipeLesson />}
       <div className="si-feedback" role="status" aria-live="polite">
         {confirmed ? <span className="si-confirmed" key={confirmed}>✓ {confirmed}</span> : <span>{!p.running ? "AWAITING CAMERA" : p.loading ? "STARTING TRACKING" : !p.serverFresh ? "CONNECTING ARENA LINK" : p.step === "done" ? p.youReady ? "YOUR SYSTEMS READY" : "CONFIRMING SYSTEMS" : holding ? "POSE DETECTED · HOLD STEADY" : p.step === "phone" ? "WAITING FOR IGNITION" : !p.bodySeen ? "BRING YOUR UPPER BODY INTO VIEW" : "TRACKING LIVE · FOLLOW THE PROMPT"}</span>}
       </div>
@@ -122,6 +121,7 @@ export function SaberInitiation(p: SaberInitiationProps) {
 
       <p className="si-next">{p.step === "done" ? "NEXT / COUNTDOWN → DUEL" : `NEXT / ${COPY[STEP_ORDER[Math.min(index + 1, STEP_ORDER.length - 1)]].label.toUpperCase()}`}</p>
     </div>
+    {movement && <SwipeLesson />}
     <div className="si-live-window"><span>YOU / {p.yourName}</span>{(!p.running || !p.bodySeen) && <div className="si-avatar-empty">{p.loading ? "STARTING CAMERA…" : p.running ? "STEP INTO VIEW" : "YOUR AVATAR APPEARS HERE"}<small>{p.running ? "Face your laptop and show your upper body." : "Start your camera to see your movements."}</small></div>}<b>{p.running && p.bodySeen ? "● BODY TRACKED" : "○ AWAITING BODY"} <em>{p.phoneLive ? "SABER ONLINE" : "SABER STANDBY"}</em></b></div>
     <div key={`${p.step}-${movement}`} className="si-laser" aria-hidden="true" />
   </section>;

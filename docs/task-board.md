@@ -160,3 +160,8 @@ Goal: integrate Alex's approved cinematic preview into the production saber setu
 ## Top progress + LYRA-guided setup
 
 Alex approved proceeding from the concept. Owned paths: SaberInitiation component/styles and handoff notes. Six rectangular progress segments move to the top; active fill comes from the real calibration hold, completed segments remain filled, and the duplicate left progress bar is removed. LYRA's portrait and per-task written cue now lead the instructions, with a brief halo/waveform animation and replay control. This is silent visual guidance, with no voice API requests, cost, new keys or dependencies. No calibration/countdown/phone/server contract changes. Production build/typecheck and 32 focused tests passed. Browser review of the labelled production-component preview verified segment fill and advancement, matching LYRA cues, and all six completed segments remaining visible during movement help; no console warnings/errors. Physical two-device QA remains pending. No push/deployment.
+
+
+## Swipe guide size and placement
+
+Small presentation adjustment authorized by Alex: moved the instructional swipe phone out of the left text column into the space between SWIPE TO MOVE and the avatar, with a larger four-arrow/finger animation. Narrow screens stack it below the avatar. Owned paths: SaberInitiation component/CSS and this note; no gameplay/input/API changes. Production build/typecheck passed; browser review confirmed larger four-arrow guide sits between the text and avatar without overlap in the labelled preview.
