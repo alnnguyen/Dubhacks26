@@ -4,6 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import type { PersonMask } from './segmentation'
 import type { PoseOverlay } from '../camera/mediapipeVision'
 import { bindUniforms } from '../three/bindUniforms'
+import { arenaDev } from './devFlags'
 
 /**
  * Screen-space pass that draws the real opponent (camera pixels where the
@@ -116,6 +117,8 @@ export function OpponentCutout({
 
   const lastVideoTime = useRef(-1)
   const mountedAt = useRef(performance.now())
+  const urlDebug = useMemo(() => uniforms.uDebug.value, [uniforms])
+  const fpsWindow = useRef({ start: performance.now(), frames: 0, masks: mask.updates })
   useFrame((_, dt) => {
     if (video.readyState >= 2 && video.videoWidth && video.currentTime !== lastVideoTime.current) {
       lastVideoTime.current = video.currentTime
@@ -134,7 +137,21 @@ export function OpponentCutout({
     uniforms.tMask.value = mask.texture
     uniforms.uPresence.value = mask.presence
     const searching = performance.now() - mountedAt.current > 1200 && mask.presence < 0.05
-    const ghostTarget = mask.failed ? 1 : searching ? 0.42 : 0
+    const ghostTarget = mask.failed || arenaDev.showCamera ? 1 : searching ? 0.42 : 0
+    uniforms.uDebug.value = arenaDev.showMask ? 1 : urlDebug
+    // Diagnostics for the dev view (cheap: once per second).
+    const fw = fpsWindow.current
+    fw.frames++
+    const elapsed = performance.now() - fw.start
+    if (elapsed > 1000) {
+      arenaDev.stats.renderFps = Math.round((fw.frames * 1000) / elapsed)
+      arenaDev.stats.maskFps = Math.round(((mask.updates - fw.masks) * 1000) / elapsed)
+      fw.start = performance.now()
+      fw.frames = 0
+      fw.masks = mask.updates
+    }
+    arenaDev.stats.presence = mask.presence
+    arenaDev.stats.segmentation = mask.failed ? 'failed' : mask.updates > 0 ? 'ok' : 'waiting'
     uniforms.uGhost.value += (ghostTarget - uniforms.uGhost.value) * Math.min(1, dt * 3)
     // object-fit: cover — identical to the <video>/<canvas> CSS in the duel.
     const vw = video.videoWidth || 640

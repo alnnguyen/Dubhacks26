@@ -9,8 +9,15 @@ const live = search.has('pvp');
 const marsPreview = search.get('arena') === 'mars';
 // Single-phone Mars duel rehearsal (camera + gestures + immersive arena): /?duel=mars
 const marsDuel = search.get('duel') === 'mars';
+// Dev view: camera + CV + immersive Mars + detection diagnostics, no match: /?dev=mars
+const devMars = search.get('dev') === 'mars';
 
-const Screen = marsDuel
+const Screen = devMars
+  ? lazy(async () => {
+      const m = await import('./arena/DevMars');
+      return { default: m.DevMars };
+    })
+  : marsDuel
   ? lazy(async () => {
       const m = await import('./arena/SoloMarsDuel');
       return { default: m.SoloMarsDuel };

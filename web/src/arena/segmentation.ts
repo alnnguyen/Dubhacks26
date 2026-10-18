@@ -51,6 +51,8 @@ export class PersonMask {
   /** True once mask readback has failed repeatedly (e.g. unsupported on this GPU). */
   failed = false
   private failures = 0
+  /** Total masks consumed (for diagnostics). */
+  updates = 0
 
   /** Consume (and close) masks from a PoseLandmarker result. Never throws into the CV loop. */
   update(masks: MaskLike[] | undefined, nowMs: number) {
@@ -78,6 +80,7 @@ export class PersonMask {
       this.lastUpdateMs = nowMs
       this.presence = 1
       this.failures = 0
+      this.updates++
     } catch (err) {
       if (++this.failures >= 5 && !this.failed) {
         this.failed = true
