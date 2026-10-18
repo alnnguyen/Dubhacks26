@@ -10,6 +10,7 @@ export type {
   LobbyView,
   MatchResult,
   Pilot,
+  PilotLocation,
   PlayerState,
   PlayerView,
   ProjectileLanded,

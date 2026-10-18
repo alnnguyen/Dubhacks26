@@ -97,3 +97,13 @@ This is a frontend callback boundary, not a new multiplayer event or shared wire
 ## Shared Live endpoint — Alex, October 18
 
 `gameEndpoint.ts` centralizes the public `VITE_GAME_SERVER_URL` default for game and saber clients. Explicit GameClient URLs still override it. `VITE_SABER_CONTROLLER_URL` chooses the HTTPS frontend used for arena QR links, separately from the laptop page origin. Local defaults remain same-origin; Demo never creates the client. No wire or server contract changed. See `docs/shared-live-server.md` for current ignored local settings, actual shared-server proof and the missing remote copilot handlers.
+
+## Exploration location — Alan (C, user-authorized cross-boundary), October 18 ~03:00
+
+Affects B (server/contracts), A (cockpit `SpaceshipHome`), D (LYRA). Additive and optional; no existing field or command changed.
+
+- `Pilot.location?: { bodyId, label }` — a coarse exploration place the pilot reported (a destination/body ID such as `jupiter`, `sat-25544`, `exo-trappist-1-e`, plus its display name). Absent until reported. **Display only**: never used for matchmaking, challenge authorization, combat or hit checks.
+- New lobby command `setLocation({ location: { bodyId, label } | null })` on the normal deduped command path (`client.setLocation`). `bodyId` must match `/^[a-z0-9][a-z0-9._-]{0,63}$/i`; `label` is trimmed/whitespace-collapsed and must match letters/numbers/dashes/basic punctuation, ≤ 48 chars; anything else is `invalid_command` and keeps the previous value. `null` clears it. Server tests: `server/src/sessions/index.test.ts` ("an exploration location…", "malformed locations…").
+- Web: `NearbyPilot.location`, `LobbyViewModel.actions.setLocation?` (optional for older adapters). Free flight reports the nearest body (debounced 1.2 s, only on change) and clears it on exit. Ships are drawn circling that body in the local universe (`RivalShips.tsx`) — illustrative positions, not coordinates.
+- **Deploy note:** a shared server running older code rejects `setLocation`; the client ignores that, so free flight still works but no rival ships appear until that server runs this branch.
+- Match handoff: when a challenge reaches `launching` during free flight, `ExploreApp.onMatchLaunch` returns to the cockpit so the existing Mars travel → briefing → arena flow runs unchanged.

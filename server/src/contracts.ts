@@ -231,6 +231,15 @@ export interface Pilot {
   status: PilotStatus;
   wins: number;
   losses: number;
+  // Where the pilot is flying in exploration, as they reported it. Display only:
+  // never used for matchmaking, combat or hit checks. Absent until reported.
+  location?: PilotLocation;
+}
+
+// A coarse exploration place (a destination or body ID plus its display name), not coordinates.
+export interface PilotLocation {
+  bodyId: string;
+  label: string;
 }
 
 export type ChallengeStatus = "pending" | "accepted" | "declined" | "cancelled" | "expired";
@@ -273,6 +282,8 @@ export type Command =
   | { commandId: string; type: "challenge"; pilotId: string }
   | { commandId: string; type: "acceptChallenge" | "declineChallenge" | "cancelChallenge"; challengeId: string }
   | { commandId: string; type: "setCallsign"; callsign: string }
+  // null clears it, e.g. when the pilot leaves exploration.
+  | { commandId: string; type: "setLocation"; location: PilotLocation | null }
   | { commandId: string; type: "calibrateSaber"; calibration: SaberCalibration }
   | { commandId: string; type: "step"; direction: StepDirection };
 

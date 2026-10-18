@@ -217,13 +217,23 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
   const exitDrive = () => {
     setPhase('bridge');
     setView('lobby');
+    // The cockpit scene remounts; travel waits for it (and the roulette) to report ready again.
     setSceneReady(false);
+    setRouletteReady(false);
   };
 
   if (phase === 'drive') {
     return (
       <Suspense fallback={<p className="sd-boot__line">Engaging drive…</p>}>
-        <ExploreApp lobby={lobby} settings={settings} onSettingsChange={setSettings} onExit={exitDrive} />
+        <ExploreApp
+          lobby={lobby}
+          settings={settings}
+          onSettingsChange={setSettings}
+          onExit={exitDrive}
+          onMatchLaunch={exitDrive}
+          onEngage={launch}
+          copilotClient={copilotClient}
+        />
       </Suspense>
     );
   }

@@ -79,6 +79,30 @@ describe("joining", () => {
     assert.equal(lobby.lobbyView(BOB).pilots[0].callsign, "NOVA 7");
   });
 
+  test("an exploration location is shown to other pilots until cleared", () => {
+    assert.equal(lobby.lobbyView(BOB).pilots[0].location, undefined);
+    const place = { bodyId: "exo-trappist-1-e", label: " TRAPPIST-1  e " };
+    assert.equal(send(ALICE, { type: "setLocation", location: place }).status, "accepted");
+    assert.deepEqual(lobby.lobbyView(BOB).pilots[0].location, { bodyId: "exo-trappist-1-e", label: "TRAPPIST-1 e" });
+    assert.deepEqual(lobby.lobbyView(ALICE).you.location, { bodyId: "exo-trappist-1-e", label: "TRAPPIST-1 e" });
+    assert.equal(send(ALICE, { type: "setLocation", location: null }).status, "accepted");
+    assert.equal(lobby.lobbyView(BOB).pilots[0].location, undefined);
+  });
+
+  test("malformed locations are refused and keep the last one", () => {
+    send(ALICE, { type: "setLocation", location: { bodyId: "jupiter", label: "Jupiter" } });
+    for (const location of [
+      { bodyId: "../etc", label: "Jupiter" },
+      { bodyId: "jupiter", label: "<script>alert(1)</script>" },
+      { bodyId: "jupiter", label: "x".repeat(49) },
+      { bodyId: "jupiter" },
+      "jupiter",
+    ]) {
+      assert.equal(send(ALICE, { type: "setLocation", location }).status, "rejected");
+    }
+    assert.deepEqual(lobby.lobbyView(BOB).pilots[0].location, { bodyId: "jupiter", label: "Jupiter" });
+  });
+
   test("commands from unknown players are rejected", () => {
     assert.deepEqual(lobby.handleCommand("nobody-here", { commandId: "a", type: "ready" }), {
       commandId: "a",

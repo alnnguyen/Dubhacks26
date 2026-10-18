@@ -11,10 +11,12 @@ import { LocalNavigation, LOCAL_RADIUS_PC, localStarPosition, localStarOpacity }
 import type { GraphicsQuality } from '../../state/lobbyTypes';
 import { LocalBodyLabels } from './LocalBodyLabels';
 import { LocalObjectsScene } from './LocalObjectsScene';
+import { RivalShips } from './RivalShips';
+import type { NearbyPilot } from '../../state/lobbyTypes';
 
 const stars = CATALOG_STARS.filter(s => s.distancePc <= LOCAL_RADIUS_PC);
 /** Both layers stay mounted. The controller changes one camera-relative world transform. */
-export function LocalUniverseScene({ navigation, quality, onLearn, inspecting=false }: { navigation: LocalNavigation; quality: GraphicsQuality; onLearn: (id:string) => void; inspecting?:boolean }) {
+export function LocalUniverseScene({ navigation, quality, onLearn, inspecting=false, rivals, onSelectRival }: { navigation: LocalNavigation; quality: GraphicsQuality; onLearn: (id:string) => void; inspecting?:boolean; rivals?: NearbyPilot[]; onSelectRival?: (id:string) => void }) {
   const scene=useThree(s=>s.scene);
   const pointsMaterial=useRef<THREE.PointsMaterial>(null);
   const marker=useRef<THREE.Group>(null);
@@ -39,6 +41,7 @@ export function LocalUniverseScene({ navigation, quality, onLearn, inspecting=fa
     <LearnTargets environment="solar" onLearn={onLearn} />
     <LocalBodyLabels navigation={navigation} onLearn={onLearn} />
     <LocalObjectsScene navigation={navigation} onLearn={onLearn} />
+    {rivals && rivals.length > 0 && onSelectRival && <RivalShips navigation={navigation} rivals={rivals} onSelect={onSelectRival} />}
     <points name="local-catalog-stars" geometry={geometry} frustumCulled={false} onClick={event=> {
       if(event.delta>5 || event.index===undefined || (event.index>0 && !stars[event.index-1]) || (pointsMaterial.current?.opacity ?? 0)<.15) return;
       event.stopPropagation();onLearn(event.index===0 ? 'sun' : stars[event.index-1].id);

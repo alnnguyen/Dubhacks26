@@ -3,15 +3,20 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { ExploreBoundary } from '../components/explore/ExploreBoundary';
 import { useProgress } from '@react-three/drei';
 import { isLocalDestination, type LocalZoomCommand, type LocalZoomRequest } from '../components/explore/localNavigation';
-import { ExploreHud } from '../components/explore/ExploreHud';
+import { ExploreHud, type ExploreMode } from '../components/explore/ExploreHud';
 import { DESTINATIONS, destinationById, type ExploreDestination } from '../components/explore/destinations';
 import type { FlightInput, FlightTelemetry } from '../components/explore/ShipFlightController';
 import { planetFacts, scienceForBodyId, type BodyScience } from '../components/explore/bodiesScience';
 import { PlanetPanel, type PlanetPanelTab } from '../components/explore/PlanetPanel';
 import { ChallengeModal } from '../components/hud/ChallengeModal';
 import { HoloButton } from '../components/hud/primitives';
+import { destinationForBody } from '../components/explore/destinations';
+import { exploreLocation, sameLocation } from '../components/explore/pilotLocation';
+import { ExploreCopilot } from '../../voice/ExploreCopilot';
+import type { ExploreSnapshot, LyraAction } from '../../voice/exploreLyra';
+import type { GameClient } from '../../networking';
 import { useMockLobby } from '../state/useMockLobby';
-import type { LobbyViewModel, NearbyPilot, SceneSettings } from '../state/lobbyTypes';
+import type { ExploreLocation, LobbyViewModel, NearbyPilot, SceneSettings } from '../state/lobbyTypes';
 import '../styles/spaceship.css';
 import '../styles/explore.css';
 import '../../onboarding/onboarding.css';
@@ -38,6 +43,12 @@ function initialSettings(): SceneSettings {
   return { quality: desktop ? 'high' : 'low', reducedMotion: !!reduced, parallax: true, ...saved };
 }
 
+const MODE_KEY = 'sd.explore.mode';
+const NO_PILOTS: NearbyPilot[] = [];
+function initialMode(): ExploreMode {
+  try { return localStorage.getItem(MODE_KEY) === 'explore' ? 'explore' : 'flight'; } catch { return 'flight'; }
+}
+
 function initialDestination(): ExploreDestination {
   const id = new URLSearchParams(window.location.search).get('dest');
   return destinationById(id ?? 'sol');
@@ -50,9 +61,15 @@ export interface ExploreAppProps {
   settings?: SceneSettings;
   onSettingsChange?: (s: SceneSettings) => void;
   onExit?: () => void;
+  /** Both pilots engaged a match: leave free flight so the cockpit can run the Mars travel sequence. */
+  onMatchLaunch?: () => void;
+  /** Engage button handler; defaults to the lobby's launch action. */
+  onEngage?: () => void;
+  /** Live connection for LYRA's Grok Voice. Omitted in Demo, where she uses the local guide. */
+  copilotClient?: GameClient;
 }
 
-export function ExploreApp({ lobby: external, settings: settingsProp, onSettingsChange, onExit }: ExploreAppProps = {}) {
+export function ExploreApp({ lobby: external, settings: settingsProp, onSettingsChange, onExit, onMatchLaunch, onEngage, copilotClient }: ExploreAppProps = {}) {
   const mock = useMockLobby({ enabled: false });
   const lobby = external ?? mock.lobby;
   const { challenge, actions } = lobby;
@@ -71,6 +88,11 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
   );
 
   const [destination, setDestination] = useState<ExploreDestination>(initialDestination);
+  const [mode, setMode] = useState<ExploreMode>(initialMode);
+  useEffect(() => { try { localStorage.setItem(MODE_KEY, mode); } catch { /* private mode */ } }, [mode]);
+  // Peaceful explore: other pilots' ships and contacts are hidden, and you stop sharing your location.
+  const peaceful = mode === 'explore';
+  const visiblePilots = peaceful ? NO_PILOTS : lobby.nearby;
   const [pendingJump, setPendingJump] = useState<ExploreDestination | null>(null);
   const [jumping, setJumping] = useState(false);
   const [resetToken, setResetToken] = useState(0);
@@ -118,8 +140,10 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
     }
   }, [settings, settingsProp]);
 
+  const matchLaunch = useRef(onMatchLaunch); matchLaunch.current = onMatchLaunch;
   useEffect(() => {
     if (challenge.kind !== 'launching') return;
+    if (matchLaunch.current) { matchLaunch.current(); return; }
     const opp = challenge.opponent;
     const id = setTimeout(() => setHandoff(opp), settings.reducedMotion ? 300 : LAUNCH_MS);
     return () => clearTimeout(id);
@@ -227,6 +251,52 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
   }, [closeInspect]);
   const requestZoom = (command: LocalZoomCommand) => { setInput(EMPTY_INPUT); setZoomRequest({ sequence: ++zoomSequence.current, command }); };
   const sceneKey = isLocalDestination(destination) ? 'local' : destination.id;
+
+  // Tell other pilots roughly where you are (debounced; only real changes are sent).
+  const setLocation = actions.setLocation;
+  const reported = useRef<ExploreLocation | null>(null);
+  const place = sceneReady && !jumping && !peaceful ? exploreLocation(telemetry.nearestId, telemetry.nearestName, destination) : null;
+  const placeKey = place ? `${place.bodyId}|${place.label}` : '';
+  useEffect(() => {
+    if (!setLocation || !place || sameLocation(place, reported.current)) return;
+    const id = setTimeout(() => { reported.current = place; setLocation(place); }, 1200);
+    return () => clearTimeout(id);
+    // placeKey captures the value of `place`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placeKey, setLocation]);
+  useEffect(() => {
+    if (peaceful && reported.current) { reported.current = null; setLocation?.(null); }
+  }, [peaceful, setLocation]);
+  useEffect(() => () => { if (reported.current) setLocation?.(null); }, [setLocation]);
+
+  const [rivalPrompt, setRivalPrompt] = useState<string | null>(null);
+  const prompted = lobby.nearby.find((p) => p.id === rivalPrompt) ?? null;
+  const flyToPilot = useCallback((id: string) => {
+    const pilot = lobby.nearby.find((p) => p.id === id);
+    const dest = pilot?.location && destinationForBody(pilot.location.bodyId);
+    if (dest) startJump(dest.id);
+  }, [lobby.nearby, startJump]);
+
+  const snapshot = useMemo<ExploreSnapshot>(() => ({
+    nearestId: telemetry.nearestId,
+    nearestName: telemetry.nearestName,
+    nearestDistance: telemetry.nearestDistance,
+    speed: telemetry.speed,
+    boosting: telemetry.boosting,
+    scaleBand: telemetry.scaleBand,
+    scaleLabel: telemetry.scaleLabel,
+    destinationId: destination.id,
+    destinationLabel: destination.label,
+    inspectId,
+    rivals: visiblePilots,
+    challenge: challenge.kind,
+    challenger: challenge.kind === 'idle' ? undefined : challenge.opponent.callsign,
+  }), [telemetry, destination, inspectId, visiblePilots, challenge]);
+  const onLyraAction = useCallback((action: LyraAction) => {
+    if (action.kind === 'jump') startJump(action.destinationId);
+    else if (action.kind === 'learn') onLearn(action.bodyId);
+    else setRivalPrompt(action.pilotId);
+  }, [startJump, onLearn]);
   const retryScene = () => { setSceneReady(false); setSlowLoad(false); setSceneAttempt(n => n + 1); setSettings(s => ({ ...s, quality: 'low' })); };
 
   return (
@@ -262,12 +332,17 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
           highlightLayer={highlightLayer}
           onReady={() => setSceneReady(true)}
           onLowPerformance={() => setSettings((s) => ({ ...s, quality: 'low' }))}
+          rivals={visiblePilots}
+          onSelectRival={(id) => { setSelectedId(id); setRivalPrompt(id); }}
         />
       </Suspense>
       </ExploreBoundary>
 
       <ExploreHud
         destination={destination}
+        mode={mode}
+        onMode={setMode}
+        onBridge={() => onExit ? onExit() : window.location.assign('/')}
         onZoom={isLocalDestination(destination) ? requestZoom : undefined}
         ready={sceneReady}
         loadingAssets={loadingAssets}
@@ -276,7 +351,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
         flightEnabled={flightEnabled}
         onLearnBody={onLearn}
         telemetry={telemetry}
-        pilots={lobby.nearby}
+        pilots={visiblePilots}
         selectedId={selectedId}
         navOpen={navOpen}
         creditsOpen={creditsOpen}
@@ -287,6 +362,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
         onInput={(patch) => setInput((i) => ({ ...i, ...patch }))}
         onSelectPilot={setSelectedId}
         onChallenge={(id) => actions.challenge(id)}
+        onFlyToPilot={flyToPilot}
         onOpenNav={openNav}
         onCloseNav={() => setNavOpen(false)}
         onJump={startJump}
@@ -317,13 +393,6 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       )}
       </AnimatePresence>
 
-      {(
-        <div className="ex-exit">
-          <HoloButton size="sm" onClick={() => onExit ? onExit() : window.location.assign('/')}>
-            ‹ Bridge
-          </HoloButton>
-        </div>
-      )}
 
       <ChallengeModal
         phase={challenge}
@@ -332,8 +401,37 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
         onDecline={actions.decline}
         onCancel={actions.cancelChallenge}
         onDismiss={actions.dismiss}
-        onLaunch={actions.launch}
+        onLaunch={onEngage ?? actions.launch}
       />
+
+      <ExploreCopilot
+        snapshot={snapshot}
+        client={copilotClient}
+        callsign={lobby.self.callsign}
+        hidden={!sceneReady || jumping || !!handoff}
+        onAction={onLyraAction}
+      />
+
+      {prompted && !busy && (
+        <div className="sd-handoff ex-rival-prompt" role="dialog" aria-modal="false" aria-labelledby="ex-rival-title">
+          <div className="sd-challenge__card">
+            <p className="sd-eyebrow">{prompted.location ? `Contact near ${prompted.location.label}` : 'Pilot contact'}</p>
+            <h2 id="ex-rival-title" className="sd-challenge__title">{prompted.callsign}</h2>
+            <p className="sd-challenge__desc">
+              {prompted.status === 'available'
+                ? `${prompted.record.wins}W ${prompted.record.losses}L · Challenge them to a lightsaber duel on Mars?`
+                : 'This pilot is already in a duel.'}
+            </p>
+            <div className="sd-challenge__actions">
+              <HoloButton variant="primary" autoFocus disabled={prompted.status !== 'available'}
+                onClick={() => { actions.challenge(prompted.id); setRivalPrompt(null); }}>
+                Challenge
+              </HoloButton>
+              <HoloButton onClick={() => setRivalPrompt(null)}>Keep flying</HoloButton>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="sd-launch" data-active={challenge.kind === 'launching'} aria-hidden={challenge.kind !== 'launching'}>
         <p>Expanding domain…</p>

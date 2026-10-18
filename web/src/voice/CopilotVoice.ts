@@ -10,6 +10,13 @@ export interface VoiceCallbacks {
   paused: () => void;
 }
 
+/** Extra context a screen can give Grok: appended instructions plus read-only tools it answers locally. */
+export interface CopilotExtension {
+  instructions: string;
+  tools: Array<{ type: 'function'; name: string; description: string; parameters: Record<string, unknown> }>;
+  handle: (name: string, args: Record<string, unknown>) => unknown;
+}
+
 const REASONS: Record<string, string> = {
   unavailable: 'Grok Voice is not configured on this game server.',
   offline: 'The game server is offline.', not_joined: 'Join the live lobby first.',
@@ -61,7 +68,13 @@ export class CopilotVoice {
     return Math.min(1, Math.sqrt(sum / this.meterData.length) * 6);
   }
 
-  constructor(private game: GameClient, private callbacks: VoiceCallbacks) {}
+  constructor(private game: GameClient, private callbacks: VoiceCallbacks, private extension?: CopilotExtension) {}
+
+  private sessionConfig(session: Record<string, unknown>) {
+    if (!this.extension) return session;
+    const tools = Array.isArray(session.tools) ? session.tools : [];
+    return { ...session, instructions: `${String(session.instructions ?? '')}\n${this.extension.instructions}`, tools: [...tools, ...this.extension.tools] };
+  }
 
   private send(data: unknown) {
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(data));
@@ -86,7 +99,7 @@ export class CopilotVoice {
         let ready = false;
         const timeout = setTimeout(() => { reject(new Error('Voice connection timed out.')); socket.close(); }, 12000);
         let queue = Promise.resolve();
-        socket.onopen = () => this.send({type: 'session.update', session: result.session});
+        socket.onopen = () => this.send({type: 'session.update', session: this.sessionConfig(result.session)});
         socket.onmessage = event => {
           queue = queue.then(async () => {
             if (generation !== this.generation) return;
@@ -178,7 +191,9 @@ export class CopilotVoice {
         let output: unknown = {available: false, error: 'Unsupported tool. Do not guess.'};
         try {
           const args = JSON.parse(tool.arguments || '{}');
-          if (tool.name === 'getFlightState' && args && typeof args === 'object' && !Array.isArray(args) && !Object.keys(args).length) output = await this.game.copilotContext();
+          const plain = args && typeof args === 'object' && !Array.isArray(args);
+          if (tool.name === 'getFlightState' && plain && !Object.keys(args).length) output = await this.game.copilotContext();
+          else if (plain && this.extension?.tools.some(t => t.name === tool.name)) output = await this.extension.handle(tool.name, args);
         } catch { /* Only the fixed, read-only tool is permitted. */ }
         if (generation !== this.generation) return;
         this.send({type: 'conversation.item.create', item: {type: 'function_call_output', call_id: tool.call_id, output: JSON.stringify(output)}});

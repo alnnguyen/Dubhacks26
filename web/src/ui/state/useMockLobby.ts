@@ -31,10 +31,10 @@ function selfFromStorage(): PilotProfile {
 type MockPilot = NearbyPilot & { declines?: boolean };
 
 export const MOCK_NEARBY: MockPilot[] = [
-  { id: 'p-nova', callsign: 'NOVA-7', rank: 'Knight', record: { wins: 9, losses: 4 }, status: 'available', distanceM: 4, bearingDeg: 35, signal: 0.94 },
-  { id: 'p-vex', callsign: 'VEX', rank: 'Padawan', record: { wins: 3, losses: 6 }, status: 'available', distanceM: 9, bearingDeg: 145, signal: 0.78 },
+  { id: 'p-nova', callsign: 'NOVA-7', rank: 'Knight', record: { wins: 9, losses: 4 }, status: 'available', distanceM: 4, bearingDeg: 35, signal: 0.94, location: { bodyId: 'jupiter', label: 'Jupiter' } },
+  { id: 'p-vex', callsign: 'VEX', rank: 'Padawan', record: { wins: 3, losses: 6 }, status: 'available', distanceM: 9, bearingDeg: 145, signal: 0.78, location: { bodyId: 'mars', label: 'Mars' } },
   { id: 'p-kestrel', callsign: 'KESTREL', rank: 'Master', record: { wins: 31, losses: 7 }, status: 'in-duel', distanceM: 14, bearingDeg: 238, signal: 0.61 },
-  { id: 'p-orbit', callsign: 'ORBIT', rank: 'Padawan', record: { wins: 1, losses: 2 }, status: 'available', distanceM: 21, bearingDeg: 310, signal: 0.42, declines: true },
+  { id: 'p-orbit', callsign: 'ORBIT', rank: 'Padawan', record: { wins: 1, losses: 2 }, status: 'available', distanceM: 21, bearingDeg: 310, signal: 0.42, location: { bodyId: 'moon', label: 'Moon' }, declines: true },
 ];
 
 const T = {

@@ -39,6 +39,7 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
         if (challengeId) setDismissed((d) => new Set(d).add(challengeId));
       },
       launch: () => setLaunchingMatch(client.view()?.matchId ?? null),
+      setLocation: (location) => void client.setLocation(location),
       setCallsign: (callsign) => {
         const trimmed = callsign.trim().toUpperCase().slice(0, 14);
         if (trimmed) void client.setCallsign(trimmed);
@@ -96,5 +97,6 @@ function toNearby(pilot: Pilot, index: number): NearbyPilot {
     distanceM: 4 + index * 5,
     bearingDeg: hash % 360,
     signal: 1,
+    ...(pilot.location ? { location: pilot.location } : {}),
   };
 }

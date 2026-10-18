@@ -10,6 +10,7 @@ import type { GraphicsQuality, SceneSettings } from '../../state/lobbyTypes';
 import type { ExploreDestination } from './destinations';
 import { ExploreUniverse } from './SolarSystem';
 import { LocalUniverseScene } from './LocalUniverseScene';
+import type { NearbyPilot } from '../../state/lobbyTypes';
 import { LocalFlightController } from './LocalFlightController';
 import { LocalNavigation, isLocalDestination, type LocalZoomRequest } from './localNavigation';
 import { DriveConsole } from './DriveConsole';
@@ -116,6 +117,9 @@ export interface ExploreSceneProps {
   highlightLayer?: number;
   onLowPerformance?: () => void;
   onReady?: () => void;
+  /** Other pilots with a reported location; drawn as ships in the local universe. */
+  rivals?: NearbyPilot[];
+  onSelectRival?: (id: string) => void;
 }
 
 export function ExploreScene({
@@ -133,6 +137,8 @@ export function ExploreScene({
   onLearn,
   inspectId = null,
   cutawayOpen = false,
+  rivals,
+  onSelectRival,
   highlightLayer = -1,
   onLowPerformance,
   onReady,
@@ -180,7 +186,7 @@ export function ExploreScene({
       {high && !drive && <BakeShadows />}
       <group ref={worldRef}>
         <group ref={contentRef}>
-          {local ? <LocalUniverseScene navigation={navigation} inspecting={!!inspectId} quality={settings.quality} onLearn={onLearn ?? (() => {})} /> : <ExploreUniverse
+          {local ? <LocalUniverseScene navigation={navigation} inspecting={!!inspectId} quality={settings.quality} onLearn={onLearn ?? (() => {})} rivals={rivals} onSelectRival={onSelectRival} /> : <ExploreUniverse
             destination={destination}
             environment={destination.environment}
             quality={settings.quality as GraphicsQuality}

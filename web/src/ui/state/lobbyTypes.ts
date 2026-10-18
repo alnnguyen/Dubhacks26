@@ -31,6 +31,14 @@ export interface NearbyPilot extends PilotProfile {
   bearingDeg: number;
   /** 0..1 signal quality. */
   signal: number;
+  /** Where they are flying in exploration, as they reported it. Display only. */
+  location?: ExploreLocation;
+}
+
+/** A coarse exploration place: a destination/body ID plus its display name. */
+export interface ExploreLocation {
+  bodyId: string;
+  label: string;
 }
 
 /**
@@ -65,6 +73,8 @@ export interface LobbyViewModel {
     dismiss: () => void;
     launch: () => void;
     setCallsign: (callsign: string) => void;
+    /** Report where you are flying so other pilots can find you. Optional for older adapters. */
+    setLocation?: (location: ExploreLocation | null) => void;
   };
 }
 

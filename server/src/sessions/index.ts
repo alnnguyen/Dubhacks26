@@ -5,6 +5,7 @@ import type {
   CommandReply,
   LobbyView,
   Pilot,
+  PilotLocation,
   PlayerSlot,
   PlayerView,
   ProjectileLanded,
@@ -24,6 +25,8 @@ const PLAYER_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 const PAIR_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const PAIR_CODE_LENGTH = 6;
 const CALLSIGN_PATTERN = /^[A-Z0-9][A-Z0-9 _-]{0,13}$/;
+const LOCATION_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+const LOCATION_LABEL_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N}\p{Pd} .,'()+/·*]{0,47}$/u;
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -43,6 +46,7 @@ interface PilotRecord {
   // A phone opening /?saber=<pairCode> becomes this pilot's lightsaber.
   pairCode: string;
   saberPaired: boolean;
+  location: PilotLocation | null;
 }
 
 interface ChallengeRecord {
@@ -107,6 +111,7 @@ export class Lobby {
         replies: new Map(),
         pairCode: this.newPairCode(),
         saberPaired: false,
+        location: null,
       };
       this.pilots.set(playerId, pilot);
     }
@@ -255,6 +260,16 @@ export class Lobby {
         pilot.callsign = callsign;
         return null;
       }
+      case "setLocation": {
+        if (command.location === null) {
+          pilot.location = null;
+          return null;
+        }
+        const location = normalizeLocation(command.location);
+        if (!location) return "invalid_command";
+        pilot.location = location;
+        return null;
+      }
 
       case "challenge": {
         if (typeof command.pilotId !== "string") return "invalid_command";
@@ -366,6 +381,16 @@ function normalizeCallsign(callsign: unknown): string | null {
   return CALLSIGN_PATTERN.test(normalized) ? normalized : null;
 }
 
+// Location labels come from catalog names (e.g. "TRAPPIST-1 e", "67P/Churyumov–Gerasimenko").
+function normalizeLocation(location: unknown): PilotLocation | null {
+  if (typeof location !== "object" || location === null) return null;
+  const { bodyId, label } = location as Record<string, unknown>;
+  if (typeof bodyId !== "string" || typeof label !== "string") return null;
+  if (!LOCATION_ID_PATTERN.test(bodyId)) return null;
+  const normalized = label.trim().replace(/\s+/g, " ");
+  return LOCATION_LABEL_PATTERN.test(normalized) ? { bodyId, label: normalized } : null;
+}
+
 function publicPilot(pilot: PilotRecord): Pilot {
   return {
     id: pilot.id,
@@ -373,6 +398,7 @@ function publicPilot(pilot: PilotRecord): Pilot {
     status: pilot.match ? "in-duel" : "available",
     wins: pilot.wins,
     losses: pilot.losses,
+    ...(pilot.location ? { location: pilot.location } : {}),
   };
 }
 
