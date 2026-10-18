@@ -5,6 +5,7 @@ import { CopilotVoice, type CopilotPhase } from './CopilotVoice';
 import { guideAnswer, type GuideAnswer } from './copilotGuide';
 import { HologramPortrait } from './HologramPortrait';
 import './hologram.css';
+import { gameAudio } from '../audio/gameAudio';
 
 type Message = {id: number; role: 'user' | 'assistant'; text: string; source?: 'guide' | 'grok'; action?: GuideAnswer};
 const QUICK = [{label: 'Combat basics', text: 'How do I fight?'}, {label: 'Find a matchup', text: 'Who should I challenge?'}, {label: 'Navigate', text: 'Help me navigate the galaxy.'}];
@@ -31,9 +32,19 @@ export function HologramCopilot({lobby, client, hidden, onNavigate, onSelectPilo
   const end = useRef<HTMLDivElement>(null), launcher = useRef<HTMLButtonElement>(null);
   const titleId = useId(), panelId = useId();
   const busy = phase !== 'idle';
+  useEffect(() => phase === 'listening' || phase === 'speaking' ? gameAudio.duck() : undefined, [phase]);
 
   function stop() { operation.current++; voice.current?.close(); voice.current = null; setPhase('idle'); setChannel('ready'); setError(''); setMessages(current => current.map(m => m.id === replyId.current && !m.text.trim() ? {...m, text: 'Transmission stopped. Ask again when you’re ready.', source: 'guide'} : m)); }
   function close() { stop(); setOpen(false); launcher.current?.focus({preventScroll: true}); }
+  function greet() {
+    void gameAudio.unlock().then((ok) => { if (ok) gameAudio.play('lyraHello'); });
+  }
+  function toggleOpen() {
+    setOpen((wasOpen) => {
+      if (!wasOpen) greet();
+      return !wasOpen;
+    });
+  }
   useEffect(() => {
     if (hidden) { operation.current++; voice.current?.close(); voice.current = null; setOpen(false); setPhase('idle'); setChannel('ready'); }
   }, [hidden]);
@@ -102,7 +113,7 @@ export function HologramCopilot({lobby, client, hidden, onNavigate, onSelectPilo
   function submit(event: FormEvent) { event.preventDefault(); void ask(draft); }
   if (hidden) return null;
   return <section className="lyra-root" data-phase={phase} data-open={open} aria-label="Ship copilot">
-    <button ref={launcher} type="button" className="lyra-launcher" aria-label="Open LYRA ship copilot" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>
+    <button ref={launcher} type="button" className="lyra-launcher" data-button-feedback="off" aria-label="Open LYRA ship copilot" aria-expanded={open} aria-controls={panelId} onClick={toggleOpen}>
       <HologramPortrait phase={phase} active={!open} /><span className="lyra-launcher__name">LYRA</span><span className="lyra-launcher__dot"/>
     </button>
     {open && <section id={panelId} className="lyra-panel" role="dialog" aria-modal="false" aria-labelledby={titleId}>

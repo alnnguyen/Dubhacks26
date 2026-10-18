@@ -4,24 +4,27 @@ import { io } from "socket.io-client"
 import type {
   AvatarAppearance,
   ChallengeView,
+  ReplayTicketReply,
+  ReplayReply,
   CopilotSessionReply,
   CopilotContextReply,
+  LyraNarrateReply,
   Command,
   CommandReply,
   JoinReply,
   LobbyView,
   MatchResult,
   Pilot,
+  PilotLocation,
   PlayerState,
   PlayerView,
-  ProjectileLanded,
   ArenaFrame,
   BodyPose,
   SaberAim,
   SaberCalibration,
   SaberResolved,
   SaberStatus,
-  Weapon,
+  StepDirection,
   World,
 } from "../../../server/src/contracts"
 
@@ -33,16 +36,16 @@ export type {
   LobbyView,
   MatchResult,
   Pilot,
+  PilotLocation,
   PlayerState,
   PlayerView,
-  ProjectileLanded,
   ArenaFrame,
   BodyPose,
   SaberAim,
   SaberCalibration,
   SaberResolved,
   SaberStatus,
-  Weapon,
+  StepDirection,
   World,
 }
 
@@ -79,9 +82,13 @@ export interface GameClientOptions {
 }
 
 export interface GameClient {
+  /** Opt-in post-match analysis. The permanent provider key stays on the server. */
+  analyzeReplay(matchId: string, video: Blob, duration: number, signal?: AbortSignal): Promise<ReplayReply>
   /** Read-only Voice access on this already joined connection. */
   copilotSession(): Promise<CopilotSessionReply>
   copilotContext(): Promise<CopilotContextReply>
+  /** Allowlisted LYRA arena lines via server Grok TTS (cue id only). */
+  lyraNarrate(cue: string): Promise<LyraNarrateReply>
   status(): ConnectionStatus
   /** Why the last join failed, e.g. "invalid_request". Null while joined or still trying. */
   joinError(): string | null
@@ -92,7 +99,6 @@ export interface GameClient {
   onStatus(listener: (status: ConnectionStatus) => void): () => void
   onLobby(listener: (lobby: LobbyView) => void): () => void
   onView(listener: (view: PlayerView | null) => void): () => void
-  onProjectileLanded(listener: (event: ProjectileLanded) => void): () => void
   /** Both players' bodies and blades in the arena, every server tick. */
   onArena(listener: (frame: ArenaFrame) => void): () => void
   onSaberResolved(listener: (event: SaberResolved) => void): () => void
@@ -100,6 +106,10 @@ export interface GameClient {
   onPhoneAim(listener: (aim: SaberAim) => void): () => void
   /** Store what the laptop's guided setup measured about your phone. */
   calibrateSaber(calibration: SaberCalibration): Promise<ClientReply>
+  /** A step was accepted (yours or your rival's), ahead of the next arena frame. */
+  onStepped(listener: (event: { slot: 1 | 2; cell: { q: number; r: number }; orbitCenter?: [number, number] }) => void): () => void
+  /** One step to a neighboring cell, relative to the way you face (forward is toward your rival's side). */
+  step(direction: StepDirection): Promise<ClientReply>
   /**
    * Stream your own body from the laptop camera (~20 Hz). No reply; a stale
    * pose is useless, so nothing is sent while offline. This module numbers them.
@@ -107,22 +117,26 @@ export interface GameClient {
   sendBodyPose(pose: Omit<BodyPose, "seq">): void
   /** Stored on the phone and sent on every join, so it survives reloads. */
   setCallsign(callsign: string): Promise<ClientReply>
+<<<<<<< HEAD
   setAvatar(avatar: AvatarAppearance): Promise<ClientReply>
   challenge(pilotId: string): Promise<ClientReply>
+=======
+  /** Where you are flying in exploration, shown to other pilots. null clears it. Display only. */
+  setLocation(location: PilotLocation | null): Promise<ClientReply>
+  /** Without a destination the server rolls the world itself; the override exists for tests and tools. */
+  challenge(pilotId: string, destination?: "mars" | "neptune"): Promise<ClientReply>
+>>>>>>> origin/main
   acceptChallenge(challengeId: string): Promise<ClientReply>
   declineChallenge(challengeId: string): Promise<ClientReply>
   cancelChallenge(challengeId: string): Promise<ClientReply>
   /** Finished the briefing. The match starts once both players are ready. */
   ready(): Promise<ClientReply>
+  /** Give this round to your rival but stay in the match, so you can still rematch. */
+  forfeit(): Promise<ClientReply>
+  /** After the match ends: play again with the same setup. A new round counts down once both ask. */
+  rematch(): Promise<ClientReply>
   /** Back to the lobby. Before the match ends this forfeits it. */
   leaveMatch(): Promise<ClientReply>
-  /** Make a weapon active. Instant; only the active weapon can fire. */
-  gunActive(): Promise<ClientReply>
-  rockActive(): Promise<ClientReply>
-  fireGun(): Promise<ClientReply>
-  throwRock(): Promise<ClientReply>
-  startBlock(): Promise<ClientReply>
-  endBlock(): Promise<ClientReply>
   close(): void
 }
 
@@ -142,9 +156,9 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   const statusListeners = new Set<(status: ConnectionStatus) => void>()
   const lobbyListeners = new Set<(lobby: LobbyView) => void>()
   const viewListeners = new Set<(view: PlayerView | null) => void>()
-  const landedListeners = new Set<(event: ProjectileLanded) => void>()
   const arenaListeners = new Set<(frame: ArenaFrame) => void>()
   const phoneAimListeners = new Set<(aim: SaberAim) => void>()
+  const steppedListeners = new Set<(event: { slot: 1 | 2; cell: { q: number; r: number }; orbitCenter?: [number, number] }) => void>()
   const resolvedListeners = new Set<(event: SaberResolved) => void>()
   // Page-load time, like command IDs, so poses after a reload are newer than any before it.
   let nextPose = now()
@@ -185,9 +199,9 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   socket.on("connect_error", () => setStatus("offline"))
   socket.on("lobby", (next: LobbyView) => setLobby(next))
   socket.on("view", (next: PlayerView | null) => setView(next))
-  socket.on("projectileLanded", (event: ProjectileLanded) => landedListeners.forEach((listener) => listener(event)))
   socket.on("arena", (frame: ArenaFrame) => arenaListeners.forEach((listener) => listener(frame)))
   socket.on("phoneAim", (aim: SaberAim) => phoneAimListeners.forEach((listener) => listener(aim)))
+  socket.on("stepped", (event: { slot: 1 | 2; cell: { q: number; r: number }; orbitCenter?: [number, number] }) => steppedListeners.forEach((listener) => listener(event)))
   socket.on("saberResolved", (event: SaberResolved) => resolvedListeners.forEach((listener) => listener(event)))
 
   function send(payload: Payload): Promise<ClientReply> {
@@ -216,8 +230,32 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   }
 
   return {
+    analyzeReplay: async (matchId, video, duration, signal) => {
+      if (status !== 'online' || !socket.connected) return { ok: false, reason: 'offline' }
+      const ticket = await new Promise<ReplayTicketReply>(resolve => {
+        socket.timeout(REPLY_TIMEOUT_MS).emit('replay:ticket', { matchId }, (err, reply) =>
+          resolve(err ? { ok: false, reason: 'no_response' } : reply))
+      })
+      if (!ticket.ok) return ticket
+      try {
+        const url = new URL(`/replay/${encodeURIComponent(matchId)}`, options.url ?? gameServerUrl() ?? location.origin)
+        const res = await fetch(url, { method: 'POST', body: video,
+          signal: AbortSignal.any([AbortSignal.timeout(65_000), ...(signal ? [signal] : [])]),
+          headers: { Authorization: `Bearer ${ticket.ticket}`, 'Content-Type': video.type, 'X-Replay-Duration': String(duration) } })
+        const reply = await res.json() as ReplayReply
+        if (typeof reply?.ok !== 'boolean' || (reply.ok && (!Array.isArray(reply.moments) || !Array.isArray(reply.boxes) || reply.source !== 'perceptron'))) return { ok: false, reason: 'provider_error' }
+        return reply
+      } catch { return { ok: false, reason: 'no_response' } }
+    },
     copilotSession: () => copilotRequest<CopilotSessionReply>('copilot:session', 18000),
     copilotContext: () => copilotRequest<CopilotContextReply>('copilot:context', REPLY_TIMEOUT_MS),
+    lyraNarrate: (cue) => {
+      if (status !== 'online' || !socket.connected) return Promise.resolve({ ok: false, reason: 'offline' })
+      return new Promise(resolve => {
+        socket.timeout(22000).emit('lyra:narrate', { cue }, (err, reply: LyraNarrateReply) =>
+          resolve(err ? { ok: false, reason: 'no_response' } : reply))
+      })
+    },
     status: () => status,
     joinError: () => joinError,
     lobby: () => lobby,
@@ -225,10 +263,11 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     onStatus: (listener) => subscribe(statusListeners, listener),
     onLobby: (listener) => subscribe(lobbyListeners, listener),
     onView: (listener) => subscribe(viewListeners, listener),
-    onProjectileLanded: (listener) => subscribe(landedListeners, listener),
     onArena: (listener) => subscribe(arenaListeners, listener),
     onPhoneAim: (listener) => subscribe(phoneAimListeners, listener),
+    onStepped: (listener) => subscribe(steppedListeners, listener),
     calibrateSaber: (calibration) => send({ type: "calibrateSaber", calibration }),
+    step: (direction) => send({ type: "step", direction }),
     onSaberResolved: (listener) => subscribe(resolvedListeners, listener),
     sendBodyPose: (pose) => {
       if (status !== "online" || !socket.connected) return
@@ -239,18 +278,15 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
       writeStorage(storage, CALLSIGN_KEY, callsign)
       return send({ type: "setCallsign", callsign })
     },
-    challenge: (pilotId) => send({ type: "challenge", pilotId }),
+    setLocation: (location) => send({ type: "setLocation", location }),
+    challenge: (pilotId, destination) => send({ type: "challenge", pilotId, ...(destination ? { destination } : {}) }),
     acceptChallenge: (challengeId) => send({ type: "acceptChallenge", challengeId }),
     declineChallenge: (challengeId) => send({ type: "declineChallenge", challengeId }),
     cancelChallenge: (challengeId) => send({ type: "cancelChallenge", challengeId }),
     ready: () => send({ type: "ready" }),
+    forfeit: () => send({ type: "forfeit" }),
+    rematch: () => send({ type: "rematch" }),
     leaveMatch: () => send({ type: "leaveMatch" }),
-    gunActive: () => send({ type: "gunActive" }),
-    rockActive: () => send({ type: "rockActive" }),
-    fireGun: () => send({ type: "fireGun" }),
-    throwRock: () => send({ type: "throwRock" }),
-    startBlock: () => send({ type: "startBlock" }),
-    endBlock: () => send({ type: "endBlock" }),
     close: () => {
       socket.disconnect()
       setStatus("offline")

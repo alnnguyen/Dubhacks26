@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "hyg",
+      "title": "HYG v4.1 \u00b7 David Nash / Astronexus",
+      "url": "https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v41.csv",
+      "documentation": "https://github.com/astronexus/HYG-Database",
+      "license": "CC BY-SA 4.0",
+      "selection": "Positive distance <=100 pc, plus named stars <=3000 pc; excludes 100000 pc unknown-distance sentinel",
+      "inputSha256": "d9f69fd86bbf90a4e4d52b4c5c53eacfa6dfc0bfdef85bfd94f095e0bebe4ebd",
+      "retrievedAt": "2026-10-18T06:56:33.617632+00:00",
+      "count": 24835,
+      "outputSha256": "24c8ec1cf88b1ac4fce5aae00b1110f89d02e5c4fb44a9f55041e679ff14d646"
+    },
+    {
+      "id": "exoplanets",
+      "title": "NASA Exoplanet Archive \u00b7 PSCompPars",
+      "url": "https://exoplanetarchive.ipac.caltech.edu/TAP/sync",
+      "documentation": "https://exoplanetarchive.ipac.caltech.edu/docs/API_PS_columns.html",
+      "license": "Archive acknowledgement required; publication references apply",
+      "selection": "select pl_name,hostname,ra,dec,sy_dist,sy_disterr1,sy_disterr2,pl_rade,pl_radelim,pl_bmasse,pl_bmasselim,pl_bmassprov,pl_orbper,pl_orbsmax,pl_eqt,discoverymethod,disc_year,st_teff,st_rad from pscomppars where sy_dist > 0 and sy_dist < 1000 order by sy_dist,hostname,pl_name",
+      "inputSha256": "e873805651de6cc222608ff187b0ad5ca50219e85929230b3f1c79a9aa03ef6f",
+      "retrievedAt": "2026-10-18T06:57:03.133719+00:00",
+      "count": 5301,
+      "outputSha256": "0a8f92813680e4a6b3fc83f5ac021c73c4f36471db2940b6cf373165b3da08e2"
+    },
+    {
+      "id": "galaxies",
+      "title": "Gil de Paz et al. GALEX Atlas \u00b7 NASA/IPAC NED",
+      "url": "https://ned.ipac.caltech.edu/level5/GALEX_Atlas/Gildepaz2.html",
+      "documentation": "https://ned.ipac.caltech.edu/level5/GALEX_Atlas/Gildepaz2.html",
+      "license": "Published numerical table; cite Gil de Paz et al. and NED",
+      "selection": "All 1034 Table 1 galaxies with positive published distances; archival atlas, not current NED-LVS",
+      "inputSha256": "e6048f700867a215bd16438a69fc905871d4c46adcc40b56f4f0e4fc79d0b5b5",
+      "retrievedAt": "2026-10-18T06:56:59.641564+00:00",
+      "count": 1034,
+      "outputSha256": "65b0b8c642c2962b5e930bb0d464b439ad9ddc51ff83be8d018b97e131eadb7c"
+    }
+  ],
+  "hostCount": 3894
+}

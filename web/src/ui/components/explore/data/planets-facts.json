@@ -1,0 +1,691 @@
+{
+ "meta": {
+  "generated": "2026-10-17",
+  "units": {
+   "mass_1e24kg": "10^24 kg",
+   "radius_km": "km (equatorial diameter / 2)",
+   "gravity": "m/s²",
+   "escapeVelocity": "km/s",
+   "lengthOfDay_h": "solar day, hours",
+   "rotationPeriod_h": "sidereal, hours (negative = retrograde)",
+   "orbitalPeriod_d": "days",
+   "distanceFromSun_1e6km": "10^6 km",
+   "meanTemp_C": "°C",
+   "surfacePressure_bar": "bar (null = no solid surface)"
+  },
+  "sources": {
+   "planetaryFactSheet": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/",
+   "factSheet_mercury": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/mercuryfact.html",
+   "factSheet_venus": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/venusfact.html",
+   "factSheet_earth": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html",
+   "factSheet_mars": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html",
+   "factSheet_jupiter": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/jupiterfact.html",
+   "factSheet_saturn": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/saturnfact.html",
+   "factSheet_uranus": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/uranusfact.html",
+   "factSheet_neptune": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/neptunefact.html",
+   "moonFactSheet": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html",
+   "nasaEarth": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html",
+   "nasaMars": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html",
+   "marsIC": "https://www.nature.com/articles/s41586-025-09361-9",
+   "mercury": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6662718/",
+   "mercuryNasa": "https://www.nasa.gov/solar-system/a-closer-look-at-mercurys-spin-and-gravity-reveals-the-planets-inner-solid-core/",
+   "venus": "https://doi.org/10.1134/s0038094624700461",
+   "juno": "https://science.nasa.gov/jupiter/facts/",
+   "saturn": "https://science.nasa.gov/saturn/facts/",
+   "uranus": "https://science.nasa.gov/uranus/facts/",
+   "neptune": "https://science.nasa.gov/neptune/facts/",
+   "moon": "https://science.nasa.gov/moon/facts/"
+  },
+  "notes": [
+   "Numbers come from the NASA Planetary Fact Sheet (retrieved 2026-10-17). Moon counts are the fact sheet's values; IAU counts change often.",
+   "Interior layers are approximate radius fractions for visualization. Only Earth (and partly Moon/Mars) are seismically measured; gas/ice giant layers are model-based, so label them \"model\".",
+   "duelFlightTimeMs uses the game rule 0.8 s × sqrt(9.8 / g)."
+  ]
+ },
+ "bodies": [
+  {
+   "id": "mercury",
+   "name": "Mercury",
+   "type": "terrestrial",
+   "mass_1e24kg": 0.33,
+   "radius_km": 2439.5,
+   "diameter_km": 4879,
+   "density_kgm3": 5429,
+   "gravity": 3.7,
+   "gravityVsEarth": 0.378,
+   "escapeVelocity": 4.3,
+   "rotationPeriod_h": 1407.6,
+   "lengthOfDay_h": 4222.6,
+   "orbitalPeriod_d": 88.0,
+   "distanceFromSun_1e6km": 57.9,
+   "obliquity_deg": 0.034,
+   "meanTemp_C": 167,
+   "surfacePressure_bar": 0,
+   "moons": 0,
+   "rings": false,
+   "globalMagneticField": true,
+   "atmosphere": {
+    "summary": "Surface-bounded exosphere (essentially a vacuum): Na, Mg, O, H, K, Ca traces",
+    "major": []
+   },
+   "interior": {
+    "layers": [
+     {
+      "name": "Solid inner core",
+      "outerRadiusFraction": 0.4017,
+      "color": "#f2d16b",
+      "state": "solid Fe-Ni",
+      "note": "~0.45–0.54 of the core radius (Genova+ 2019)"
+     },
+     {
+      "name": "Liquid outer core",
+      "outerRadiusFraction": 0.8116,
+      "color": "#e8892b",
+      "state": "liquid Fe"
+     },
+     {
+      "name": "Mantle",
+      "outerRadiusFraction": 0.9859,
+      "color": "#a5583a",
+      "state": "silicate rock"
+     },
+     {
+      "name": "Crust",
+      "outerRadiusFraction": 1.0,
+      "color": "#8d8d8d",
+      "state": "rock",
+      "note": "~25–35 km thick (estimate)"
+     }
+    ],
+    "confidence": "medium",
+    "sources": [
+     "https://pmc.ncbi.nlm.nih.gov/articles/PMC6662718/",
+     "https://www.nasa.gov/solar-system/a-closer-look-at-mercurys-spin-and-gravity-reveals-the-planets-inner-solid-core/"
+    ]
+   },
+   "funFact": "The core is ~85% of Mercury's radius, the biggest core-to-planet ratio in the solar system.",
+   "duelFlightTimeMs": 1302,
+   "source": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/mercuryfact.html"
+  },
+  {
+   "id": "venus",
+   "name": "Venus",
+   "type": "terrestrial",
+   "mass_1e24kg": 4.87,
+   "radius_km": 6052.0,
+   "diameter_km": 12104,
+   "density_kgm3": 5243,
+   "gravity": 8.9,
+   "gravityVsEarth": 0.908,
+   "escapeVelocity": 10.4,
+   "rotationPeriod_h": -5832.5,
+   "lengthOfDay_h": 2802.0,
+   "orbitalPeriod_d": 224.7,
+   "distanceFromSun_1e6km": 108.2,
+   "obliquity_deg": 177.4,
+   "meanTemp_C": 464,
+   "surfacePressure_bar": 92,
+   "moons": 0,
+   "rings": false,
+   "globalMagneticField": false,
+   "atmosphere": {
+    "summary": "Crushing CO2 atmosphere, 92 bar",
+    "major": [
+     [
+      "CO2",
+      96.5
+     ],
+     [
+      "N2",
+      3.5
+     ]
+    ]
+   },
+   "interior": {
+    "layers": [
+     {
+      "name": "Iron core",
+      "outerRadiusFraction": 0.5433,
+      "color": "#e8892b",
+      "state": "Fe-Ni (state unknown)",
+      "note": "2024 estimate 3,288 ± 167 km; range ~2,900–3,450 km"
+     },
+     {
+      "name": "Mantle",
+      "outerRadiusFraction": 0.9947,
+      "color": "#a5583a",
+      "state": "silicate rock"
+     },
+     {
+      "name": "Crust",
+      "outerRadiusFraction": 1.0,
+      "color": "#c9a46a",
+      "state": "basaltic rock",
+      "note": "~30 km (estimate)"
+     }
+    ],
+    "confidence": "low",
+    "sources": [
+     "https://doi.org/10.1134/s0038094624700461"
+    ]
+   },
+   "funFact": "No seismometer has survived on Venus, so its interior is modeled as Earth-like.",
+   "duelFlightTimeMs": 839,
+   "source": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/venusfact.html"
+  },
+  {
+   "id": "earth",
+   "name": "Earth",
+   "type": "terrestrial",
+   "mass_1e24kg": 5.97,
+   "radius_km": 6378.0,
+   "diameter_km": 12756,
+   "density_kgm3": 5514,
+   "gravity": 9.8,
+   "gravityVsEarth": 1.0,
+   "escapeVelocity": 11.2,
+   "rotationPeriod_h": 23.9,
+   "lengthOfDay_h": 24.0,
+   "orbitalPeriod_d": 365.2,
+   "distanceFromSun_1e6km": 149.6,
+   "obliquity_deg": 23.4,
+   "meanTemp_C": 15,
+   "surfacePressure_bar": 1,
+   "moons": 1,
+   "rings": false,
+   "globalMagneticField": true,
+   "atmosphere": {
+    "summary": "N2/O2 (dry air)",
+    "major": [
+     [
+      "N2",
+      78.08
+     ],
+     [
+      "O2",
+      20.95
+     ],
+     [
+      "Ar",
+      0.934
+     ],
+     [
+      "CO2",
+      0.042
+     ]
+    ]
+   },
+   "interior": {
+    "layers": [
+     {
+      "name": "Inner core",
+      "outerRadiusFraction": 0.1916,
+      "color": "#f2d16b",
+      "state": "solid Fe-Ni"
+     },
+     {
+      "name": "Outer core",
+      "outerRadiusFraction": 0.547,
+      "color": "#e8892b",
+      "state": "liquid Fe-Ni",
+      "note": "NASA fact sheet core radius 3,485 km"
+     },
+     {
+      "name": "Lower mantle",
+      "outerRadiusFraction": 0.8964,
+      "color": "#c4502d",
+      "state": "solid rock"
+     },
+     {
+      "name": "Upper mantle",
+      "outerRadiusFraction": 0.9945,
+      "color": "#a5583a",
+      "state": "rock (partly molten asthenosphere)"
+     },
+     {
+      "name": "Crust",
+      "outerRadiusFraction": 1.0,
+      "color": "#4a7bd1",
+      "state": "rock + oceans",
+      "note": "~7 km oceanic, ~35 km continental"
+     }
+    ],
+    "confidence": "high",
+    "sources": [
+     "https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html"
+    ]
+   },
+   "funFact": "The inner core is about as hot as the Sun's surface (~5,000+ °C), but pressure keeps it solid.",
+   "duelFlightTimeMs": 800,
+   "source": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html"
+  },
+  {
+   "id": "moon",
+   "name": "Moon",
+   "type": "moon",
+   "mass_1e24kg": 0.073,
+   "radius_km": 1737.5,
+   "diameter_km": 3475,
+   "density_kgm3": 3340,
+   "gravity": 1.6,
+   "gravityVsEarth": 0.163,
+   "escapeVelocity": 2.4,
+   "rotationPeriod_h": 655.7,
+   "lengthOfDay_h": 708.7,
+   "orbitalPeriod_d": 27.3,
+   "distanceFromSun_1e6km": null,
+   "obliquity_deg": 6.7,
+   "meanTemp_C": -20,
+   "surfacePressure_bar": 0,
+   "moons": 0,
+   "rings": false,
+   "globalMagneticField": false,
+   "atmosphere": {
+    "summary": "Surface-bounded exosphere (essentially a vacuum)",
+    "major": []
+   },
+   "interior": {
+    "layers": [
+     {
+      "name": "Inner core",
+      "outerRadiusFraction": 0.1381,
+      "color": "#f2d16b",
+      "state": "solid Fe"
+     },
+     {
+      "name": "Fluid outer core",
+      "outerRadiusFraction": 0.1899,
+      "color": "#e8892b",
+      "state": "liquid Fe"
+     },
+     {
+      "name": "Partial-melt layer",
+      "outerRadiusFraction": 0.2763,
+      "color": "#c4502d",
+      "state": "partly molten"
+     },
+     {
+      "name": "Mantle",
+      "outerRadiusFraction": 0.9767,
+      "color": "#a5583a",
+      "state": "rock"
+     },
+     {
+      "name": "Crust",
+      "outerRadiusFraction": 1.0,
+      "color": "#9a9a9a",
+      "state": "anorthosite",
+      "note": "~30–50 km"
+     }
+    ],
+    "confidence": "medium",
+    "sources": [
+     "https://science.nasa.gov/moon/facts/"
+    ]
+   },
+   "funFact": "Apollo seismometers revealed the Moon's small iron core.",
+   "duelFlightTimeMs": 1980,
+   "source": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html"
+  },
+  {
+   "id": "mars",
+   "name": "Mars",
+   "type": "terrestrial",
+   "mass_1e24kg": 0.642,
+   "radius_km": 3396.0,
+   "diameter_km": 6792,
+   "density_kgm3": 3934,
+   "gravity": 3.7,
+   "gravityVsEarth": 0.378,
+   "escapeVelocity": 5.0,
+   "rotationPeriod_h": 24.6,
+   "lengthOfDay_h": 24.7,
+   "orbitalPeriod_d": 687.0,
+   "distanceFromSun_1e6km": 228.0,
+   "obliquity_deg": 25.2,
+   "meanTemp_C": -65,
+   "surfacePressure_bar": 0.01,
+   "moons": 2,
+   "rings": false,
+   "globalMagneticField": false,
+   "atmosphere": {
+    "summary": "Thin CO2 atmosphere, ~0.006 bar",
+    "major": [
+     [
+      "CO2",
+      95.1
+     ],
+     [
+      "N2",
+      2.59
+     ],
+     [
+      "Ar",
+      1.94
+     ],
+     [
+      "O2",
+      0.16
+     ],
+     [
+      "CO",
+      0.06
+     ]
+    ]
+   },
+   "interior": {
+    "layers": [
+     {
+      "name": "Solid inner core",
+      "outerRadiusFraction": 0.1809,
+      "color": "#f2d16b",
+      "state": "solid Fe-rich",
+      "note": "613 ± 67 km, InSight (Bi+ 2025, Nature)"
+     },
+     {
+      "name": "Liquid outer core",
+      "outerRadiusFraction": 0.5399,
+      "color": "#e8892b",
+      "state": "liquid Fe-S",
+      "note": "NASA fact sheet core radius 1,830 km"
+     },
+     {
+      "name": "Mantle",
+      "outerRadiusFraction": 0.9854,
+      "color": "#a5583a",
+      "state": "silicate rock"
+     },
+     {
+      "name": "Crust",
+      "outerRadiusFraction": 1.0,
+      "color": "#c1440e",
+      "state": "basaltic rock",
+      "note": "~24–72 km (InSight)"
+     }
+    ],
+    "confidence": "medium",
+    "sources": [
+     "https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html",
+     "https://www.nature.com/articles/s41586-025-09361-9"
+    ]
+   },
+   "funFact": "In 2025, InSight marsquake data revealed a ~600 km solid inner core.",
+   "duelFlightTimeMs": 1302,
+   "source": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html"
+  },
+  {
+   "id": "jupiter",
+   "name": "Jupiter",
+   "type": "gas giant",
+   "mass_1e24kg": 1898,
+   "radius_km": 71492.0,
+   "diameter_km": 142984,
+   "density_kgm3": 1326,
+   "gravity": 23.1,
+   "gravityVsEarth": 2.357,
+   "escapeVelocity": 59.5,
+   "rotationPeriod_h": 9.9,
+   "lengthOfDay_h": 9.9,
+   "orbitalPeriod_d": 4331,
+   "distanceFromSun_1e6km": 778.5,
+   "obliquity_deg": 3.1,
+   "meanTemp_C": -110,
+   "surfacePressure_bar": null,
+   "moons": 95,
+   "rings": true,
+   "globalMagneticField": true,
+   "atmosphere": {
+    "summary": "Hydrogen-helium",
+    "major": [
+     [
+      "H2",
+      89.8
+     ],
+     [
+      "He",
+      10.2
+     ],
+     [
+      "CH4",
+      0.3
+     ]
+    ]
+   },
+   "interior": {
+    "layers": [
+     {
+      "name": "Dilute (fuzzy) core",
+      "outerRadiusFraction": 0.3,
+      "color": "#c98a4b",
+      "state": "rock/ice mixed with H",
+      "note": "Juno: the core is \"fuzzy\", extending to ~0.3–0.5 R"
+     },
+     {
+      "name": "Metallic hydrogen",
+      "outerRadiusFraction": 0.83,
+      "color": "#8a6bd1",
+      "state": "liquid metallic H"
+     },
+     {
+      "name": "Molecular H2/He envelope",
+      "outerRadiusFraction": 1.0,
+      "color": "#d9b38c",
+      "state": "gas → supercritical fluid"
+     }
+    ],
+    "confidence": "low (model)",
+    "sources": [
+     "https://science.nasa.gov/jupiter/facts/"
+    ]
+   },
+   "funFact": "Deep inside, hydrogen is squeezed into a liquid metal that powers the biggest magnetic field of any planet.",
+   "duelFlightTimeMs": 521,
+   "source": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/jupiterfact.html"
+  },
+  {
+   "id": "saturn",
+   "name": "Saturn",
+   "type": "gas giant",
+   "mass_1e24kg": 568,
+   "radius_km": 60268.0,
+   "diameter_km": 120536,
+   "density_kgm3": 687,
+   "gravity": 9.0,
+   "gravityVsEarth": 0.918,
+   "escapeVelocity": 35.5,
+   "rotationPeriod_h": 10.7,
+   "lengthOfDay_h": 10.7,
+   "orbitalPeriod_d": 10747,
+   "distanceFromSun_1e6km": 1432.0,
+   "obliquity_deg": 26.7,
+   "meanTemp_C": -140,
+   "surfacePressure_bar": null,
+   "moons": 274,
+   "rings": true,
+   "globalMagneticField": true,
+   "atmosphere": {
+    "summary": "Hydrogen-helium",
+    "major": [
+     [
+      "H2",
+      96.3
+     ],
+     [
+      "He",
+      3.25
+     ],
+     [
+      "CH4",
+      0.45
+     ]
+    ]
+   },
+   "interior": {
+    "layers": [
+     {
+      "name": "Rock/ice core",
+      "outerRadiusFraction": 0.2,
+      "color": "#c98a4b",
+      "state": "rock/ice",
+      "note": "Ring seismology suggests a dilute core region reaching ~0.6 R"
+     },
+     {
+      "name": "Metallic hydrogen",
+      "outerRadiusFraction": 0.5,
+      "color": "#8a6bd1",
+      "state": "liquid metallic H"
+     },
+     {
+      "name": "Molecular H2/He envelope",
+      "outerRadiusFraction": 1.0,
+      "color": "#e3cf9a",
+      "state": "gas → fluid"
+     }
+    ],
+    "confidence": "low (model)",
+    "sources": [
+     "https://science.nasa.gov/saturn/facts/"
+    ]
+   },
+   "funFact": "Saturn is less dense than water (687 kg/m³).",
+   "duelFlightTimeMs": 835,
+   "source": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/saturnfact.html"
+  },
+  {
+   "id": "uranus",
+   "name": "Uranus",
+   "type": "ice giant",
+   "mass_1e24kg": 86.8,
+   "radius_km": 25559.0,
+   "diameter_km": 51118,
+   "density_kgm3": 1270,
+   "gravity": 8.7,
+   "gravityVsEarth": 0.888,
+   "escapeVelocity": 21.3,
+   "rotationPeriod_h": -17.2,
+   "lengthOfDay_h": 17.2,
+   "orbitalPeriod_d": 30589,
+   "distanceFromSun_1e6km": 2867.0,
+   "obliquity_deg": 97.8,
+   "meanTemp_C": -195,
+   "surfacePressure_bar": null,
+   "moons": 28,
+   "rings": true,
+   "globalMagneticField": true,
+   "atmosphere": {
+    "summary": "Hydrogen-helium-methane (methane makes it blue-green)",
+    "major": [
+     [
+      "H2",
+      82.5
+     ],
+     [
+      "He",
+      15.2
+     ],
+     [
+      "CH4",
+      2.3
+     ]
+    ]
+   },
+   "interior": {
+    "layers": [
+     {
+      "name": "Rocky core",
+      "outerRadiusFraction": 0.2,
+      "color": "#a5583a",
+      "state": "rock/iron"
+     },
+     {
+      "name": "Icy mantle",
+      "outerRadiusFraction": 0.75,
+      "color": "#3fb6c9",
+      "state": "hot dense water/ammonia/methane fluid"
+     },
+     {
+      "name": "H2/He/CH4 atmosphere",
+      "outerRadiusFraction": 1.0,
+      "color": "#9fe3e8",
+      "state": "gas"
+     }
+    ],
+    "confidence": "low (model)",
+    "sources": [
+     "https://science.nasa.gov/uranus/facts/"
+    ]
+   },
+   "funFact": "Uranus rolls on its side, tilted 97.8°.",
+   "duelFlightTimeMs": 849,
+   "source": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/uranusfact.html"
+  },
+  {
+   "id": "neptune",
+   "name": "Neptune",
+   "type": "ice giant",
+   "mass_1e24kg": 102,
+   "radius_km": 24764.0,
+   "diameter_km": 49528,
+   "density_kgm3": 1638,
+   "gravity": 11.0,
+   "gravityVsEarth": 1.122,
+   "escapeVelocity": 23.5,
+   "rotationPeriod_h": 16.1,
+   "lengthOfDay_h": 16.1,
+   "orbitalPeriod_d": 59800,
+   "distanceFromSun_1e6km": 4515.0,
+   "obliquity_deg": 28.3,
+   "meanTemp_C": -200,
+   "surfacePressure_bar": null,
+   "moons": 16,
+   "rings": true,
+   "globalMagneticField": true,
+   "atmosphere": {
+    "summary": "Hydrogen-helium-methane",
+    "major": [
+     [
+      "H2",
+      80.0
+     ],
+     [
+      "He",
+      19.0
+     ],
+     [
+      "CH4",
+      1.5
+     ]
+    ]
+   },
+   "interior": {
+    "layers": [
+     {
+      "name": "Rocky core",
+      "outerRadiusFraction": 0.25,
+      "color": "#a5583a",
+      "state": "rock/iron"
+     },
+     {
+      "name": "Icy mantle",
+      "outerRadiusFraction": 0.8,
+      "color": "#2f6fd1",
+      "state": "hot dense water/ammonia/methane fluid"
+     },
+     {
+      "name": "H2/He/CH4 atmosphere",
+      "outerRadiusFraction": 1.0,
+      "color": "#5b8cf0",
+      "state": "gas"
+     }
+    ],
+    "confidence": "low (model)",
+    "sources": [
+     "https://science.nasa.gov/neptune/facts/"
+    ]
+   },
+   "funFact": "Neptune has the fastest winds measured in the solar system, over 2,000 km/h.",
+   "duelFlightTimeMs": 755,
+   "source": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/neptunefact.html"
+  }
+ ]
+}

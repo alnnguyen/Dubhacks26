@@ -21,7 +21,7 @@ Record device/browser, observed result and remaining failures during actual test
 
 ## Phone QA — duel HUD on alex-dev (Alan + Alex)
 
-Run the **flight flow** duel HUD (not only `/?camera=1`). Lab harness remains available at `/?camera=1` for calibration debug.
+The rock/gun camera duel and its `/?camera=1` / `/?pvp=1` routes were removed October 18. The rows below are kept as a record and no longer apply; test the saber arena instead.
 
 ### Setup
 

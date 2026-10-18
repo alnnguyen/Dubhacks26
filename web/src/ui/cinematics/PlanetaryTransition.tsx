@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PlanetId, PlanetaryCinematicState } from './sequence';
-import { buildPlanetarySequence } from './sequence';
+import { advanceCinematicFrame, buildPlanetarySequence } from './sequence';
 import type { PlanetarySound } from './PlanetarySound';
 import './planetary-transition.css';
-
-const VIDEO_URL = '/cinematics/spacetomars.mp4';
+import { gameAudio } from '../../audio/gameAudio';
+import { DESTINATIONS, preloadDestination, type DestinationId } from '../../destinations/config';
+import { NeptuneArrival } from '../../arena/neptune/NeptuneArrival';
+import { MarsArrival } from '../../arena/mars/MarsArrival';
 
 const PLANET_NAMES: Record<PlanetId, string> = {
   mercury: 'Mercury',
@@ -19,6 +21,9 @@ const PLANET_NAMES: Record<PlanetId, string> = {
 
 export function PlanetaryTransition({
   reducedMotion,
+  destination = 'mars',
+  sceneReady,
+  frameTick,
   audio,
   audioEnabled,
   audioUnavailable,
@@ -26,49 +31,63 @@ export function PlanetaryTransition({
   onStateChange,
   onComplete,
 }: {
+  destination?: DestinationId;
   reducedMotion: boolean;
+  sceneReady: boolean;
+  frameTick: React.RefObject<((delta: number) => void) | null>;
   audio: PlanetarySound;
   audioEnabled: boolean;
   audioUnavailable: boolean;
   onEnableAudio: () => void;
   onStateChange: (state: PlanetaryCinematicState) => void;
-  onComplete: (destination: 'mars') => void;
+  onComplete: (destination: DestinationId) => void;
 }) {
+  const config=DESTINATIONS[destination];
+  const [skipArrival,setSkipArrival]=useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const completeOnce = useRef(false);
+  const travelSound = useRef({ jumped: false, arrived: false });
+  const soundStops = useRef<Array<() => void>>([]);
+  const arrivalStop = useRef<(() => void) | null>(null);
+  const landedNaturally = useRef(false);
+  useEffect(() => () => {
+    soundStops.current.forEach((stop) => stop());
+    if (!landedNaturally.current) arrivalStop.current?.();
+    gameAudio.setEngine(false);
+  }, []);
   const [state, setState] = useState<PlanetaryCinematicState>({ phase: 'idle', selectedPlanet: 'earth' });
+  useEffect(() => {
+    void preloadDestination(destination).catch(() => { /* Arena recovery handles failed terrain. */ });
+  }, [destination]);
+
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [backdropImage, setBackdropImage] = useState<string | null>(null);
 
   useEffect(() => {
-    const sequence = buildPlanetarySequence(reducedMotion);
-    let timeout = 0;
-    let index = 0;
-    let cancelled = false;
-
-    const advance = () => {
-      if (cancelled) return;
-      const step = sequence[index];
-      if (!step) return;
-      setState(step.state);
-      onStateChange(step.state);
-      index += 1;
-      if (step.durationMs > 0) timeout = window.setTimeout(advance, step.durationMs);
+    if (!sceneReady) return;
+    const sequence = buildPlanetarySequence(reducedMotion,destination);
+    let cursor = { index: 0, elapsedMs: 0 };
+    const publish = () => {
+      const next = sequence[cursor.index].state;
+      setState(next);
+      onStateChange(next);
     };
-
-    advance();
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
+    publish();
+    // Advance only when the cockpit renders, using the same capped time as its motion.
+    frameTick.current = (delta) => {
+      const previousIndex = cursor.index;
+      cursor = advanceCinematicFrame(sequence, cursor.index, cursor.elapsedMs, delta);
+      if (cursor.index !== previousIndex) publish();
     };
-  }, [onStateChange, reducedMotion]);
+    return () => { frameTick.current = null; };
+  }, [onStateChange, reducedMotion, sceneReady, frameTick,destination]);
 
   const complete = useCallback(() => {
     if (completeOnce.current) return;
     completeOnce.current = true;
-    onComplete('mars');
-  }, [onComplete]);
+    onComplete(destination);
+  }, [onComplete,destination]);
 
   useEffect(() => {
     if (state.phase !== 'video' || videoError) return;
@@ -96,7 +115,10 @@ export function PlanetaryTransition({
     if (!audioEnabled) return;
     if (state.phase === 'roulette') audio.tick();
     else if (state.phase === 'locked') audio.lock();
-    else if (state.phase === 'zooming') audio.engine();
+    else if (state.phase === 'zooming') {
+      audio.engine();
+      soundStops.current.push(gameAudio.play('charge'));
+    }
   }, [audio, audioEnabled, state.phase, state.selectedPlanet]);
 
   useEffect(() => {
@@ -112,6 +134,15 @@ export function PlanetaryTransition({
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [state.phase, videoError]);
+
+  useEffect(() => {
+    gameAudio.setEngine(videoPlaying && !travelSound.current.arrived);
+    if (videoPlaying && !travelSound.current.jumped) {
+      travelSound.current.jumped = true;
+      soundStops.current.push(gameAudio.play('jump'));
+    }
+    return () => gameAudio.setEngine(false);
+  }, [videoPlaying]);
 
   const locked = state.phase === 'locked' || state.phase === 'zooming' || state.phase === 'flash' || state.phase === 'video';
   const holdFlash = state.phase === 'video' && !videoPlaying && !videoError;
@@ -132,26 +163,25 @@ export function PlanetaryTransition({
     <section
       className="planetary-transition"
       data-phase={state.phase}
+      data-destination={destination}
       data-reduced-motion={reducedMotion}
       aria-label="Planetary travel sequence"
     >
-      <video
-        ref={video}
-        className="planetary-transition__video"
-        src={VIDEO_URL}
-        playsInline
-        muted
-        preload="auto"
-        aria-label="Spaceship travel from the cockpit to Mars"
-        onLoadedData={captureBackdrop}
-        onTimeUpdate={() => {
-          if (video.current && video.current.duration && video.current.currentTime / video.current.duration > 0.84) captureBackdrop();
-        }}
+      {destination==='neptune'&&<NeptuneArrival active={state.phase==='video'||skipArrival} skip={skipArrival} reducedMotion={reducedMotion} onComplete={complete} onPlaying={()=>setVideoPlaying(true)} onError={()=>setVideoError(true)}/>}
+      {destination==='mars'&&<MarsArrival
+        active={state.phase==='video'||skipArrival}
+        skip={skipArrival}
+        reducedMotion={reducedMotion}
+        onComplete={() => { landedNaturally.current = !skipArrival; complete(); }}
         onPlaying={() => setVideoPlaying(true)}
-        onPause={() => setVideoPlaying(false)}
-        onEnded={complete}
         onError={() => setVideoError(true)}
-      />
+        onArrive={() => {
+          if (travelSound.current.arrived) return;
+          travelSound.current.arrived = true;
+          gameAudio.setEngine(false);
+          arrivalStop.current = gameAudio.play('arrive');
+        }}
+      />}
       <div
         className="planetary-transition__backdrop"
         style={backdropImage ? { backgroundImage: `linear-gradient(rgba(3, 8, 13, 0.3), rgba(3, 8, 13, 0.3)), url("${backdropImage}")` } : undefined}
@@ -170,11 +200,11 @@ export function PlanetaryTransition({
       {state.phase !== 'video' && (
         <div className="planetary-transition__heading" aria-live="polite">
           <p className="planetary-transition__eyebrow">
-            {state.phase === 'activating' ? 'Navigation core online' : locked ? 'Destination locked: Mars' : 'Scanning destinations'}
+            {!sceneReady ? 'Loading navigation visuals…' : state.phase === 'activating' ? 'Navigation core online' : locked ? `Destination locked: ${config.displayName}` : 'Scanning destinations'}
           </p>
-            <h1 key={`${state.phase}:${state.selectedPlanet}`}>{locked ? 'MARS' : PLANET_NAMES[state.selectedPlanet].toUpperCase()}</h1>
+            <h1 key={`${state.phase}:${state.selectedPlanet}`}>{locked ? config.displayName.toUpperCase() : PLANET_NAMES[state.selectedPlanet].toUpperCase()}</h1>
           {locked ? (
-            <p className="planetary-transition__details">3.73 m/s² gravity <span>·</span> −59°C mean temperature <span>·</span> 6.36 mbar</p>
+            <p className="planetary-transition__details">{config.description}</p>
           ) : (
             <p className="planetary-transition__status">AUTONAV // {state.phase === 'roulette' ? 'ROUTE CALIBRATION' : 'SOLAR SYSTEM ACQUISITION'}</p>
           )}
@@ -184,10 +214,10 @@ export function PlanetaryTransition({
       <button
         type="button"
         className="planetary-transition__skip"
-        onClick={complete}
-        aria-label={videoError ? 'Continue to the Mars arena' : 'Skip travel cinematic and continue to the Mars arena'}
+        onClick={()=>setSkipArrival(true)}
+        aria-label={`Continue to the ${config.displayName} arena`}
       >
-        {videoError ? 'Continue to Mars arena' : state.phase === 'video' ? 'Skip flight' : 'Skip cinematic'}
+        {videoError ? `Continue to ${config.displayName} arena` : state.phase === 'video' ? 'Skip flight' : 'Skip cinematic'}
       </button>
 
       {!audioEnabled && state.phase !== 'video' && (
@@ -198,12 +228,12 @@ export function PlanetaryTransition({
 
       {videoError && state.phase === 'video' && (
         <p className="planetary-transition__error" role="alert">
-          The travel video could not play. Continue to the Mars arena when ready.
+          The travel video could not play. Continue to the {config.displayName} arena when ready.
         </p>
       )}
 
       <p className="planetary-transition__next" aria-live="polite">
-        {state.phase === 'video' ? 'MARS APPROACH // MULTIPLAYER LINK NEXT' : 'DESTINATION ROUTING // MARS'}
+        {`${config.displayName.toUpperCase()} // ${state.phase==='video'?'APPROACH':'DESTINATION ROUTING'}`}
       </p>
       {audioUnavailable && state.phase !== 'video' && (
         <span className="planetary-transition__audio-status" role="status">

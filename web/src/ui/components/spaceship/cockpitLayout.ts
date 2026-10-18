@@ -24,6 +24,8 @@ export const LAYOUT = {
   overhead: { center: [0, 2.36, -1.75] as const },
   sideMonitors: { x: 1.2, y: 1.28, z: -2.42 },
   seats: { x: 0.86, z: -0.42 },
+  /** Pilot flight stick on a floor pedestal, between the left seat and the dash. */
+  pilotStick: { x: -0.86, z: -1.0, gripY: 1.0 },
 } as const;
 
 export interface CameraPose {
@@ -33,8 +35,12 @@ export interface CameraPose {
   fovScale: number;
 }
 
-export const CAMERA_POSES: Record<LobbyView | 'launch', CameraPose> = {
+export const CAMERA_POSES: Record<LobbyView | 'launch' | 'pilotLaunch', CameraPose> = {
   lobby: { position: [0, 1.64, 1.15], target: [0, 1.42, -3], fovScale: 1 },
+  /** Seated in the left pilot chair at eye height, right behind the flight stick, looking straight out the windshield. */
+  pilot: { position: [-0.86, 1.32, -0.45], target: [-0.86, 1.18, -3.0], fovScale: 1.04 },
+  /** From the seat, the camera pushes straight forward toward the glass as the cockpit fades into flight. */
+  pilotLaunch: { position: [-0.86, 1.34, -2.05], target: [-0.86, 1.38, -7], fovScale: 1.2 },
   console: { position: [0, 1.42, -0.2], target: [0, 1.1, -1.65], fovScale: 0.92 },
   radar: { position: [0, 1.48, -0.05], target: [0, 1.66, -2.3], fovScale: 0.9 },
   profile: { position: [0, 1.62, 0.5], target: [0, 2.28, -1.8], fovScale: 0.9 },

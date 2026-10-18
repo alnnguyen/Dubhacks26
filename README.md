@@ -1,4 +1,4 @@
-# Jedi Space Battles
+# KO.rbit
 
 **DubHacks 2026** · Two phones. One cockpit. A camera duel shaped by real planetary gravity.
 
@@ -42,6 +42,12 @@ Detailed proofs, limits, and what is / isn’t claimed live in [`docs/sponsor-ev
 - Rock + gun weapons, block windows, cooldowns, reconnect grace, projectile landing events
 - Clients use `createGameClient` — command IDs and validation stay server-side
 
+### Perceptron replay highlights
+- Opt in during saber setup to record up to 45 seconds of silent webcam footage locally; upload consent is separate on the result screen.
+- Perceptron selects intervals/captions and tracks player boxes; browser playback adds cuts, slow motion and reframing. Original video can be saved locally.
+- Cinematic arena replay adds orbit/low/overhead shots, continuous recorded movement, speed ramps, sparks and impact holds. The captured server knockout is always the final scene, separately credited from Perceptron's earlier selections. `/?dev=replay` is a labeled synthetic preview.
+- Real synthetic-WebM clip/track API proof passed; a complete recorded duel and phone-browser QA remain pending. Setup and limits: [`docs/perceptron-replay.md`](docs/perceptron-replay.md).
+
 ### Camera duel (Alan)
 - Rear-camera MediaPipe hand + pose; hand lock so rival hands don’t steal your gestures
 - Rock: palm charge → fist grab → fling / release → server `throwRock`
@@ -52,10 +58,10 @@ Detailed proofs, limits, and what is / isn’t claimed live in [`docs/sponsor-ev
 - Immersive Jezero-style terrain from **NASA MOLA**-derived height data
 - Opponent cutout / multi-person detection for an “across the dust” duel feel
 - Phone tilt look-around; dust, rocks, sky treatment
-- Dev routes for tuning without a full match (`/?arena=mars`, `/?dev=mars`)
+- Dev route for tuning without a full match (`/?arena=mars`)
 
 ### Real space data in gameplay
-- **NASA Planetary Fact Sheet** gravity (e.g. Mars **3.7 m/s²**) maps to rock flight / defense window — not fake sci-fi timers
+- **NASA Planetary Fact Sheet** gravity (e.g. Mars **3.7 m/s²**) is shown for each world; it does not yet change saber combat
 - Arena and briefing copy grounded in provenance docs (`datasets.md`, arena attributions under `web/public/arena/mars/`)
 - Research backlog for windshield ephemeris, star maps, and space weather chips when we have bandwidth
 
@@ -91,10 +97,9 @@ Open the HTTPS URL Vite prints (accept the self-signed cert). For phones, tunnel
 | Route | What you get |
 | --- | --- |
 | `/` | Onboarding → cockpit shell (`BridgeApp`) |
-| FlightApp path | Real lobby → challenge → briefing → camera duel (composition target for the full demo) |
-| `/?pvp=1` | LiveDuel networking rehearsal |
-| `/?debug=camera` or `/?camera=1` | Alan’s MediaPipe harness |
-| `/?dev=mars` | Camera + Mars backdrop, no match |
+| FlightApp path | Real lobby → challenge → briefing → saber arena duel (composition target for the full demo) |
+| `/?saber=CODE` | Phone lightsaber controller (opened from the laptop's pair QR) |
+| `/?dev=arena` | Saber arena with synthetic fighters, no camera/phone/server |
 | `/?arena=mars` | Mars scene only |
 
 Provider demos (Photon / Grok) use gitignored env files — see [`server/src/integrations/`](server/src/integrations/) READMEs. **Never commit API keys.**
@@ -123,6 +128,8 @@ datasets.md   NASA / JPL / imagery research for SpaceXAI provenance
 | B | Justin | Server, lobby/match contracts, networking |
 | C | Alan | Camera, gestures, overlays, gun/rock CV |
 | D | Alex | Photon, Grok Voice / LYRA, Cursor + sponsor evidence |
+
+**Web:** default `/` is onboarding → cockpit (`BridgeApp`; next glue is FlightApp’s real lobby). Other routes: `/?explore=1` (free-flight solar system + hyperspace + challenge→duel handoff), `/?camera=1` / `/?debug=camera` (Alan harness), `/?dev=mars` (camera + Mars, no match), `/?arena=mars` (scene only), `/?pvp=1` (LiveDuel rehearsal). Real challenge → briefing → duel lives in `FlightApp`.
 
 Rules of engagement: [`AGENTS.md`](AGENTS.md) · Living plan: [`PLAN.md`](PLAN.md) · Board: [`docs/task-board.md`](docs/task-board.md)
 

@@ -5,6 +5,7 @@
 
 export type PlayerSlot = 1 | 2;
 
+<<<<<<< HEAD
 // Appearance is sent on join/update and in match views, never at pose frequency.
 export interface AvatarAppearance {
   suit: "white" | "orange" | "blue" | "red" | "purple" | "black";
@@ -32,6 +33,8 @@ export interface ProjectileInFlight {
   landsInMs: number;
 }
 
+=======
+>>>>>>> origin/main
 // Saber duel in a shared 3D arena, in meters. World frame: x to slot 1's
 // right, y up, z from slot 1 toward slot 2. A game space: each player is in
 // front of their own laptop, wherever that is.
@@ -47,26 +50,27 @@ export interface BodyPose {
   // The 33 MediaPipe pose joints, hip-centered, in the player's body frame:
   // x right, y up, z forward (toward their screen, i.e. toward the opponent).
   joints: Vec3[];
-  // Which way the player wants to walk, in their own frame (x right, z toward
-  // the rival), each -1..1, from the free hand's pinch-and-nudge or keys.
-  // The server moves them at walking speed; it owns their position.
-  move: { x: number; z: number };
   // The player stood still on their spot during setup.
   calibrated: boolean;
   // The laptop's guided setup, relayed to the player's phone so it can show the same step.
   setup: SetupProgress | null;
 }
 
+// One step to a neighboring cell, relative to the way the player faces (forward is toward the rival's side).
+export type StepDirection = "forward" | "back" | "left" | "right";
+
+// Arena coordinates in board.cellSize units; q = x, r = z. Fractional after orbiting.
+export interface GridCell {
+  q: number;
+  r: number;
+}
+
 export type SetupStep =
-  | "stand"
   | "phone"
-  | "forward"
-  | "up"
+  | "stand"
+  | "upright"
   | "right"
   | "reach"
-  | "open"
-  | "pinch"
-  | "nudge"
   | "done";
 
 export interface SetupProgress {
@@ -117,20 +121,44 @@ export interface ArenaBlade {
 
 export interface ArenaPlayer {
   slot: PlayerSlot;
+  // The cell the player stands in (or is stepping to).
+  cell: GridCell;
+  // Horizontal unit vector (world x, z) toward the rival.
+  facing: [number, number];
   // World-frame joints; null while the body isn't tracked.
   joints: Vec3[] | null;
   blade: ArenaBlade | null;
   swinging: boolean;
+  // Movement stamina, 0..100. Steps cost some; it refills after a short pause.
+  stamina: number;
+  // Ran dry: no steps until stamina recovers.
+  winded: boolean;
+  // Guard broken: no swings, steps or guard for a moment.
+  stunned: boolean;
+}
+
+/** Shared pre-combat countdown. A deadline alone never authorizes a hit. */
+export interface SaberStart {
+  startsAtMs: number | null;
+  unlocked: boolean;
 }
 
 // Both players in world coordinates, sent to both laptops on every server tick.
 export interface ArenaFrame {
+  // Server time of the tick (ms), so laptops can blend between frames smoothly
+  // despite network jitter. Only differences matter; clocks aren't synced.
+  serverMs: number;
+  // Optional for compatibility with older scene recordings/clients.
+  saberStart?: SaberStart;
   players: ArenaPlayer[];
+  // Both players at the front line within a column of each other: only then do swings count.
+  engaged: boolean;
 }
 
 export interface SaberResolved {
   attackerSlot: PlayerSlot;
-  outcome: "blocked" | "hit";
+  // "guardBreak": the attack swung along the defender's held guard, which broke; the defender is stunned.
+  outcome: "blocked" | "hit" | "guardBreak";
   damage: number;
 }
 
@@ -144,14 +172,18 @@ export interface SaberStatus {
     health: number;
     rivalHealth: number;
     armed: boolean;
+    // The round's countdown, as on the laptop's view.
+    startsInMs: number | null;
     // The laptop's current setup step, so the phone can show it too.
     setup: SetupProgress | null;
+    // null until the match finishes; the phone plays the KO cue from this.
+    result: MatchResult | null;
   } | null;
 }
 
 export type PairReply = { ok: true; status: SaberStatus } | { ok: false; reason: "invalid_code" };
 
-export type WorldId = "earth" | "mars" | "moon";
+export type WorldId = "earth" | "mars" | "moon" | "neptune";
 
 // Chosen once by the server when a challenge is accepted. Both phones show this record.
 export interface World {
@@ -159,8 +191,6 @@ export interface World {
   name: string;
   // Rounded NASA Planetary Fact Sheet surface gravity.
   gravityMps2: number;
-  // Gameplay mapping 0.8 × √(9.8 / gravity) s, not projectile physics.
-  rockFlightMs: number;
 }
 
 export interface PlayerState {
@@ -174,14 +204,9 @@ export interface PlayerState {
   reconnectEndsInMs: number | null;
   // Pressed Ready after the briefing. The match starts when both are ready.
   ready: boolean;
+  // Asked for a rematch on the result screen. A new round starts once both have.
+  rematch: boolean;
   health: number;
-  action: PlayerAction;
-  // The active weapon; only it can fire. Switching is instant.
-  weapon: Weapon;
-  cooldowns: Record<Weapon, number | null>;
-  block: BlockState;
-  // This player's own shot, flying toward the opponent. At most one at a time.
-  projectile: ProjectileInFlight | null;
   saber: SaberState;
 }
 
@@ -196,7 +221,11 @@ export interface MatchResult {
 
 export interface MatchSnapshot {
   matchId: string;
+  round?: number; // Starts at 1; increments when both pilots rematch.
   phase: MatchPhase;
+  // Counts down once both players are set up, before each round (the first and each rematch);
+  // swings and steps don't count until it ends. null before both are set up, and after.
+  startsInMs: number | null;
   world: World;
   players: PlayerState[];
   result: MatchResult | null;
@@ -205,18 +234,15 @@ export interface MatchSnapshot {
 // What one phone receives: its own player as "you", the opponent as "rival".
 export interface PlayerView {
   matchId: string;
+  round?: number;
   phase: MatchPhase;
+  startsInMs: number | null;
   world: World;
   result: MatchResult | null;
+  // Coordinate scale and glide duration. rows is retained for older clients (no row ownership).
+  board: { cellSize: number; rows: number; stepMs: number };
   you: PlayerState;
   rival: PlayerState;
-}
-
-export interface ProjectileLanded {
-  attackerSlot: PlayerSlot;
-  weapon: Weapon;
-  blocked: boolean;
-  damage: number;
 }
 
 // "in-duel" pilots are in a match and can't be challenged.
@@ -228,6 +254,15 @@ export interface Pilot {
   status: PilotStatus;
   wins: number;
   losses: number;
+  // Where the pilot is flying in exploration, as they reported it. Display only:
+  // never used for matchmaking, combat or hit checks. Absent until reported.
+  location?: PilotLocation;
+}
+
+// A coarse exploration place (a destination or body ID plus its display name), not coordinates.
+export interface PilotLocation {
+  bodyId: string;
+  label: string;
 }
 
 export type ChallengeStatus = "pending" | "accepted" | "declined" | "cancelled" | "expired";
@@ -253,23 +288,20 @@ export interface LobbyView {
 
 // Every command carries a unique ID so the server can recognise a retry and
 // return the original reply instead of applying it again.
-export type MatchCommandType =
-  | "ready"
-  | "leaveMatch"
-  | "rockActive"
-  | "gunActive"
-  | "throwRock"
-  | "fireGun"
-  | "startBlock"
-  | "endBlock";
+// "rematch" is only accepted once the match has finished, with both players still there.
+// "forfeit" ends the round but keeps you in the match (for a rematch); "leaveMatch" also detaches you.
+export type MatchCommandType = "ready" | "forfeit" | "rematch" | "leaveMatch";
 
 export type Command =
   | { commandId: string; type: MatchCommandType }
-  | { commandId: string; type: "challenge"; pilotId: string }
+  | { commandId: string; type: "challenge"; pilotId: string; destination?: "mars" | "neptune" }
   | { commandId: string; type: "acceptChallenge" | "declineChallenge" | "cancelChallenge"; challengeId: string }
   | { commandId: string; type: "setAvatar"; avatar: AvatarAppearance }
   | { commandId: string; type: "setCallsign"; callsign: string }
-  | { commandId: string; type: "calibrateSaber"; calibration: SaberCalibration };
+  // null clears it, e.g. when the pilot leaves exploration.
+  | { commandId: string; type: "setLocation"; location: PilotLocation | null }
+  | { commandId: string; type: "calibrateSaber"; calibration: SaberCalibration }
+  | { commandId: string; type: "step"; direction: StepDirection };
 
 export type CommandType = Command["type"];
 
@@ -280,11 +312,13 @@ export type RejectReason =
   | "not_in_match"
   | "in_match"
   | "busy"
-  | "on_cooldown"
-  | "weapon_not_active"
-  | "projectile_in_flight"
-  | "not_blocking"
   | "pilot_unavailable"
+  // A step past the center line or the back of your side.
+  | "blocked"
+  // Not enough stamina for that step, or winded.
+  | "exhausted"
+  // Guard broken a moment ago.
+  | "stunned"
   | "challenge_unavailable";
 
 export type CommandReply =
@@ -307,27 +341,48 @@ export interface ServerToClientEvents {
   lobby: (lobby: LobbyView) => void;
   // null while the player is not in a match.
   view: (view: PlayerView | null) => void;
-  projectileLanded: (event: ProjectileLanded) => void;
   arena: (frame: ArenaFrame) => void;
   saberResolved: (event: SaberResolved) => void;
   // To a paired phone.
   saberStatus: (status: SaberStatus) => void;
   // To the pilot's laptop: their own phone's latest reading, for the setup checks.
   phoneAim: (aim: SaberAim) => void;
+  // To both laptops, the moment a step is accepted (ahead of the next arena frame).
+  stepped: (event: { slot: PlayerSlot; cell: GridCell; orbitCenter?: [number, number] }) => void;
 }
 
 export interface ClientToServerEvents {
+  'replay:ticket': (request: { matchId: string }, reply: (result: ReplayTicketReply) => void) => void;
   'copilot:session': (request: Record<string, never>, reply: (result: CopilotSessionReply) => void) => void;
   'copilot:context': (request: Record<string, never>, reply: (result: CopilotContextReply) => void) => void;
+  /** Allowlisted LYRA arena lines via server Grok TTS. Cue id only — no free text. */
+  'lyra:narrate': (request: { cue: string }, reply: (result: LyraNarrateReply) => void) => void;
   join: (request: JoinRequest, reply: (result: JoinReply) => void) => void;
   command: (command: Command, reply: (result: CommandReply) => void) => void;
   bodyPose: (pose: BodyPose) => void;
   // From a phone: become the saber of the pilot with this pair code.
   pairSaber: (request: { code: string }, reply: (result: PairReply) => void) => void;
   saberAim: (aim: SaberAim) => void;
+  // From a paired phone: the thumb swiped. Goes through the same validated, deduplicated step command as the laptop's keys.
+  saberStep: (request: { stepId: string; direction: StepDirection }, reply: (result: CommandReply) => void) => void;
 }
 
 // Read-only ship copilot. Permanent provider keys never cross this boundary.
 export type CopilotFailure = { ok: false; reason: 'not_joined' | 'invalid_request' | 'offline' | 'no_response' | 'unavailable' | 'rate_limited' | 'provider_error' };
 export type CopilotSessionReply = CopilotFailure | { ok: true; clientSecret: string; expiresAt?: number; session: Record<string, unknown> };
 export type CopilotContextReply = CopilotFailure | { ok: true; context: { source: 'live'; lobby: LobbyView; match: PlayerView | null } };
+
+/** Server-owned LYRA TTS. Permanent xAI key stays on the server. */
+export type LyraNarrateReply =
+  | CopilotFailure
+  | { ok: true; cue: string; contentType: 'audio/mpeg'; audioBase64: string };
+
+export type ReplayFailure = { ok: false; reason: 'not_joined' | 'invalid_request' | 'unavailable' | 'not_finished' | 'unauthorized' | 'too_large' | 'unsupported_media' | 'rate_limited' | 'provider_error' | 'no_moments' | 'offline' | 'no_response' };
+export type ReplayTicketReply = ReplayFailure | { ok: true; ticket: string };
+export interface ReplayMoment { start: number; end: number; caption: string }
+/** Coordinates are normalized to [0,1], in the original, unmirrored video. */
+export interface ReplayBox { at: number; x1: number; y1: number; x2: number; y2: number }
+export type ReplayReply = ReplayFailure | {
+  ok: true; source: 'perceptron'; model: string; moments: ReplayMoment[]; boxes: ReplayBox[];
+  requestIds: string[]; framing: 'perceptron' | 'unavailable';
+};

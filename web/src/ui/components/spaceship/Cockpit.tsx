@@ -212,6 +212,20 @@ function buildCockpit(b: CockpitBuilder) {
     for (const s of SIDES) b.rbox('hullLight', [s * 0.46, 0, 0], [0.05, 0.5, 0.08], 0.015);
   });
 
+  // ---------------------------------------------------------------- Pilot flight stick
+  {
+    const { x, z, gripY } = LAYOUT.pilotStick;
+    b.group([x, 0, z], [0, 0, 0], () => {
+      b.rbox('hullDark', [0, 0.05, 0], [0.26, 0.1, 0.26], 0.03);
+      b.rbox('hull', [0, 0.36, 0], [0.12, 0.52, 0.12], 0.025);
+      b.rbox('hullDark', [0, 0.64, 0], [0.18, 0.06, 0.18], 0.02);
+      b.box('hullLight', [0, gripY - 0.17, 0.02], [0.03, 0.2, 0.03], [-0.18, 0, 0]);
+      b.rbox('panel', [0, gripY - 0.04, 0.035], [0.075, 0.13, 0.08], 0.03);
+      b.dot([0, gripY + 0.03, 0.02], [0.022, 0.012, 0.022], 'red', 2.6);
+      b.dot([0.028, gripY - 0.01, 0.0], [0.012, 0.012, 0.012], 'cyan', 2);
+    });
+  }
+
   // ---------------------------------------------------------------- Pilot seats
   for (const s of SIDES) {
     b.group([s * LAYOUT.seats.x, 0, LAYOUT.seats.z], [0, -s * 0.06, 0], () => {

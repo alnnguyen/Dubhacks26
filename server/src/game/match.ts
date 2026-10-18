@@ -11,18 +11,18 @@ import type {
   PlayerSlot,
   PlayerState,
   PlayerView,
-  ProjectileLanded,
   RejectReason,
+  SaberStart,
   SaberAim,
   SaberCalibration,
   SaberResolved,
   SetupProgress,
   SetupStep,
+  StepDirection,
   Vec3,
-  Weapon,
   WorldId,
 } from "../contracts.js";
-import { RULES, SABER, weaponsFor, world, type WeaponRules } from "./rules.js";
+import { RULES, SABER, world } from "./rules.js";
 import {
   add,
   bodyShape,
@@ -35,7 +35,12 @@ import {
   RIGHT_WRIST,
   scale,
   sub,
+  worldToDirection,
+  type Facing,
 } from "./saber3d.js";
+import { CELL_SIZE, cellToWorld, inReach, orbitStep, interpolateStep, ROWS_PER_SIDE, type Cell } from "./grid.js";
+
+import { advanceSaberStart } from "./saberStart.js";
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -47,16 +52,11 @@ interface Player {
   callsign: string;
   connected: boolean;
   ready: boolean;
+  rematch: boolean;
   health: number;
-  weapon: Weapon;
-  windupEndsAt: number | null;
-  cooldownEndsAt: Record<Weapon, number | null>;
-  blockEndsAt: number | null;
-  blockCooldownEndsAt: number | null;
-  projectile: { weapon: Weapon; landsAt: number } | null;
   reconnectEndsAt: number | null;
   saber: Saber;
-  timers: { windup?: Timer; block?: Timer; projectile?: Timer; reconnect?: Timer };
+  timers: { reconnect?: Timer; step?: Timer };
 }
 
 // One player's saber inputs and swing. Times are server receive times.
@@ -66,26 +66,48 @@ interface Saber {
   paired: boolean;
   // From the laptop's guided setup; no blade without it.
   calibration: SaberCalibration | null;
-  // The blade and the player's hips at the previous tick, to sweep from and
-  // to tell a swing from simply moving.
+  // The blade at the previous tick, to sweep from, and its tip in the player's
+  // own body frame, to tell a swing from stepping or turning to face the rival.
   lastBlade: ArenaBlade | null;
-  lastRoot: Vec3 | null;
-  // Where walking has taken the player from their spot (body frame: x right, z forward).
-  position: { x: number; z: number };
+  lastBodyTip: Vec3 | null;
+  // The cell the player stands in (or is stepping to), and the glide there from the last one.
+  cell: Cell;
+  glide: { from: [number, number]; startedAt: number; orbitCenter?: [number, number] };
+  // No new step until this time: the glide plus a short pause.
+  stepReadyAt: number;
+  // One step asked for mid-glide, taken the moment the current one lands.
+  queuedStep: StepDirection | null;
+  // Stamina as of `at`; it refills from regenFrom on (see stamina()).
+  stamina: { value: number; at: number; regenFrom: number; winded: boolean };
   swinging: boolean;
+  // While swinging: the tip where the swing started (own body frame), and the
+  // farthest it has got from there.
+  swing: { from: Vec3; reach: number } | null;
   cooldownEndsAt: number | null;
+  // Guard broken: no swings, steps or guard until this time.
+  stunnedUntil: number;
   // Readiness last announced, so a change re-sends the views.
   announced: string;
 }
 
 const HANDS: readonly Hand[] = ["left", "right"];
+const STEP_DIRECTIONS: readonly StepDirection[] = ["forward", "back", "left", "right"];
+// How far a swing must have moved across the space between the players (not toward them) to have a line.
+const ATTACK_LINE_MIN = 0.15;
+// Below this you can't afford any step.
+const CHEAPEST_STEP = Math.min(...Object.values(SABER.stepStamina));
+// Start in the middle row of each side, straight across from each other: one step each to engage.
+const START_CELLS: Record<PlayerSlot, Cell> = { 1: { q: 0, r: -2 }, 2: { q: 0, r: 2 } };
+// Each player faces down the lane toward the other side, whatever column either is in.
+const FACING: Record<PlayerSlot, Facing> = { 1: [0, 1], 2: [0, -1] };
 
-const SETUP_STEPS: readonly SetupStep[] = ["stand", "phone", "forward", "up", "right", "reach", "open", "pinch", "nudge", "done"];
+const SETUP_STEPS: readonly SetupStep[] = ["phone", "stand", "upright", "right", "reach", "done"];
 
 export interface MatchEvents {
   changed: () => void;
-  projectileLanded: (event: ProjectileLanded) => void;
   saberResolved: (event: SaberResolved) => void;
+  // A step was accepted: sent at once, ahead of the next arena frame.
+  stepped: (event: { slot: PlayerSlot; cell: Cell; orbitCenter?: [number, number] }) => void;
   // Both players in the arena, every tick.
   arenaFrame: (frame: ArenaFrame) => void;
   finished: (result: MatchResult) => void;
@@ -99,21 +121,19 @@ export interface MatchPilot {
 export const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 // leaveMatch is handled by the lobby, which detaches the player after leave().
 export type InMatchCommandType = Exclude<MatchCommandType, "leaveMatch">;
-export const IN_MATCH_COMMAND_TYPES: readonly InMatchCommandType[] = [
-  "ready",
-  "rockActive",
-  "gunActive",
-  "throwRock",
-  "fireGun",
-  "startBlock",
-  "endBlock",
-];
+export const IN_MATCH_COMMAND_TYPES: readonly InMatchCommandType[] = ["ready", "forfeit", "rematch"];
 
 export class Match {
   private players = new Map<PlayerSlot, Player>();
   private phase: MatchPhase = "waiting";
   private result: MatchResult | null = null;
-  private weapons: Record<Weapon, WeaponRules>;
+  private round = 1;
+  private saberStart: SaberStart = { startsAtMs: null, unlocked: false };
+  get saberCombatReady(): boolean { return this.phase === "active" && this.saberStart.unlocked; }
+  get saberStartsInMs(): number | null {
+    return this.saberStart.startsAtMs === null || this.saberStart.unlocked
+      ? null : Math.max(0, this.saberStart.startsAtMs - Date.now());
+  }
   // Reply already sent for each "slot:commandId", so retries repeat it.
   private replies = new Map<string, CommandReply>();
   // The saber tick runs from the briefing (so laptops show both avatars during
@@ -128,10 +148,14 @@ export class Match {
     pilots: Record<PlayerSlot, MatchPilot>,
     private events: MatchEvents,
   ) {
-    this.weapons = weaponsFor(worldId);
     for (const slot of [1, 2] as const) this.addPlayer(slot, pilots[slot]);
-    this.ticker = setInterval(() => this.tick(), SABER.tickMs);
-    (this.ticker as { unref?: () => void }).unref?.();
+    this.ticker = this.startTicker();
+  }
+
+  private startTicker(): ReturnType<typeof setInterval> {
+    const ticker = setInterval(() => this.tick(), SABER.tickMs);
+    (ticker as { unref?: () => void }).unref?.();
+    return ticker;
   }
 
   get isFinished(): boolean {
@@ -145,15 +169,10 @@ export class Match {
       callsign: pilot.callsign,
       connected: true,
       ready: false,
+      rematch: false,
       health: RULES.startingHealth,
-      weapon: RULES.startingWeapon,
-      windupEndsAt: null,
-      cooldownEndsAt: { rock: null, gun: null },
-      blockEndsAt: null,
-      blockCooldownEndsAt: null,
-      projectile: null,
       reconnectEndsAt: null,
-      saber: newSaber(),
+      saber: newSaber(START_CELLS[slot]),
       timers: {},
     });
   }
@@ -170,19 +189,19 @@ export class Match {
   disconnect(slot: PlayerSlot): void {
     const player = this.players.get(slot)!;
     player.connected = false;
-    // The player's own shot and block are tied to them and end with them.
-    this.cancelProjectile(player);
-    this.clearBlock(player);
     player.saber.swinging = false;
 
     if (this.phase !== "finished") this.startGrace(player);
     this.events.changed();
   }
 
-  // Leaving before the end gives the match to the other player.
+  // Leaving before the end gives the match to the other player. Either way the
+  // player is gone, so the rival can't get a rematch with them.
   leave(slot: PlayerSlot): void {
-    if (this.phase === "finished") return;
-    this.finish({ winner: slot === 1 ? 2 : 1, reason: "forfeit" });
+    const player = this.players.get(slot)!;
+    player.connected = false;
+    player.rematch = false;
+    if (this.phase !== "finished") this.finish({ winner: slot === 1 ? 2 : 1, reason: "forfeit" });
     this.events.changed();
   }
 
@@ -210,8 +229,8 @@ export class Match {
 
   // Streamed from the player's laptop, ~20 Hz with no reply. Invalid, repeated,
   // older or too-frequent poses are dropped.
+  // Still taken after the end, so a rematch starts with both players armed.
   handleBodyPose(slot: PlayerSlot, raw: unknown): void {
-    if (this.phase === "finished") return;
     const pose = parseBodyPose(raw);
     const body = this.players.get(slot)!.saber.body;
     const now = Date.now();
@@ -223,7 +242,6 @@ export class Match {
   // Streamed from the player's paired phone, ~30 Hz with no reply. Returns the
   // accepted reading, which the server relays to the player's laptop for setup.
   handleSaberAim(slot: PlayerSlot, raw: unknown): SaberAim | null {
-    if (this.phase === "finished") return null;
     const aim = parseSaberAim(raw);
     const state = this.players.get(slot)!.saber.aim;
     const now = Date.now();
@@ -241,6 +259,99 @@ export class Match {
     this.players.get(slot)!.saber.calibration = calibration;
     this.announceReadiness();
     return null;
+  }
+
+  // Opponent-relative movement: forward/back change distance, left/right orbit.
+  // Allowed from the briefing on so players can practise during setup.
+  step(slot: PlayerSlot, direction: unknown): RejectReason | null {
+    if (this.phase === "finished" || (!this.saberStart.unlocked && this.saberStart.startsAtMs !== null)) return "match_not_active";
+    if (!STEP_DIRECTIONS.includes(direction as StepDirection)) return "invalid_command";
+    const player = this.players.get(slot)!;
+    const now = Date.now();
+    if (now < player.saber.stunnedUntil) return "stunned";
+    // Refused up front, so a step you can't afford isn't buffered either.
+    if (!this.canAfford(player, direction as StepDirection, now)) return "exhausted";
+    // Mid-glide: remember one step and take it the moment this one lands, so quick swipes aren't lost.
+    if (now < player.saber.stepReadyAt) {
+      if (player.saber.queuedStep) return "busy";
+      player.saber.queuedStep = direction as StepDirection;
+      player.timers.step = setTimeout(() => {
+        const queued = player.saber.queuedStep;
+        player.saber.queuedStep = null;
+        if (queued && this.phase !== "finished") this.stepTo(player, queued, Date.now());
+      }, player.saber.stepReadyAt - now);
+      return null;
+    }
+    return this.stepTo(player, direction as StepDirection, now);
+  }
+
+  // The one way a player changes cell.
+  private stepTo(player: Player, direction: StepDirection, now: number): RejectReason | null {
+    if (now < player.saber.stepReadyAt) return "busy";
+
+    const rival = this.players.get(player.slot === 1 ? 2 : 1)!;
+    const target = orbitStep(player.saber.cell, rival.saber.cell, direction);
+    if (!target) return "blocked";
+    if (!this.canAfford(player, direction, now)) return "exhausted";
+    this.spendStamina(player, SABER.stepStamina[direction], now);
+
+    const orbitCenter = direction === "left" || direction === "right" ? cellToWorld(rival.saber.cell) : undefined;
+    player.saber.glide = { from: this.rootXZ(player, now), startedAt: now, orbitCenter };
+    player.saber.cell = target;
+    player.saber.stepReadyAt = now + SABER.stepMs + SABER.stepCooldownMs;
+    // Laptops start your glide on this instead of waiting for the next tick and smooth playback.
+    this.events.stepped({ slot: player.slot, cell: target, ...(orbitCenter ? { orbitCenter } : {}) });
+    return null;
+  }
+
+  // Stamina now: the last value plus what refilled since the later of then and the end of the pause after a step.
+  private stamina(p: Player, now: number): number {
+    const { value, at, regenFrom } = p.saber.stamina;
+    const refillMs = Math.max(0, now - Math.max(at, regenFrom));
+    return Math.min(SABER.staminaMax, value + (SABER.staminaRegenPerSec * refillMs) / 1000);
+  }
+
+  private winded(p: Player, now: number): boolean {
+    const state = p.saber.stamina;
+    if (state.winded && this.stamina(p, now) >= SABER.windedRecoverAt) state.winded = false;
+    return state.winded;
+  }
+
+  private canAfford(p: Player, direction: StepDirection, now: number): boolean {
+    return !this.winded(p, now) && this.stamina(p, now) >= SABER.stepStamina[direction];
+  }
+
+  // Spending restarts the pause before refilling; too little left for any step leaves you winded.
+  private spendStamina(p: Player, cost: number, now: number): void {
+    const value = this.stamina(p, now) - cost;
+    p.saber.stamina = { value, at: now, regenFrom: now + SABER.staminaRegenDelayMs, winded: value < CHEAPEST_STEP };
+  }
+
+  // Damage interrupts voluntary movement; both laptops receive the normal glide event.
+  private knockBack(defender: Player, attacker: Player, now: number): void {
+    clearTimeout(defender.timers.step);
+    defender.saber.queuedStep = null;
+    const from = this.rootXZ(defender, now);
+    const origin = this.rootXZ(attacker, now);
+    const dx = from[0] - origin[0], dz = from[1] - origin[1];
+    const distance = Math.hypot(dx, dz);
+    if (distance < 1e-9) return;
+    const next = Math.max(distance, Math.min(6 * CELL_SIZE, distance + SABER.knockbackMeters));
+    const target = {
+      q: (origin[0] + dx * next / distance) / CELL_SIZE,
+      r: (origin[1] + dz * next / distance) / CELL_SIZE,
+    };
+    defender.saber.glide = { from, startedAt: now };
+    defender.saber.cell = target;
+    defender.saber.stepReadyAt = now + SABER.stepMs + SABER.stepCooldownMs;
+    this.events.stepped({ slot: defender.slot, cell: target });
+  }
+
+  // Engagement uses current gliding positions, rather than destination coordinates.
+  get engaged(): boolean {
+    const now = Date.now();
+    const a = this.rootXZ(this.players.get(1)!, now), b = this.rootXZ(this.players.get(2)!, now);
+    return inReach({ q: a[0] / CELL_SIZE, r: a[1] / CELL_SIZE }, { q: b[0] / CELL_SIZE, r: b[1] / CELL_SIZE });
   }
 
   // The player's current setup step, for their phone.
@@ -271,19 +382,8 @@ export class Match {
         connected: p.connected,
         reconnectEndsInMs: remaining(p.reconnectEndsAt),
         ready: p.ready,
+        rematch: p.rematch,
         health: p.health,
-        action: p.blockEndsAt !== null ? "blocking" : p.windupEndsAt !== null ? "attacking" : "idle",
-        weapon: p.weapon,
-        cooldowns: { rock: remaining(p.cooldownEndsAt.rock), gun: remaining(p.cooldownEndsAt.gun) },
-        block: {
-          active: p.blockEndsAt !== null,
-          endsInMs: remaining(p.blockEndsAt),
-          cooldownEndsInMs: remaining(p.blockCooldownEndsAt),
-        },
-        projectile:
-          p.projectile === null
-            ? null
-            : { weapon: p.projectile.weapon, landsInMs: Math.max(0, p.projectile.landsAt - now) },
         saber: {
           swinging: p.saber.swinging,
           cooldownEndsInMs: remaining(p.saber.cooldownEndsAt),
@@ -293,16 +393,27 @@ export class Match {
           saberReady: this.saberReady(p, now),
         },
       }));
-    return { matchId: this.matchId, phase: this.phase, world: world(this.worldId), players, result: this.result };
+    return {
+      matchId: this.matchId,
+      round: this.round,
+      phase: this.phase,
+      startsInMs: this.saberStartsInMs,
+      world: world(this.worldId),
+      players,
+      result: this.result,
+    };
   }
 
   toView(slot: PlayerSlot): PlayerView {
     const snapshot = this.toSnapshot();
     return {
       matchId: snapshot.matchId,
+      round: snapshot.round,
       phase: snapshot.phase,
+      startsInMs: snapshot.startsInMs,
       world: snapshot.world,
       result: snapshot.result,
+      board: { cellSize: CELL_SIZE, rows: ROWS_PER_SIDE, stepMs: SABER.stepMs },
       you: snapshot.players.find((p) => p.slot === slot)!,
       rival: snapshot.players.find((p) => p.slot !== slot)!,
     };
@@ -316,83 +427,44 @@ export class Match {
     }
   }
 
+  // The only in-match commands; combat comes from the saber streams.
   private apply(player: Player, type: InMatchCommandType): RejectReason | null {
-    if (type === "ready") {
-      if (this.phase !== "waiting") return "match_not_active";
-      player.ready = true;
-      if ([...this.players.values()].every((p) => p.ready)) this.phase = "active";
+    // Gives the round to the rival, but both stay on the result screen and can rematch.
+    if (type === "forfeit") {
+      if (this.phase === "finished") return "match_not_active";
+      this.finish({ winner: player.slot === 1 ? 2 : 1, reason: "forfeit" });
       return null;
     }
-    if (this.phase !== "active") return "match_not_active";
-    const now = Date.now();
-
-    switch (type) {
-      // Switching is instant and allowed even mid-block.
-      case "rockActive":
-      case "gunActive":
-        player.weapon = type === "rockActive" ? "rock" : "gun";
-        return null;
-
-      case "throwRock":
-        return this.fire(player, "rock", now);
-      case "fireGun":
-        return this.fire(player, "gun", now);
-
-      case "startBlock": {
-        if (player.windupEndsAt !== null || player.blockEndsAt !== null) return "busy";
-        if (player.blockCooldownEndsAt !== null && now < player.blockCooldownEndsAt) return "on_cooldown";
-
-        player.blockEndsAt = now + RULES.blockLimitMs;
-        player.timers.block = setTimeout(() => {
-          this.clearBlock(player);
-          this.events.changed();
-        }, RULES.blockLimitMs);
-        return null;
-      }
-
-      case "endBlock": {
-        if (player.blockEndsAt === null) return "not_blocking";
-        this.clearBlock(player);
-        return null;
-      }
+    if (type === "rematch") {
+      if (this.phase !== "finished") return "match_not_active";
+      if (!this.players.get(player.slot === 1 ? 2 : 1)!.connected) return "pilot_unavailable";
+      player.rematch = true;
+      if ([...this.players.values()].every((p) => p.rematch)) this.startRematch();
+      return null;
     }
-  }
-
-  private fire(player: Player, weapon: Weapon, now: number): RejectReason | null {
-    if (player.weapon !== weapon) return "weapon_not_active";
-    if (player.windupEndsAt !== null || player.blockEndsAt !== null) return "busy";
-    if (player.projectile !== null) return "projectile_in_flight";
-    const cooldownEndsAt = player.cooldownEndsAt[weapon];
-    if (cooldownEndsAt !== null && now < cooldownEndsAt) return "on_cooldown";
-
-    const rules = this.weapons[weapon];
-    player.cooldownEndsAt[weapon] = now + rules.cooldownMs;
-    player.projectile = { weapon, landsAt: now + rules.flightMs };
-    player.timers.projectile = setTimeout(() => this.land(player), rules.flightMs);
-    if (rules.windupMs > 0) {
-      player.windupEndsAt = now + rules.windupMs;
-      player.timers.windup = setTimeout(() => {
-        player.windupEndsAt = null;
-        this.events.changed();
-      }, rules.windupMs);
-    }
+    if (this.phase !== "waiting") return "match_not_active";
+    player.ready = true;
+    if ([...this.players.values()].every((p) => p.ready)) this.phase = "active";
     return null;
   }
 
-  // Shots auto-lock onto the opponent; only a block active on arrival stops them.
-  private land(attacker: Player): void {
-    const weapon = attacker.projectile!.weapon;
-    attacker.projectile = null;
-    const defender = this.players.get(attacker.slot === 1 ? 2 : 1)!;
-    const blocked = defender.blockEndsAt !== null;
-    const damage = blocked ? 0 : Math.min(this.weapons[weapon].damage, defender.health);
-    defender.health -= damage;
-
-    this.events.projectileLanded({ attackerSlot: attacker.slot, weapon, blocked, damage });
-    if (defender.health === 0) {
-      this.finish({ winner: attacker.slot, reason: "knockout" });
+  // A fresh round in the same match: health, positions, stamina and swings reset, while
+  // pairing, calibration and the live body and phone streams carry over, so the countdown
+  // usually starts on the next tick.
+  private startRematch(): void {
+    this.round++;
+    for (const p of this.players.values()) {
+      const { body, aim, paired, calibration } = p.saber;
+      p.saber = { ...newSaber(START_CELLS[p.slot]), body, aim, paired, calibration };
+      p.health = RULES.startingHealth;
+      p.rematch = false;
+      this.events.stepped({ slot: p.slot, cell: p.saber.cell });
     }
-    this.events.changed();
+    this.result = null;
+    this.phase = "active";
+    this.saberStart = { startsAtMs: null, unlocked: false };
+    this.lastTickAt = null;
+    this.ticker = this.startTicker();
   }
 
   // One server tick: fuse each blade from the latest body and aim, detect
@@ -402,42 +474,54 @@ export class Match {
     const elapsedMs = this.lastTickAt === null ? SABER.tickMs : Math.max(1, now - this.lastTickAt);
     this.lastTickAt = now;
     const players = [...this.players.values()].sort((a, b) => a.slot - b.slot);
-    // Walk first, so this tick's bodies and blades are where the players now stand.
-    if (this.phase !== "finished") for (const p of players) this.walk(p, now, elapsedMs);
-    const fighting = this.phase === "active" && players.every((p) => this.armed(p, now));
+    // Both clients and phone share this gate. Loss before GO restarts the full countdown.
+    const start = advanceSaberStart(this.saberStart, this.phase === "active" && players.every(p => p.connected && this.armed(p, now)), now);
+    if (start !== this.saberStart) { this.saberStart = start; this.events.changed(); }
+    const fighting = this.phase === "active" && this.saberStart.unlocked && this.engaged && players.every(p => this.armed(p, now));
     const blades = new Map(players.map((p) => [p.slot, this.blade(p, now)]));
     const previous = new Map(players.map((p) => [p.slot, p.saber.lastBlade]));
 
-    for (const attacker of players) {
-      const saber = attacker.saber;
-      const from = previous.get(attacker.slot) ?? null;
-      const to = blades.get(attacker.slot) ?? null;
+    // Every player's swing first, so contact is judged on both players' state for this tick.
+    for (const p of players) {
+      const saber = p.saber;
+      const from = previous.get(p.slot) ?? null;
+      const to = blades.get(p.slot) ?? null;
       // Tracking loss or a missing phone drops the swing rather than finishing it.
       if (!fighting || !from || !to) {
         saber.swinging = false;
         continue;
       }
-      // Measured against the player's own hips, so dashing with the blade held out isn't a swing.
-      const rootNow = this.freshBody(attacker, now) ? this.root(attacker, now) : null;
-      const rootThen = saber.lastRoot ?? rootNow;
-      const moved = rootNow && rootThen ? sub(rootNow, rootThen) : ([0, 0, 0] as Vec3);
-      const speed = length(sub(sub(to.tip, from.tip), moved)) / (elapsedMs / 1000);
+      // Measured in the player's own body frame, so stepping or turning with the blade held still isn't a swing.
+      const tipNow = this.bodyTip(p, to, now);
+      const tipThen = saber.lastBodyTip ?? tipNow;
+      const speed = length(sub(tipNow, tipThen)) / (elapsedMs / 1000);
       const coolingDown = saber.cooldownEndsAt !== null && now < saber.cooldownEndsAt;
-      if (!saber.swinging) saber.swinging = speed >= SABER.swingStartSpeed && !coolingDown;
-      else if (speed < SABER.swingEndSpeed) saber.swinging = false;
-      if (!saber.swinging || this.phase !== "active") continue;
+      if (!saber.swinging) {
+        saber.swinging = speed >= SABER.swingStartSpeed && !coolingDown;
+        if (saber.swinging) saber.swing = { from: tipThen, reach: 0 };
+      } else if (speed < SABER.swingEndSpeed) saber.swinging = false;
+      if (saber.swinging && saber.swing) saber.swing.reach = Math.max(saber.swing.reach, length(sub(tipNow, saber.swing.from)));
+    }
 
+    for (const attacker of players) {
+      if (this.phase !== "active" || !this.committed(attacker)) continue;
+      const from = previous.get(attacker.slot)!;
+      const to = blades.get(attacker.slot)!;
       const defender = players.find((p) => p.slot !== attacker.slot)!;
       const defenderTo = blades.get(defender.slot) ?? null;
       const defenderFrom = previous.get(defender.slot) ?? defenderTo;
       const joints = this.worldJoints(defender, now);
+      // A stunned player's guard is down: their blade blocks nothing.
+      const guard = defenderTo && defenderFrom && !this.stunned(defender, now) ? defenderTo : null;
       const outcome = resolveSweep(
         { from, to },
-        defenderTo && defenderFrom ? { from: defenderFrom, to: defenderTo } : null,
+        guard ? { from: defenderFrom!, to: guard } : null,
         joints ? bodyShape(joints) : null,
         SABER,
       );
-      if (outcome === "blocked") {
+      if (outcome === "blocked" && this.guardMatches(attacker, to, defender, guard!, now)) {
+        this.guardBreak(attacker, defender, now);
+      } else if (outcome === "blocked") {
         this.endSwing(attacker, now);
         defender.saber.swinging = false;
         defender.saber.cooldownEndsAt = Math.max(defender.saber.cooldownEndsAt ?? 0, now + SABER.recoilMs);
@@ -447,6 +531,7 @@ export class Match {
         this.endSwing(attacker, now);
         const damage = Math.min(SABER.damage, defender.health);
         defender.health -= damage;
+        if (damage > 0) this.knockBack(defender, attacker, now);
         this.events.saberResolved({ attackerSlot: attacker.slot, outcome: "hit", damage });
         if (defender.health === 0) this.finish({ winner: attacker.slot, reason: "knockout" });
         this.events.changed();
@@ -455,17 +540,62 @@ export class Match {
 
     for (const p of players) {
       p.saber.lastBlade = blades.get(p.slot) ?? null;
-      p.saber.lastRoot = this.freshBody(p, now) ? this.root(p, now) : null;
+      const blade = blades.get(p.slot) ?? null;
+      p.saber.lastBodyTip = blade ? this.bodyTip(p, blade, now) : null;
     }
     this.announceReadiness();
     this.events.arenaFrame({
+      saberStart: { ...this.saberStart },
+      serverMs: now,
+      engaged: this.engaged,
       players: players.map((p) => ({
         slot: p.slot,
+        cell: p.saber.cell,
+        facing: this.facing(p, now),
         joints: this.worldJoints(p, now),
         blade: blades.get(p.slot) ?? null,
         swinging: p.saber.swinging,
+        stamina: Math.round((100 * this.stamina(p, now)) / SABER.staminaMax),
+        winded: this.winded(p, now),
+        stunned: this.stunned(p, now),
       })),
     });
+  }
+
+  // A swing that has really travelled, rather than a blade held out or shaking.
+  private committed(p: Player): boolean {
+    return p.saber.swinging && p.saber.swing !== null && p.saber.swing.reach >= SABER.minSwingTravel;
+  }
+
+  private stunned(p: Player, now: number): boolean {
+    return now < p.saber.stunnedUntil;
+  }
+
+  // A guard held still (not itself a swing) along the line of the attack, as both players see it:
+  // both projected onto the upright plane between them, and compared as lines.
+  private guardMatches(attacker: Player, blade: ArenaBlade, defender: Player, guard: ArenaBlade, now: number): boolean {
+    if (this.committed(defender)) return false;
+    const facing = this.facing(attacker, now);
+    const motion = directionToWorld(sub(this.bodyTip(attacker, blade, now), attacker.saber.swing!.from), facing);
+    // A thrust mostly toward the rival, or a guard pointed at them, has no line to match.
+    const a = lineAngle(motion, facing, ATTACK_LINE_MIN);
+    const g = lineAngle(sub(guard.tip, guard.hilt), facing, SABER.bladeLength / 2);
+    if (a === null || g === null) return false;
+    const diff = Math.abs(a - g);
+    return Math.min(diff, 180 - diff) <= SABER.guardMatchDeg;
+  }
+
+  // The defender's guard breaks: no swings, steps or guard for a moment. The attacker's swing ends
+  // here, but with no cooldown, so a fresh swing can follow up for a free hit.
+  private guardBreak(attacker: Player, defender: Player, now: number): void {
+    attacker.saber.swinging = false;
+    defender.saber.swinging = false;
+    defender.saber.stunnedUntil = now + SABER.stunMs;
+    defender.saber.cooldownEndsAt = Math.max(defender.saber.cooldownEndsAt ?? 0, now + SABER.stunMs);
+    clearTimeout(defender.timers.step);
+    defender.saber.queuedStep = null;
+    this.events.saberResolved({ attackerSlot: attacker.slot, outcome: "guardBreak", damage: 0 });
+    this.events.changed();
   }
 
   // Each swing resolves at most once: it ends here and can't restart until the cooldown passes.
@@ -497,27 +627,40 @@ export class Match {
     return this.bodyReady(p, now) && this.saberReady(p, now);
   }
 
-  // Moves the player by their latest walking intent; none (or stale input) stands still.
-  private walk(p: Player, now: number, elapsedMs: number): void {
-    const move = this.freshBody(p, now)?.move;
-    if (!move) return;
-    const step = (SABER.walkSpeed * elapsedMs) / 1000;
-    const { position } = p.saber;
-    p.saber.position = clampPosition({ x: position.x + move.x * step, z: position.z + move.z * step });
+  // Where the player's hips are over the board (x, z), gliding from the last cell into the current one.
+  private rootXZ(p: Player, now: number): [number, number] {
+    const to = cellToWorld(p.saber.cell);
+    const { from, startedAt, orbitCenter } = p.saber.glide;
+    const t = Math.max(0, Math.min(1, (now - startedAt) / SABER.stepMs));
+    // Ease-out cubic: most of the move happens in the first few frames, so a step feels instant.
+    const eased = 1 - (1 - t) ** 3;
+    return interpolateStep(from, to, eased, orbitCenter);
   }
 
-  // The player's hips in the world: their spot, moved by walking.
-  private root(p: Player, _now: number): Vec3 {
-    const { x, z } = p.saber.position;
-    const spot: Vec3 = [0, SABER.hipHeight, p.slot === 1 ? 0 : SABER.separation];
-    return add(spot, directionToWorld([x, 0, z], p.slot));
+  private root(p: Player, now: number): Vec3 {
+    const [x, z] = this.rootXZ(p, now);
+    return [x, SABER.hipHeight, z];
+  }
+
+  private bodyTip(p: Player, blade: ArenaBlade, now: number): Vec3 {
+    return worldToDirection(sub(blade.tip, this.root(p, now)), this.facing(p, now));
+  }
+
+  // Both bodies and blades turn to face the rival at the current glide position.
+  private facing(p: Player, now: number): Facing {
+    const rival = this.players.get(p.slot === 1 ? 2 : 1)!;
+    const a = this.rootXZ(p, now), b = this.rootXZ(rival, now);
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const distance = Math.hypot(dx, dz);
+    return distance > 1e-9 ? [dx / distance, dz / distance] : FACING[p.slot];
   }
 
   private worldJoints(p: Player, now: number): Vec3[] | null {
     const pose = this.freshBody(p, now);
     if (!pose) return null;
     const root = this.root(p, now);
-    return pose.joints.map((j) => bodyToWorld(j, p.slot, root));
+    const facing = this.facing(p, now);
+    return pose.joints.map((j) => bodyToWorld(j, facing, root));
   }
 
   // Hilt at the saber hand's wrist; blade along the phone's direction.
@@ -527,7 +670,7 @@ export class Match {
     const joints = aim && calibration ? this.worldJoints(p, now) : null;
     if (!aim || !calibration || !joints) return null;
     const hilt = joints[calibration.hand === "left" ? LEFT_WRIST : RIGHT_WRIST];
-    const dir = directionToWorld(bodyDirection(aim.top, calibration), p.slot);
+    const dir = directionToWorld(bodyDirection(aim.top, calibration), this.facing(p, now));
     return { hilt, tip: add(hilt, scale(dir, SABER.bladeLength / length(dir))) };
   }
 
@@ -537,7 +680,9 @@ export class Match {
     for (const p of this.players.values()) {
       const live = this.freshAim(p, now) !== null;
       const step = p.saber.body.pose?.setup?.step ?? "";
-      const state = `${p.saber.paired}:${live}:${this.bodyReady(p, now)}:${this.saberReady(p, now)}:${p.saber.swinging}:${step}`;
+      const remaining = this.saberStartsInMs;
+      const beat = remaining === null ? "" : Math.ceil(remaining / 1000);
+      const state = `${p.saber.paired}:${live}:${this.bodyReady(p, now)}:${this.saberReady(p, now)}:${p.saber.swinging}:${step}:${beat}`;
       if (state !== p.saber.announced) {
         p.saber.announced = state;
         changed = true;
@@ -561,33 +706,18 @@ export class Match {
   private finish(result: MatchResult): void {
     this.phase = "finished";
     clearInterval(this.ticker);
+    this.saberStart = { startsAtMs: null, unlocked: false };
     this.result = result;
     for (const player of this.players.values()) {
-      this.cancelProjectile(player);
-      this.clearBlock(player);
       player.saber.swinging = false;
+      player.saber.queuedStep = null;
+      clearTimeout(player.timers.step);
       player.saber.lastBlade = null;
-      player.saber.lastRoot = null;
-      player.saber.position = { x: 0, z: 0 };
-      clearTimeout(player.timers.windup);
+      player.saber.lastBodyTip = null;
       clearTimeout(player.timers.reconnect);
-      player.windupEndsAt = null;
       player.reconnectEndsAt = null;
     }
     this.events.finished(result);
-  }
-
-  private cancelProjectile(player: Player): void {
-    clearTimeout(player.timers.projectile);
-    player.projectile = null;
-  }
-
-  // Ending a block, early or at its limit, starts the block cooldown.
-  private clearBlock(player: Player): void {
-    if (player.blockEndsAt === null) return;
-    clearTimeout(player.timers.block);
-    player.blockEndsAt = null;
-    player.blockCooldownEndsAt = Date.now() + RULES.blockCooldownMs;
   }
 }
 
@@ -599,28 +729,34 @@ function parseCommand(command: unknown): { commandId: string; type: InMatchComma
   return { commandId, type: type as InMatchCommandType };
 }
 
-// Walking stays inside the arena and never brings the two players' hips closer than minHipGap.
-function clampPosition(p: { x: number; z: number }): { x: number; z: number } {
-  const forwardLimit = (SABER.separation - SABER.minHipGap) / 2;
-  return {
-    x: Math.max(-SABER.maxStepX, Math.min(SABER.maxStepX, p.x)),
-    z: Math.max(-SABER.maxStepBack, Math.min(forwardLimit, p.z)),
-  };
-}
-
-function newSaber(): Saber {
+function newSaber(cell: Cell): Saber {
   return {
     body: { seq: -1, at: null, pose: null },
     aim: { seq: -1, at: null, aim: null },
     paired: false,
     calibration: null,
     lastBlade: null,
-    lastRoot: null,
-    position: { x: 0, z: 0 },
+    lastBodyTip: null,
+    cell,
+    glide: { from: cellToWorld(cell), startedAt: 0 },
+    stepReadyAt: 0,
+    queuedStep: null,
+    stamina: { value: SABER.staminaMax, at: 0, regenFrom: 0, winded: false },
     swinging: false,
+    swing: null,
     cooldownEndsAt: null,
+    stunnedUntil: 0,
     announced: "",
   };
+}
+
+// The angle (0..180°) of v as a line in the upright plane facing along `facing`, or null if v
+// has less than `min` in that plane.
+function lineAngle(v: Vec3, facing: Facing, min: number): number | null {
+  const side = v[0] * facing[1] - v[2] * facing[0];
+  if (Math.hypot(side, v[1]) < min) return null;
+  const angle = (Math.atan2(v[1], side) * 180) / Math.PI;
+  return angle < 0 ? angle + 180 : angle;
 }
 
 const isNumberIn = (v: unknown, min: number, max: number): v is number =>
@@ -636,21 +772,15 @@ const isSeq = (seq: unknown): seq is number => typeof seq === "number" && Number
 // Joints are hip-centered, so a few meters covers any real body.
 function parseBodyPose(raw: unknown): BodyPose | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const { seq, tracked, joints, calibrated, move } = raw as Record<string, unknown>;
+  const { seq, tracked, joints, calibrated } = raw as Record<string, unknown>;
   if (!isSeq(seq) || typeof tracked !== "boolean" || typeof calibrated !== "boolean") return null;
-  if (typeof move !== "object" || move === null) return null;
-  const { x: mx, z: mz } = move as Record<string, unknown>;
-  if (!isNumberIn(mx, -1, 1) || !isNumberIn(mz, -1, 1)) return null;
-  // A diagonal can't walk faster than straight.
-  const length2 = Math.hypot(mx, mz);
-  const walk = length2 > 1 ? { x: mx / length2, z: mz / length2 } : { x: mx, z: mz };
   const setup = parseSetup((raw as Record<string, unknown>).setup);
   if (setup === undefined) return null;
-  if (!tracked) return { seq, tracked, joints: [], move: walk, calibrated, setup };
+  if (!tracked) return { seq, tracked, joints: [], calibrated, setup };
   if (!Array.isArray(joints) || joints.length !== JOINT_COUNT) return null;
   const parsed = joints.map((j) => parseVec3(j, 3));
   if (parsed.some((j) => j === null)) return null;
-  return { seq, tracked, joints: parsed as Vec3[], move: walk, calibrated, setup };
+  return { seq, tracked, joints: parsed as Vec3[], calibrated, setup };
 }
 
 // undefined is malformed; null is no setup running.

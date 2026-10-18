@@ -1,0 +1,47 @@
+/* KO.rbit handoff tokens. Opt-in scope; not global app overrides. */
+.sb-brand {
+  --sb-font-display: 'Orbitron', system-ui, sans-serif;
+  --sb-font-mono: 'JetBrains Mono', monospace;
+  --sb-void: #020711;
+  --sb-ink: #e9f6ff;
+  --sb-hero: #f4fbff;
+  --sb-blue: #175dff;
+  --sb-cyan: #87dcff;
+  --sb-rival: #ff727f;
+  --sb-muted: #6f96b8;
+  --sb-body: #a0b7d1;
+  --sb-label: #7ba8cd;
+  --sb-surface: #0a192b;
+  --sb-border: #2b4766;
+  --sb-primary-fill: #e2f2ff;
+  --sb-primary-ink: #06162d;
+  --sb-primary-hover: #a1e5ff;
+  --sb-focus: #a6eeff;
+  --sb-plate: linear-gradient(105deg,#0d42c9,#236dff 72%,#4b9aff);
+  --sb-glass-red: linear-gradient(130deg,#11091444,transparent 48%,#811e3545);
+  --sb-glass-blue: linear-gradient(120deg,#07183fcc,#0b245844 60%,#02081199);
+  --sb-hologram: linear-gradient(125deg,#112c4a44,#02081211);
+  --sb-skew: -12deg;
+  --sb-cut: 24px;
+  --sb-enter: 720ms;
+  --sb-enter-ease: cubic-bezier(.18,.92,.24,1);
+  --sb-visual-enter: 850ms;
+  --sb-laser: 650ms;
+  --sb-jump: 1800ms;
+  /* Recommended extensions, not measured prototype tokens: */
+  --sb-success: #79e7b2;
+  --sb-caution: #ffd28a;
+  --sb-touch-target: 44px;
+  --sb-space-4: 4px;
+  --sb-space-8: 8px;
+  --sb-space-12: 12px;
+  --sb-space-16: 16px;
+  --sb-space-20: 20px;
+  --sb-space-24: 24px;
+  --sb-space-32: 32px;
+  --sb-space-40: 40px;
+  --sb-space-48: 48px;
+  --sb-space-64: 64px;
+}
+
+/* Load fonts once in the host app; importing tokens does not load assets. */

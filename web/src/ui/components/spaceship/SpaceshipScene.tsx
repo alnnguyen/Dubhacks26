@@ -9,6 +9,7 @@ import { SpaceEnvironment } from './SpaceEnvironment';
 import { HolographicConsole } from './HolographicConsole';
 import { CommanderDisplay } from './CommanderDisplay';
 import { ConsoleHotspot } from './ConsoleHotspot';
+import { SeatHotspot } from './SeatHotspot';
 import { CameraController } from './CameraController';
 import { AnchorProjector, type AnchorRegistry } from './anchors';
 import { CAMERA_POSES } from './cockpitLayout';
@@ -27,12 +28,15 @@ export interface SpaceshipSceneProps {
   connection: ConnectionStatus;
   anchors: AnchorRegistry;
   cinematic: PlanetaryCinematicState;
+  prepareRoulette?: boolean;
+  onRoulettePrepared?: (ready: boolean) => void;
   /** Optional authored cockpit model (GLB/GLTF) to replace the procedural one. */
   cockpitModelUrl?: string;
   onNavigate: (view: LobbyView) => void;
   onSelectPilot: (id: string) => void;
   onLowPerformance?: () => void;
   onReady?: () => void;
+  onCinematicFrame?: (delta: number) => void;
 }
 
 /**
@@ -76,6 +80,11 @@ function PerfGuard({ onLow }: { onLow?: () => void }) {
       a.frames = 0;
     }
   });
+  return null;
+}
+
+function CinematicClock({ onFrame }: { onFrame?: (delta: number) => void }) {
+  useFrame((_, delta) => { if (!document.hidden) onFrame?.(delta); });
   return null;
 }
 
@@ -145,7 +154,8 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
   const { settings, view, mood, anchors, cinematic } = props;
   const high = settings.quality === 'high';
   const cinematicActive = cinematic.phase !== 'idle';
-  const pose = mood === 'launch' ? CAMERA_POSES.launch : CAMERA_POSES[view];
+  // Launching from the pilot seat pushes forward from the seat itself, not from the cabin center.
+  const pose = mood === 'launch' ? (view === 'pilot' ? CAMERA_POSES.pilotLaunch : CAMERA_POSES.launch) : CAMERA_POSES[view];
   const marsTarget = useRef<THREE.Group>(null);
   // Constant through the cinematic: resizing the canvas or dropping post-processing mid-scene
   // reallocates buffers and recompiles every material, which stalls the roulette.
@@ -176,8 +186,8 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
         pose={pose}
         reducedMotion={settings.reducedMotion}
         parallax={cinematic.phase === 'idle' && settings.parallax}
-        panelOpen={view !== 'lobby' && view !== 'console' && mood !== 'launch'}
-        lookAround={view === 'lobby' && mood !== 'launch'}
+        panelOpen={view !== 'lobby' && view !== 'console' && view !== 'pilot' && mood !== 'launch'}
+        lookAround={(view === 'lobby' || view === 'pilot') && mood !== 'launch'}
         cinematicPhase={cinematic.phase}
         marsTarget={marsTarget}
       />
@@ -213,6 +223,7 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
         onActivate={() => props.onNavigate('radar')}
         onSelect={props.onSelectPilot}
       />
+<<<<<<< HEAD
       {/* Mounted from the start (hidden while idle) so it preloads and warms up in the lobby. */}
       <PlanetaryRoulette
         phase={cinematic.phase}
@@ -220,11 +231,28 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
         marsTarget={marsTarget}
         reducedMotion={settings.reducedMotion}
       />
+=======
+      {props.prepareRoulette && (
+        <PlanetaryRoulette
+          onPrepared={props.onRoulettePrepared}
+          phase={cinematic.phase}
+          selectedPlanet={cinematic.selectedPlanet}
+          marsTarget={marsTarget}
+          reducedMotion={settings.reducedMotion}
+        />
+      )}
+>>>>>>> origin/main
       <ConsoleHotspot interactive={view === 'lobby' && mood !== 'launch'} onActivate={() => props.onNavigate('console')} />
+      <SeatHotspot interactive={view === 'lobby' && mood !== 'launch'} onActivate={() => props.onNavigate('pilot')} />
       <AnchorProjector registry={anchors} />
       <PerfGuard onLow={high && !cinematicActive ? props.onLowPerformance : undefined} />
       <FirstFrame onReady={props.onReady} />
+<<<<<<< HEAD
       {high && (
+=======
+      <CinematicClock onFrame={props.onCinematicFrame} />
+      {high && !cinematicActive && (
+>>>>>>> origin/main
         <EffectComposer multisampling={0} enableNormalPass={false}>
           {/* Threshold above 1: only HDR emissives (holograms, indicator lights, strips) bloom. */}
           <Bloom mipmapBlur intensity={0.55} luminanceThreshold={1.0} luminanceSmoothing={0.25} radius={0.6} levels={6} />

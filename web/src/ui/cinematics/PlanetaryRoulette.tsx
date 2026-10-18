@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { CinematicPhase, PlanetId } from './sequence';
@@ -33,11 +33,35 @@ const PLANET_TEXTURE_URLS: Partial<Record<PlanetId, string>> = {
   mars: '/textures/planets/2k_mars.jpg',
   jupiter: '/textures/planets/2k_jupiter.jpg',
   saturn: '/textures/planets/2k_saturn.jpg',
-  neptune: '/textures/planets/2k_neptune.jpg',
+  // Contrast-boosted with wind streaks so the bands read at roulette size (see ATTRIBUTION.md).
+  neptune: '/textures/planets/2k_neptune_roulette.jpg',
 };
 const SUN_TEXTURE_URL = '/textures/planets/2k_sun.jpg';
 
+<<<<<<< HEAD
 const INACTIVE_PHASES = new Set<CinematicPhase>(['idle', 'video']);
+=======
+const decodedTextures = new Map<string, THREE.Texture>();
+const EARTH_LAYERS = ['/textures/earth/earth_night_2k.jpg', '/textures/earth/earth_clouds_2k.jpg'];
+const planetTextures = new Map<string, Promise<THREE.Texture>>();
+function loadPlanetTexture(url: string) {
+  let pending = planetTextures.get(url);
+  if (!pending) {
+    pending = new THREE.TextureLoader().loadAsync(url).then((texture) => {
+      decodedTextures.set(url, texture);
+      return texture;
+    });
+    planetTextures.set(url, pending);
+  }
+  return pending;
+}
+
+/** Decode the maps before starting the timed roulette; failed maps use plain materials. */
+export function preloadPlanetaryTextures() {
+  return Promise.allSettled([...Object.values(PLANET_TEXTURE_URLS), SUN_TEXTURE_URL, ...EARTH_LAYERS].map(loadPlanetTexture));
+}
+
+>>>>>>> origin/main
 const PHASES_THAT_FREEZE_ORBITS = new Set<CinematicPhase>(['locked', 'zooming', 'flash', 'video']);
 const SYSTEM_POSITION = new THREE.Vector3(0, 1.74, -2.3);
 const PLANET_WHITE = new THREE.Color('#ffffff');
@@ -136,6 +160,7 @@ function prepareColorTexture(texture: THREE.Texture) {
   return texture;
 }
 
+<<<<<<< HEAD
 // One decode per image for the page's lifetime, so the roulette can preload in the lobby
 // and a later mount (second match, quality change) reuses the decoded images.
 const textureCache = new Map<string, Promise<THREE.Texture>>();
@@ -156,16 +181,26 @@ const EARTH_NIGHT_URL = '/textures/earth/earth_night_2k.jpg';
 const EARTH_CLOUDS_URL = '/textures/earth/earth_clouds_2k.jpg';
 const ALL_TEXTURE_URLS = [...Object.values(PLANET_TEXTURE_URLS), SUN_TEXTURE_URL, EARTH_NIGHT_URL, EARTH_CLOUDS_URL];
 
+=======
+function preparedTexture(url: string) {
+  const source = decodedTextures.get(url);
+  return source ? prepareColorTexture(source.clone()) : null;
+}
+
+>>>>>>> origin/main
 function Sun() {
+  const texture = useMemo(() => preparedTexture(SUN_TEXTURE_URL), []);
   const material = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
         color: '#ffffff',
+        map: texture,
         toneMapped: false,
       }),
     [],
   );
 
+<<<<<<< HEAD
   useEffect(() => {
     let cancelled = false;
     loadColorTexture(SUN_TEXTURE_URL).then((loaded) => {
@@ -178,6 +213,9 @@ function Sun() {
       material.dispose();
     };
   }, [material]);
+=======
+  useEffect(() => () => { texture?.dispose(); material.dispose(); }, [material, texture]);
+>>>>>>> origin/main
 
   return (
     <mesh material={material}>
@@ -187,6 +225,7 @@ function Sun() {
 }
 
 function EarthLayers({ geometry, sunDirection }: { geometry: THREE.SphereGeometry; sunDirection: THREE.Vector3 }) {
+<<<<<<< HEAD
   const [nightMap, setNightMap] = useState<THREE.Texture | null>(null);
   const [cloudMap, setCloudMap] = useState<THREE.Texture | null>(null);
 
@@ -204,6 +243,11 @@ function EarthLayers({ geometry, sunDirection }: { geometry: THREE.SphereGeometr
       cancelled = true;
     };
   }, []);
+=======
+  const nightMap = useMemo(() => preparedTexture(EARTH_LAYERS[0]), []);
+  const cloudMap = useMemo(() => preparedTexture(EARTH_LAYERS[1]), []);
+  useEffect(() => () => { nightMap?.dispose(); cloudMap?.dispose(); }, [nightMap, cloudMap]);
+>>>>>>> origin/main
 
   const cityMaterial = useMemo(() => {
     if (!nightMap) return null;
@@ -384,7 +428,6 @@ function Planet({
 }) {
   const body = useRef<THREE.Group>(null);
   const surface = useRef<THREE.Group>(null);
-  const marker = useRef<THREE.MeshBasicMaterial>(null);
   const angle = useRef((definition.seed / 31) * Math.PI * 2);
   const focus = useRef(0);
   const zoom = useRef(0);
@@ -403,7 +446,7 @@ function Planet({
   );
   const textureUrl = PLANET_TEXTURE_URLS[definition.id];
   const texture = useMemo(
-    () => (textureUrl ? null : createPlanetTexture(definition)),
+    () => (textureUrl ? preparedTexture(textureUrl) : createPlanetTexture(definition)),
     [definition, textureUrl],
   );
   const material = useMemo(
@@ -430,6 +473,7 @@ function Planet({
       }),
     [],
   );
+<<<<<<< HEAD
   useEffect(() => {
     if (!textureUrl) return;
     let cancelled = false;
@@ -443,6 +487,8 @@ function Planet({
     };
   }, [material, textureUrl]);
 
+=======
+>>>>>>> origin/main
   useEffect(
     () => () => {
       texture?.dispose();
@@ -453,8 +499,13 @@ function Planet({
   );
 
   useFrame((_, dtRaw) => {
+<<<<<<< HEAD
     if (INACTIVE_PHASES.has(phase)) return;
     const dt = Math.min(dtRaw, 0.05);
+=======
+    const dt = phase === 'idle' ? 0 : Math.min(dtRaw, 0.05);
+    if (phase === 'idle') { focus.current = 0; zoom.current = 0; }
+>>>>>>> origin/main
     if (priorPhase.current !== phase) {
       if (phase === 'activating') {
         focus.current = 0;
@@ -489,24 +540,22 @@ function Planet({
     if (body.current) body.current.rotation.z = definition.axialTilt;
     const nextAppearance = finalSelection ? (selected ? 2 : 3) : selected ? 1 : 0;
     if (appearance.current !== nextAppearance) {
-      marker.current?.color.copy(
-        nextAppearance === 2 ? MARKER_LOCKED : nextAppearance === 1 ? MARKER_SELECTED : MARKER_CYAN,
+      markerMaterial.color.copy(
+        nextAppearance === 2 ? (definition.id==='neptune' ? MARKER_CYAN : MARKER_LOCKED) : nextAppearance === 1 ? MARKER_SELECTED : MARKER_CYAN,
       );
       material.color.copy(nextAppearance === 3 ? PLANET_DIM : PLANET_WHITE);
       appearance.current = nextAppearance;
     }
-    if (marker.current) {
-      marker.current.opacity = selected ? 0.62 + (reducedMotion ? 0 : Math.sin(performance.now() * 0.006) * 0.16) : finalSelection ? 0.1 : 0.22;
-    }
-    material.emissiveIntensity = selected ? 0.015 + focus.current * 0.06 + zoom.current * 0.12 : 0;
-  });
+    markerMaterial.opacity = selected ? 0.95 : finalSelection ? 0.1 : 0.18;
+    material.emissiveIntensity = selected ? 0.28 + focus.current * 0.06 + zoom.current * 0.12 : 0;
+  }, -1);
 
   return (
     <group ref={attachBody} position={[definition.orbit, 0, 0]} scale={definition.radius}>
       <group ref={surface}>
         <mesh geometry={geometry} material={material} />
         {definition.id === 'earth' && <EarthLayers geometry={geometry} sunDirection={earthSunDirection.current} />}
-        {definition.id === 'mars' && (
+        {(definition.id === 'mars' || definition.id === 'neptune') && (
           <MarsAtmosphere geometry={geometry} phase={phase} reducedMotion={reducedMotion} color={definition.glow} />
         )}
       </group>
@@ -536,7 +585,7 @@ function OrbitPath({
   useFrame((_, dt) => {
     if (!path.current || reducedMotion || INACTIVE_PHASES.has(phase)) return;
     const speed = phase === 'roulette' ? 2.2 : phase === 'activating' ? 1.4 : 0.14;
-    path.current.rotation.z += dt * speed;
+    if (phase !== 'idle') path.current.rotation.z += Math.min(dt, 0.05) * speed;
   });
 
   return (
@@ -570,13 +619,57 @@ export function PlanetaryRoulette({
   selectedPlanet,
   marsTarget,
   reducedMotion,
+  onPrepared,
 }: {
+  onPrepared?: (ready: boolean) => void;
   phase: CinematicPhase;
   selectedPlanet: PlanetId;
   marsTarget: RefObject<THREE.Group | null>;
   reducedMotion: boolean;
 }) {
+  const { gl, camera, scene } = useThree();
   const system = useRef<THREE.Group>(null);
+  useEffect(() => {
+    const group = system.current;
+    if (!group) return;
+    let cancelled = false;
+    onPrepared?.(false);
+    // Upload maps and compile the actual roulette materials before revealing it.
+    group.traverse((object) => {
+      const material = (object as THREE.Mesh).material;
+      for (const entry of Array.isArray(material) ? material : material ? [material] : []) {
+        for (const value of Object.values(entry)) if (value instanceof THREE.Texture) gl.initTexture(value);
+      }
+    });
+    const wasVisible = group.visible;
+    group.visible = true;
+    const compiled = gl.compileAsync(scene, camera);
+    group.visible = wasVisible;
+    void compiled.then(() => {
+      if (cancelled) return;
+      // A real offscreen draw uploads geometry too, without flashing the planets onscreen.
+      const target = new THREE.WebGLRenderTarget(64, 64);
+      const previousTarget = gl.getRenderTarget();
+      const visible = group.visible;
+      const previewCamera = camera.clone();
+      previewCamera.position.set(0, 1.66, -1.2);
+      previewCamera.lookAt(0, 1.74, -2.3);
+      try {
+        group.visible = true;
+        gl.setRenderTarget(target);
+        gl.render(scene, previewCamera);
+      } finally {
+        gl.setRenderTarget(previousTarget);
+        group.visible = visible;
+        target.dispose();
+      }
+      onPrepared?.(true);
+    }).catch((error) => {
+      console.error('Roulette shader preparation failed', error);
+      if (!cancelled) onPrepared?.(true); // Keep skip/playback available on unsupported GPUs.
+    });
+    return () => { cancelled = true; };
+  }, [gl, camera, scene, onPrepared]);
   const reticle = useRef<THREE.Group>(null);
   const sunLight = useRef<THREE.PointLight>(null);
   const systemScale = useRef(0.04);
@@ -671,6 +764,7 @@ export function PlanetaryRoulette({
   );
 
   useFrame((_, dtRaw) => {
+<<<<<<< HEAD
     const active = !INACTIVE_PHASES.has(phase);
     if (sunLight.current) sunLight.current.intensity = 0;
     if (!active) {
@@ -695,6 +789,10 @@ export function PlanetaryRoulette({
     }
     priorPhase.current = phase;
     const dt = Math.min(dtRaw, 0.05);
+=======
+    const dt = phase === 'idle' ? 0 : Math.min(dtRaw, 0.05);
+    if (phase === 'idle') systemScale.current = 0.04;
+>>>>>>> origin/main
     systemScale.current = reducedMotion ? 1.12 : THREE.MathUtils.damp(systemScale.current, 1.12, phase === 'activating' ? 7 : 3.2, dt);
     if (system.current) system.current.scale.setScalar(systemScale.current);
     if (system.current && !reducedMotion && phase !== 'zooming' && phase !== 'flash') {
@@ -702,7 +800,10 @@ export function PlanetaryRoulette({
     }
     const selected = planetRefs.current.get(selectedPlanet);
     if (selected && reticle.current) {
-      reticle.current.position.lerp(selected.position, 1 - Math.exp(-dt * 15));
+      // Follow the chosen planet directly: easing across short stops never reached it.
+      reticle.current.position.copy(selected.position);
+      reticle.current.position.z += selected.scale.x * 1.1;
+      reticle.current.scale.setScalar(selected.scale.x * 1.65 / 0.072);
       reticle.current.rotation.z = !reducedMotion && phase === 'roulette' ? performance.now() * 0.003 : 0;
       reticle.current.visible = phase !== 'activating';
     }
@@ -713,13 +814,17 @@ export function PlanetaryRoulette({
     orbitMaterial.opacity = phase === 'roulette' ? 0.28 : phase === 'activating' ? 0.2 : 0.13;
     const pulse = phase === 'activating' ? Math.sin(performance.now() * 0.012) * 0.18 : 0;
     if (sunLight.current) sunLight.current.intensity = 2.8 + pulse;
-  });
+  }, -0.5);
 
   return (
+<<<<<<< HEAD
     <>
     {/* Always in the scene (dark while idle): adding a light later would recompile every lit cockpit material. */}
     <pointLight ref={sunLight} position={SYSTEM_POSITION} color="#fff1d2" intensity={0} distance={2.4} decay={2} />
     <group ref={system} position={SYSTEM_POSITION} visible={false}>
+=======
+    <group ref={system} visible={phase !== 'idle' && phase !== 'video'} position={[0, 1.74, -2.3]}>
+>>>>>>> origin/main
       <ambientLight color="#9aaabd" intensity={0.14} />
       <NavigationStars geometry={stars} />
       <Sun />
@@ -757,7 +862,7 @@ export function PlanetaryRoulette({
           geometry={geometry}
           selected={planet.id === selectedPlanet}
           phase={phase}
-          marsTarget={planet.id === 'mars' ? marsTarget : undefined}
+          marsTarget={planet.id === selectedPlanet ? marsTarget : undefined}
           registerPlanet={registerPlanet}
           reducedMotion={reducedMotion}
         />

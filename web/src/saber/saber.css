@@ -1,99 +1,416 @@
-/* Phone lightsaber controller: dark, big targets, one-handed. */
+/* Phone lightsaber controller: dark HUD, hold-to-ignite, cardinal swipes. */
 :root {
   color-scheme: dark;
 }
 
 body {
   margin: 0;
-  background: #05070d;
+  background: #03060c;
   color: #dfe8f7;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 .saber-phone {
+  --cyan: #6fd0ff;
+  --cyan-dim: #3a7eb0;
+  position: relative;
+  isolation: isolate;
   min-height: 100dvh;
   box-sizing: border-box;
-  padding: max(env(safe-area-inset-top), 20px) 16px max(env(safe-area-inset-bottom), 20px);
+  padding: max(env(safe-area-inset-top), 16px) 16px max(env(safe-area-inset-bottom), 18px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, #12305a88, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 80% 90%, #2a104088, transparent 50%),
+    linear-gradient(180deg, #050a14, #02050b 60%, #06040c);
+}
+
+.saber-phone::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, #fff8, transparent),
+    radial-gradient(1px 1px at 28% 62%, #fff6, transparent),
+    radial-gradient(1.5px 1.5px at 44% 28%, #fffc, transparent),
+    radial-gradient(1px 1px at 58% 78%, #fff5, transparent),
+    radial-gradient(1px 1px at 72% 14%, #fff7, transparent),
+    radial-gradient(1.5px 1.5px at 86% 48%, #fffb, transparent),
+    radial-gradient(1px 1px at 18% 88%, #fff4, transparent),
+    radial-gradient(1px 1px at 92% 72%, #fff6, transparent),
+    radial-gradient(1px 1px at 36% 42%, #fff5, transparent),
+    radial-gradient(1px 1px at 64% 55%, #fff8, transparent);
+  pointer-events: none;
+}
+
+.saber-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .saber-eyebrow {
   margin: 0;
-  font-size: 12px;
+  font: 600 10px/1.4 "JetBrains Mono", monospace;
   letter-spacing: 0.14em;
   color: #7f95b5;
 }
 
-.saber-phone h1 {
-  margin: 4px 0 0;
-  font-size: 28px;
-}
-
-.saber-health {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.saber-health p {
-  flex-basis: 100%;
+.saber-link {
   margin: 0;
-  font-weight: 400;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 600 10px/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.12em;
+  color: #9db5d0;
+}
+
+.saber-link i {
+  width: 7px;
+  height: 7px;
+  background: #6a8098;
+}
+
+.saber-link--ok {
   color: #a8ffd0;
 }
 
-.saber-primary {
-  margin-top: auto;
-  min-height: 40dvh;
-  border: 0;
-  border-radius: 18px;
-  font: inherit;
-  font-size: 22px;
-  font-weight: 800;
-  color: #04111f;
-  background: radial-gradient(circle at 50% 40%, #e9f7ff, #49b8ff 60%, #1f5fa8);
-  box-shadow: 0 0 40px rgba(73, 184, 255, 0.45);
+.saber-link--ok i {
+  background: #3dff9a;
+  box-shadow: 0 0 8px #3dff9a99;
 }
 
-.saber-note {
+.saber-link--bad {
+  color: #ffd27a;
+}
+
+.saber-link--bad i {
+  background: #ffc14a;
+}
+
+.saber-link--wait i {
+  background: #6fd0ff;
+  animation: saber-pulse 1.2s ease-in-out infinite;
+}
+
+.saber-panel {
   margin: 0;
-  color: #a7b8cf;
+  padding: 12px 14px;
+  border-left: 2px solid var(--cyan-dim);
+  background: #0a1524cc;
+  font: 11px/1.55 "JetBrains Mono", monospace;
+  color: #b7c9de;
 }
 
-.saber-step {
+.saber-panel--warn {
+  border-left-color: #e3aa6f;
+  color: #f0d2b0;
+}
+
+.saber-phase {
+  margin: 0;
+  text-align: center;
+  font: 600 11px/1.4 Orbitron, system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  color: #a8ffd0;
+  text-shadow: 0 0 12px #3dff9a55;
+}
+
+.saber-stage {
+  flex: 1;
+  min-height: 28dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  pointer-events: none;
+}
+
+.saber-blade {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 56px;
+}
+
+.saber-blade__beam {
+  width: 10px;
+  height: 0;
+  border-radius: 999px 999px 2px 2px;
+  background: linear-gradient(180deg, #eaf7ff, #6fd0ff 35%, #2a8fd8 85%, #1a5a9a);
+  box-shadow: none;
+  opacity: 0;
+  transition: height 0.45s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.3s ease, box-shadow 0.4s ease;
+}
+
+.saber-blade--lit .saber-blade__beam {
+  height: min(42dvh, 280px);
+  opacity: 1;
+  box-shadow:
+    0 0 10px #9fe6ff,
+    0 0 28px #49b8ffcc,
+    0 0 56px #1f7ad888;
+}
+
+.saber-blade__hilt {
+  position: relative;
+  width: 28px;
+  height: 92px;
+  margin-top: -2px;
+  border-radius: 4px 4px 6px 6px;
+  background:
+    linear-gradient(90deg, #1a222c, #5a6573 40%, #9aa3af 50%, #5a6573 60%, #1a222c);
+  box-shadow: 0 8px 24px #000a, inset 0 0 0 1px #0006;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  padding-top: 10px;
+}
+
+.saber-blade__hilt i {
+  display: block;
+  width: 22px;
+  height: 5px;
+  border-radius: 1px;
+  background: #0c1016;
+  box-shadow: inset 0 1px 0 #fff1;
+}
+
+.saber-blade__hilt b {
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: radial-gradient(circle at 40% 35%, #9fe0ff, #2a7eb8 55%, #0d3a5c);
+  box-shadow: 0 0 10px #49b8ff88;
+}
+
+.saber-hold-cue {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font: 600 11px/1 Orbitron, system-ui, sans-serif;
+  letter-spacing: 0.16em;
+  color: #c5d8ef;
+}
+
+.saber-ignite {
   margin-top: auto;
-  padding: 18px;
-  border-radius: 18px;
-  background: #0d1a2b;
-  border: 1px solid #2f4a68;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.saber-instruction {
-  margin: 8px 0 0;
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.saber-progress {
-  margin-top: 14px;
-  height: 10px;
-  border-radius: 999px;
-  background: #142235;
+.saber-hold {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 76px;
+  padding: 22px 20px;
+  border: 0;
+  color: #06162d;
+  background: linear-gradient(105deg, #cfe9ff, #eaf6ff 40%, #f7fcff);
+  box-shadow: 0 0 28px #49b8ff55, 0 10px 28px #0008;
+  transform: skewX(-10deg);
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
   overflow: hidden;
 }
 
-.saber-progress div {
-  height: 100%;
-  background: #3dff9a;
-  transition: width 0.1s;
+.saber-hold__fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: linear-gradient(90deg, #49b8ffaa, #9fe0ff88);
+  pointer-events: none;
+}
+
+.saber-hold__label,
+.saber-hold__hint {
+  position: relative;
+  transform: skewX(10deg);
+  font: 700 16px/1 Orbitron, system-ui, sans-serif;
+  letter-spacing: 0.06em;
+}
+
+.saber-hold__hint {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  opacity: 0.7;
+}
+
+.saber-ignite-note {
+  margin: 0;
+  text-align: center;
+  font: 10px/1.4 "JetBrains Mono", monospace;
+  color: #7f95b5;
 }
 
 .saber-error {
   margin: 0;
+  padding: 10px 12px;
   color: #ffb4a8;
+  font: 11px/1.5 "JetBrains Mono", monospace;
+  background: #1a0c0ccc;
+  border-left: 2px solid #ff6a4a;
+}
+
+/* Thumb swipe pad: fills the rest of the screen; no scrolling or zooming. */
+.saber-pad {
+  position: relative;
+  flex: 1;
+  min-height: 34dvh;
+  margin-top: auto;
+  border-radius: 4px;
+  background:
+    radial-gradient(circle at 50% 50%, #12233a88, transparent 55%),
+    linear-gradient(180deg, #070d18aa, #050910cc);
+  border: 1px solid #2f4a6888;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+
+.saber-pad__ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(52vw, 220px);
+  height: min(52vw, 220px);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid #3a5d8288;
+  box-shadow: inset 0 0 40px #0a203888;
+  pointer-events: none;
+}
+
+.saber-pad__ring::before,
+.saber-pad__ring::after {
+  content: "";
+  position: absolute;
+  background: #3a5d8255;
+}
+
+.saber-pad__ring::before {
+  left: 50%;
+  top: 12%;
+  bottom: 12%;
+  width: 1px;
+  transform: translateX(-50%);
+}
+
+.saber-pad__ring::after {
+  top: 50%;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  transform: translateY(-50%);
+}
+
+.saber-pad .dir {
+  position: absolute;
+  font: 700 11px/1 Orbitron, system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  color: rgba(120, 180, 255, 0.35);
+  pointer-events: none;
+}
+
+.saber-pad .up {
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.saber-pad .down {
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.saber-pad .left {
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.saber-pad .right {
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.saber-pad p {
+  position: absolute;
+  inset: auto 0 50% 0;
+  transform: translateY(50%);
+  margin: 0;
+  text-align: center;
+  font: 10px/1.4 "JetBrains Mono", monospace;
+  letter-spacing: 0.08em;
+  color: #5f7898;
+  pointer-events: none;
+}
+
+/* The swipe that just fired: bright, then fades; red if the server refused it. */
+.saber-pad .flash {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 120px;
+  font-weight: 800;
+  color: #6fd0ff;
+  text-shadow: 0 0 30px rgba(73, 184, 255, 0.9);
+  animation: saber-pad-flash 0.35s ease-out forwards;
+  pointer-events: none;
+}
+
+.saber-pad .flash.blocked {
+  color: #ff6a4a;
+  text-shadow: 0 0 30px rgba(255, 90, 60, 0.9);
+}
+
+@keyframes saber-pad-flash {
+  to {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+
+@keyframes saber-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .saber-blade__beam,
+  .saber-link--wait i,
+  .saber-pad .flash {
+    animation: none;
+    transition: none;
+  }
 }

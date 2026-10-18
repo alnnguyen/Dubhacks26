@@ -1,4 +1,4 @@
-import type { ArenaBlade, PlayerSlot, Vec3 } from "../contracts.js";
+import type { ArenaBlade, Vec3 } from "../contracts.js";
 
 // Pure 3D geometry for the saber duel, in the shared arena's world frame
 // (meters): x to slot 1's right, y up, z from slot 1 toward slot 2. Bodies and
@@ -23,17 +23,24 @@ export const LEFT_HIP = 23;
 export const RIGHT_HIP = 24;
 export const JOINT_COUNT = 33;
 
-// A player's body frame (x right, y up, z forward toward their opponent) into
-// the world. Slot 1 faces +z from the origin; slot 2 stands `separation` away
-// facing -z, so its frame is turned half a circle.
-export function bodyToWorld(p: Vec3, slot: PlayerSlot, root: Vec3): Vec3 {
-  const turned: Vec3 = slot === 1 ? p : [-p[0], p[1], -p[2]];
-  return add(root, turned);
+// A horizontal unit vector (world x, z): which way a player faces.
+export type Facing = [number, number];
+
+// A player's body frame (x right, y up, z forward) into the world, turned to
+// face `facing`. Facing +z, right is +x; facing -z, right is -x.
+export function directionToWorld(d: Vec3, facing: Facing): Vec3 {
+  const [fx, fz] = facing;
+  return [d[0] * fz + d[2] * fx, d[1], -d[0] * fx + d[2] * fz];
 }
 
-// Same turn, no translation: for directions.
-export function directionToWorld(d: Vec3, slot: PlayerSlot): Vec3 {
-  return slot === 1 ? d : [-d[0], d[1], -d[2]];
+// The reverse turn: a world direction into the player's body frame.
+export function worldToDirection(w: Vec3, facing: Facing): Vec3 {
+  const [fx, fz] = facing;
+  return [w[0] * fz - w[2] * fx, w[1], w[0] * fx + w[2] * fz];
+}
+
+export function bodyToWorld(p: Vec3, facing: Facing, root: Vec3): Vec3 {
+  return add(root, directionToWorld(p, facing));
 }
 
 // Closest distance between segments p1-q1 and p2-q2 (Ericson, Real-Time Collision Detection 5.1.9).

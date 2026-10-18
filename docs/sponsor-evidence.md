@@ -10,6 +10,18 @@ Status: Photon PING/PONG and real ACCEPT → saved fixture challenge → deliver
 
 Record evidence location, owner, time and observed result. Avoid secrets or personal phone numbers in public material. Verify final organizer requirements and chosen track combinations.
 
+## Perceptron Mk1.5 — synthetic video proof, October 18
+
+- Cinematic extension: model-selected video intervals now select earlier scenes in a locally recorded 3D arena replay; the server-confirmed knockout is always a separate, labeled finale. Game code renders camera angles, slow motion, sparks, transitions and impact holds. `/?dev=replay` is a clearly labeled synthetic presentation fixture, not an additional model run. No new inference or provider claims were made during this extension. Real consenting-duel/provider-to-3D acceptance remains open; earlier API request IDs below are unchanged.
+
+- Alan / Codex resumed the interrupted highlights task. Key configured in Git-ignored `server/.env`, server-only; no key value logged or committed. User explicitly requested testing it.
+- Official `GET /v1/models`: authenticated 200; `perceptron-mk1.5` listed.
+- Actual laptop-browser MediaRecorder generated a silent ~4.5-second 640×360 WebM of an animated mint rectangle. **Synthetic QA footage, no real person.** This was sent inline to the official `POST https://api.perceptron.inc/v1/chat/completions` endpoint.
+- Event query (`vision_config.annotation_format: clip`): HTTP 200, 1039 ms, finish_reason `stop`; returned horizontal movement interval 0–3.2 seconds. Request ID `chatcmpl-eb6e42b223ba45d7bf26ebc62fa99563`.
+- Tracking query (`annotation_format: box`): HTTP 200, 2610 ms, finish_reason `stop`; returned one `<track>` containing eight timestamped `<point_box>` waypoints (0–4.4 seconds). Request ID `chatcmpl-daf1117e142748b4b425ba7c1100caee`.
+- Application parsers accepted one moment and all eight boxes. This proves the configured key, model, inline WebM input, temporal annotations and tracking response formats. It does **not** prove saber recognition or highlight quality on an actual duel.
+- Implemented: opt-in recording, finished-match upload authorization, bounded/deduplicated analysis, caption cards, slow-motion playback and model-directed player framing. Browser playback QA used labeled mocked analysis separately from the real API proof. No deployment, actual-duel upload, rendered-reel export or physical-phone acceptance claim. Handoff: `docs/perceptron-replay.md`.
+
 ## Photon 2.0 provider proof — inbound and outbound delivery verified
 
 - Checked: 2026-10-17 15:30 Pacific.

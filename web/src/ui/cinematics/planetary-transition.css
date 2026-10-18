@@ -19,8 +19,10 @@
   height: 100%;
 }
 
+/* Letterbox at the video's own aspect ratio; the blurred backdrop fills the bars. */
 .planetary-transition__video {
   z-index: 1;
+<<<<<<< HEAD
   top: 50%;
   right: auto;
   bottom: auto;
@@ -29,11 +31,15 @@
   height: min(100vh, calc(100vw * 400 / 736));
   transform: translate(-50%, -50%);
   object-fit: cover;
+=======
+  object-fit: contain;
+>>>>>>> origin/main
   opacity: 0;
   background: transparent;
   transition: opacity 250ms ease-out;
 }
 
+<<<<<<< HEAD
 @supports (height: 100dvh) {
   .planetary-transition__video {
     width: min(100vw, calc(100dvh * 736 / 400));
@@ -41,6 +47,8 @@
   }
 }
 
+=======
+>>>>>>> origin/main
 .planetary-transition[data-phase='video'] .planetary-transition__video {
   opacity: 1;
 }
@@ -153,8 +161,9 @@
 .planetary-transition__skip {
   position: absolute;
   z-index: 5;
-  right: max(env(safe-area-inset-right), 18px);
-  bottom: max(env(safe-area-inset-bottom), 22px);
+  right: max(env(safe-area-inset-right), 14px);
+  /* Sit above the fixed SOUND/MIX dock (bottom 14px, 44px tall) instead of under it. */
+  bottom: calc(max(env(safe-area-inset-bottom), 14px) + 56px);
   min-height: 44px;
   padding: 0 16px;
   border: 1px solid rgba(109, 220, 246, 0.55);
@@ -209,8 +218,8 @@
 .planetary-transition__error {
   position: absolute;
   z-index: 5;
-  right: max(env(safe-area-inset-right), 18px);
-  bottom: max(env(safe-area-inset-bottom), 78px);
+  right: max(env(safe-area-inset-right), 14px);
+  bottom: calc(max(env(safe-area-inset-bottom), 14px) + 112px);
   max-width: min(82vw, 440px);
   margin: 0;
   color: #ffe5d3;
@@ -295,3 +304,5 @@
 .planetary-transition[data-reduced-motion='true'] .planetary-transition__flash[data-release='true'] {
   animation-duration: 100ms;
 }
+
+.planetary-transition[data-destination=neptune] .planetary-transition__backdrop{background:#427da9}.planetary-transition[data-destination=neptune] .planetary-transition__flash{background:radial-gradient(ellipse,#e1faff,#50b5ef 45%,transparent 95%)}.planetary-transition[data-destination=neptune] .planetary-transition__flash[data-hold=true]{background:#68bce4}.planetary-transition[data-destination=neptune] .planetary-transition__heading h1{color:#b6f7ff;text-shadow:0 0 28px #3ca3e9}.planetary-transition[data-destination=neptune] .planetary-transition__eyebrow{color:#a0efff}

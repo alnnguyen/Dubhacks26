@@ -74,7 +74,9 @@ function LiveSession({client, identity, onMode, onReset}: {
   const lobby = useGameLobby(client);
   const view = useGameView(client);
   useEffect(() => {
-    if (connection === 'online') void client.setCallsign(identity.callsign);
+    // Read from storage, not the identity loaded at startup: a callsign changed in the cockpit is saved
+    // there, and a reconnect mustn't put the onboarding one back.
+    if (connection === 'online') void client.setCallsign(loadPilotIdentity()?.callsign ?? identity.callsign);
   }, [client, connection, identity.callsign]);
   const locked = !!view || lobby?.challenge?.status === 'pending';
   return <FlightApp client={client} cockpitControls={<ModeControls mode="live" identity={identity} locked={locked} connection={connection} onMode={onMode} onReset={onReset} />} />;

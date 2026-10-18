@@ -1,0 +1,43 @@
+.ex-lyra{position:absolute;left:var(--safe-l,12px);bottom:calc(var(--safe-b) + 92px);z-index:30;display:flex;align-items:flex-end;gap:10px;color:#dff8ff;font-family:var(--display);pointer-events:none}
+.ex-lyra>*{pointer-events:auto}
+.ex-lyra__launcher{position:relative;width:74px;height:92px;padding:0;border:1px solid #6fdcff40;background:linear-gradient(180deg,#061e3070,#04111ee6);cursor:pointer;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
+.ex-lyra__launcher:hover{background:#123548e6}.ex-lyra__launcher:focus-visible{outline:2px solid #aff5ff;outline-offset:-3px}
+.ex-lyra__launcher .lyra-portrait{position:absolute;top:-2px;left:0;width:74px;height:80px}
+.ex-lyra__name{position:absolute;left:0;right:0;bottom:5px;font:600 9px var(--mono);letter-spacing:.24em;color:#9ff1ff;text-align:center}
+.ex-lyra[data-phase=speaking] .ex-lyra__launcher{border-color:#8ff3ffaa;box-shadow:0 0 18px #3de0ff55}
+.ex-lyra__thought{order:1;max-width:340px;padding:11px 13px 9px;border:1px solid #6fdcff4a;background:linear-gradient(135deg,#071a2bee,#03101ce8);box-shadow:0 8px 28px #0008;animation:ex-lyra-in .35s ease-out}
+.ex-lyra__thought p{margin:0;font-size:14px;line-height:1.35;color:#d9f7ff}
+.ex-lyra__thought-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:8px}
+.ex-lyra__act{border:1px solid #6fdcff88;background:#0f3a50cc;color:#bff6ff;padding:6px 10px;font:600 11px var(--display);letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.ex-lyra__act:hover{background:#17516e}
+.ex-lyra__quiet,.ex-lyra__icon{border:0;background:transparent;color:#86b8c7;font-size:18px;line-height:1;cursor:pointer;padding:2px 6px}
+.ex-lyra__panel{position:absolute;left:0;bottom:100px;width:360px;max-width:calc(100vw - var(--safe-l,12px) - var(--safe-r));height:470px;max-height:calc(100dvh - 220px);display:flex;flex-direction:column;border:1px solid #6fdcff4a;background:linear-gradient(180deg,#061827f2,#020b14f5);box-shadow:0 12px 40px #000a;animation:ex-lyra-in .25s ease-out}
+.ex-lyra__head{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px;border-bottom:1px solid #77dfff24}
+.ex-lyra__head div{display:flex;flex-direction:column;gap:2px}
+.ex-lyra__eyebrow{font:8px var(--mono);letter-spacing:.22em;color:#75aaba}
+.ex-lyra__head strong{font-size:22px;letter-spacing:.14em;color:#d5f9ff}
+.ex-lyra__head small{font:8px var(--mono);letter-spacing:.12em;color:#5fd6c3}
+.ex-lyra__messages{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:12px;display:flex;flex-direction:column;gap:10px;user-select:text;-webkit-user-select:text}
+.ex-lyra__msg span{display:block;font:8px var(--mono);letter-spacing:.14em;color:#6f9fae;margin-bottom:3px}
+.ex-lyra__msg p{margin:0;font-size:14px;line-height:1.4;color:#d3f2fb}
+.ex-lyra__msg--user{align-self:flex-end;text-align:right;max-width:85%}
+.ex-lyra__msg--user p{color:#ffe7b8}
+.ex-lyra__msg .ex-lyra__act{margin-top:7px}
+.ex-lyra__note{margin:0 12px;padding:6px 8px;font:11px var(--display);color:#ffd18a;background:#3a280f55;border:1px solid #f0b42944}
+.ex-lyra__quick{display:flex;gap:5px;padding:8px 12px 4px}
+.ex-lyra__quick button,.ex-lyra__foot button{border:1px solid #50809855;background:#102b3c66;color:#9ccbdc;padding:7px 8px;font:11px var(--display);cursor:pointer;white-space:nowrap}
+.ex-lyra__quick button{flex:1}
+.ex-lyra__quick button:disabled,.ex-lyra__foot button:disabled{opacity:.45;cursor:default}
+.ex-lyra__compose{display:flex;margin:4px 12px 0;border:1px solid #4a95ab77;background:#020c17}
+.ex-lyra__compose input{flex:1;min-width:0;background:transparent;border:0;padding:10px;color:#d7f7ff;font:14px var(--display);outline:none}
+.ex-lyra__compose button{width:40px;border:0;background:#164358;color:#bff6ff;font-size:16px;cursor:pointer}
+.ex-lyra__foot{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 12px}
+.ex-lyra__mic.is-live{border-color:#ff8a7a;color:#ffd0c8;background:#5a1d1d88}
+@keyframes ex-lyra-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.sd-root[data-reduced-motion=true] .ex-lyra *{animation:none!important}
+@media(max-width:600px){
+  .ex-lyra{bottom:calc(var(--safe-b) + 382px)}
+  .ex-lyra__launcher{width:56px;height:70px}.ex-lyra__launcher .lyra-portrait{width:56px;height:60px}
+  .ex-lyra__thought{max-width:calc(100vw - 100px);padding:9px 10px}.ex-lyra__thought p{font-size:13px}
+  .ex-lyra__panel{position:fixed;left:var(--safe-r);right:var(--safe-r);bottom:calc(var(--safe-b) + 8px);width:auto;height:60dvh}
+}

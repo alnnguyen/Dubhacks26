@@ -7,8 +7,8 @@ Goal: keep Alex's onboarding/cockpit/LYRA UI and local Demo pilots while Live co
 `web/.env.local` (gitignored) now contains public URLs only:
 
 ```
-VITE_GAME_SERVER_URL=https://recommends-saving-notify-isolated.trycloudflare.com
-VITE_SABER_CONTROLLER_URL=https://recommends-saving-notify-isolated.trycloudflare.com
+VITE_GAME_SERVER_URL=https://store-additions-rover-newer.trycloudflare.com
+VITE_SABER_CONTROLLER_URL=https://store-additions-rover-newer.trycloudflare.com
 ```
 
 Demo remains local with four simulated pilots and no game socket. Live joins this shared game server while rendering our merged UI. The endpoint is now resolved centrally by `web/src/networking/gameEndpoint.ts`; the normal shared client, BridgeApp client, legacy rehearsal client and our saber client all use it unless an explicit client URL overrides it.
@@ -23,7 +23,7 @@ The arena QR opens Justin's public HTTPS frontend with `?saber=CODE`. His phone 
 - A teammate pulling code must copy `web/.env.example` to `.env.local` and set both values. Ignored local settings do not travel in Git. These are public endpoint settings, never API keys.
 - Cloudflare quick tunnel addresses can change. When Justin starts a replacement link, update BOTH values and restart Vite. Rebuild any production bundle because Vite injects these values at build time.
 - Clear both values to restore same-origin local development and local QR links. The existing Vite Socket.IO proxy remains unchanged.
-- Do not use `?pvp=1` for the new saber flow; it still selects the older rehearsal screen. Demo's post-travel placeholder is unchanged.
+- `?pvp=1` (the older rock/gun rehearsal screen) was removed October 18. Demo's post-travel placeholder is unchanged.
 
 ## Verification performed
 

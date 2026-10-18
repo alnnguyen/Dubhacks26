@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { loadPilotIdentity } from '../../app/pilotIdentity';
+import { loadPilotIdentity, savePilotCallsign } from '../../app/pilotIdentity';
 import type { ChallengePhase, ConnectionStatus, LobbyViewModel, NearbyPilot, PilotProfile } from './lobbyTypes';
 
 /**
@@ -31,10 +31,10 @@ function selfFromStorage(): PilotProfile {
 type MockPilot = NearbyPilot & { declines?: boolean };
 
 export const MOCK_NEARBY: MockPilot[] = [
-  { id: 'p-nova', callsign: 'NOVA-7', rank: 'Knight', record: { wins: 9, losses: 4 }, status: 'available', distanceM: 4, bearingDeg: 35, signal: 0.94 },
-  { id: 'p-vex', callsign: 'VEX', rank: 'Padawan', record: { wins: 3, losses: 6 }, status: 'available', distanceM: 9, bearingDeg: 145, signal: 0.78 },
+  { id: 'p-nova', callsign: 'NOVA-7', rank: 'Knight', record: { wins: 9, losses: 4 }, status: 'available', distanceM: 4, bearingDeg: 35, signal: 0.94, location: { bodyId: 'jupiter', label: 'Jupiter' } },
+  { id: 'p-vex', callsign: 'VEX', rank: 'Padawan', record: { wins: 3, losses: 6 }, status: 'available', distanceM: 9, bearingDeg: 145, signal: 0.78, location: { bodyId: 'mars', label: 'Mars' } },
   { id: 'p-kestrel', callsign: 'KESTREL', rank: 'Master', record: { wins: 31, losses: 7 }, status: 'in-duel', distanceM: 14, bearingDeg: 238, signal: 0.61 },
-  { id: 'p-orbit', callsign: 'ORBIT', rank: 'Padawan', record: { wins: 1, losses: 2 }, status: 'available', distanceM: 21, bearingDeg: 310, signal: 0.42, declines: true },
+  { id: 'p-orbit', callsign: 'ORBIT', rank: 'Padawan', record: { wins: 1, losses: 2 }, status: 'available', distanceM: 21, bearingDeg: 310, signal: 0.42, location: { bodyId: 'moon', label: 'Moon' }, declines: true },
 ];
 
 const T = {
@@ -110,21 +110,7 @@ export function useMockLobby(opts: { enabled?: boolean } = {}) {
       dismiss: () => setChallenge({ kind: 'idle' }),
       launch: () => setChallenge((c) => (c.kind === 'ready' ? { kind: 'launching', opponent: c.opponent } : c)),
       setCallsign: (callsign) =>
-        setSelf((s) => {
-          const next = { ...s, callsign: callsign.toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 14) || s.callsign };
-          const identity = loadPilotIdentity();
-          if (identity) {
-            try {
-              localStorage.setItem(
-                'sd.pilot.identity.v1',
-                JSON.stringify({ ...identity, callsign: next.callsign }),
-              );
-            } catch {
-              /* ignore */
-            }
-          }
-          return next;
-        }),
+        setSelf((s) => ({ ...s, callsign: savePilotCallsign(callsign) ?? s.callsign })),
     }),
     [],
   );

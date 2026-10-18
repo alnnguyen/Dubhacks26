@@ -1,8 +1,8 @@
 # Browser client
 
-The default page renders Ally’s 3D cockpit (`SpaceshipHome`) connected to the shared game server. The server owns challenges, Mars matches, readiness, combat, and results. Alan’s camera debug harness: `/?debug=camera` or legacy `/?camera=1`. Mars arena preview: `/?arena=mars`. Photon and Voice remain in their existing provider harnesses.
+The default page renders Ally’s 3D cockpit (`SpaceshipHome`) connected to the shared game server. The server owns challenges, Mars matches, readiness, combat, and results. Mars arena preview: `/?arena=mars`. Saber arena with synthetic fighters: `/?dev=arena`. Photon and Voice remain in their existing provider harnesses.
 
-Combat on this page is **rock only** (screen-space overlay). Gun and lightsaber are deferred until the rock loop + phone framing pass. Defense is **Block**, not catch.
+Combat is the **lightsaber duel**: each laptop camera tracks its player's body and a paired phone is the saber. The older rock/gun camera duel was removed on October 18.
 
 ## Run (laptop)
 
@@ -18,17 +18,11 @@ cd web
 npm run dev
 ```
 
-Open the printed HTTPS URL (self-signed), usually `https://localhost:5173`, on both devices/browsers. Accept the certificate warning. For camera testing, append `/?debug=camera` (or `/?camera=1`) and click **Start camera**.
+Open the printed HTTPS URL (self-signed), usually `https://localhost:5173`, on both devices/browsers. Accept the certificate warning. `localhost` / Vite HTTPS both count as a secure context for `getUserMedia`.
 
-- Prefers rear ~0.5× / min zoom when the phone exposes it; otherwise shows “Wide lens unavailable — default rear.”
-- Laptop with no rear lens falls back to the front camera and labels that clearly.
-- `localhost` / Vite HTTPS both count as a secure context for `getUserMedia`.
+## Phones (saber controller)
 
-## Phone framing gate (do this now)
-
-Phones need a public **HTTPS** URL (plain LAN `http://192.168.x.x` usually cannot use the camera on iOS).
-
-With the Vite server running:
+The paired phone needs a public **HTTPS** URL for device orientation (plain LAN `http://192.168.x.x` does not work on iOS). With the Vite server running:
 
 ```bash
 # Cloudflare (no account required for a quick tunnel)
@@ -38,33 +32,14 @@ npx --yes cloudflared tunnel --url https://localhost:5173
 ngrok http https://localhost:5173
 ```
 
-Open the tunnel URL **with the camera harness** on the **demo phone** (either query works):
-
-`https://YOUR-SUBDOMAIN.ngrok-free.dev/?debug=camera`  
-(or `…/?camera=1`)
-
-(Tap through ngrok’s interstitial if shown.) Allow camera, use the **rear / 0.5×** lens when the phone offers it, then check:
-
-1. **Hand lock**: hold your hand low for ~2s; opponent’s hand must not fire lift/throw. Lost lock → Recalibrate (touch still works).
-2. Own locked hand (green) and opponent pose health stub together in one frame.
-3. **Ground rocks** in the lower third as soon as the camera starts.
-4. Open palm near a rock (or hold **Lift**) → rock rises to the hand (`lifting` → `held`, larger while held).
-5. Swipe + fist / **Throw** → rock arcs toward upper-center / shoulders + `releaseRock`.
-6. Cover the lens / Cancel → rock drops; never accidental mid-flight launch from tracking loss.
-7. Touch Lift / Throw / Block / Cancel emit the same command names as gestures.
-8. Deny permission once and confirm a clear error (no crash).
-
-This is a **screen-space overlay POC** (fake ground band + MediaPipe hand tracking). It works on iPhone Safari over HTTPS. Floor-mesh WebXR was removed (needs Android Chrome or a commercial WebAR SDK such as 8th Wall for real plane AR on iPhone).
-
-Record pass/fail in `docs/task-board.md` or `docs/qa-checklist.md` with device/browser. This harness does not need A’s lobby or B’s WebSocket for the framing gate.
+Scan the laptop's pair QR code (it opens `/?saber=CODE`) and follow the guided setup on both screens.
 
 ## Ownership notes
 
 - C: `src/camera`, `src/vision`, `src/overlay`, `public/models`
-- B owns WebSocket + frozen command schemas; this harness logs commands locally only
-- D’s voice should release the mic during combat; not wired here
+- B owns WebSocket + frozen command schemas
+- D’s voice should release the mic during combat
 - Keep secrets out of client config
-- No gun/saber on this harness by design (PLAN cut order)
 
 ## Cockpit integration check
 
@@ -72,13 +47,23 @@ Merged origin/cockpit-scene at 20124de into alex-dev. Combined React/Three/Media
 
 ## Connected local flow
 
-Both pilots accept the server challenge, then each engages from the cockpit. The planetary roulette always selects Mars, plays `public/cinematics/spacetomars.mp4`, and calls `onTravelComplete("mars")` on video completion or skip. `FlightApp` opens the server-backed Mars briefing; the arena and camera duel begin only after the server reports both pilots ready. No room scan is used.
+Both pilots accept the server challenge, then each engages from the cockpit. The planetary roulette always selects Mars, plays `public/cinematics/spacetomars.mp4`, and calls `onTravelComplete("mars")` on video completion or skip. `FlightApp` opens the server-backed Mars briefing; the saber arena begins only after the server reports both pilots ready. No room scan is used.
 
-The live arena preserves the existing MediaPipe opponent segmentation, hand/pose tracking, and touch controls. The server remains authoritative for health, attacks, cooldowns, and results. See `docs/flight-integration.md` from the repository root for local connection details and device-test limitations.
+The arena tracks each player's body with MediaPipe Pose on their own laptop. The server remains authoritative for health, swings, blocks, cooldowns, and results. See `docs/flight-integration.md` from the repository root for local connection details and device-test limitations.
 
 The interactive roulette takes 3.6 seconds before the flight video. It uses the supplied 2K planetary maps, Earth day/night/cloud layers, directional sunlight, and lightweight procedural Saturn rings; the available files and attribution are recorded in `public/textures/planets/ATTRIBUTION.md`. No Uranus surface map or Saturn ring texture was supplied, so Uranus keeps its procedural fallback. Sounds are synthesized with the browser Web Audio API and can be enabled from the Engage gesture or the in-sequence sound control.
 
 
 ## Shared Live backend (Alex integration, October 18)
 
-The default root now uses BridgeApp for onboarding and the compact Demo/Live switch. To connect this UI to a teammate’s working shared game, copy `.env.example` to `.env.local`, set `VITE_GAME_SERVER_URL` to the shared HTTPS Socket.IO site, and `VITE_SABER_CONTROLLER_URL` to the public frontend serving the paired phone page. Restart Vite. The game and phone clients share the configured backend; Demo stays local. See `../docs/shared-live-server.md` for current setup and verified limitations. The earlier rock-only instructions above describe the older camera harness; the current Live FlightApp uses the laptop + paired-phone lightsaber arena.
+The default root now uses BridgeApp for onboarding and the compact Demo/Live switch. To connect this UI to a teammate’s working shared game, copy `.env.example` to `.env.local`, set `VITE_GAME_SERVER_URL` to the shared HTTPS Socket.IO site, and `VITE_SABER_CONTROLLER_URL` to the public frontend serving the paired phone page. Restart Vite. The game and phone clients share the configured backend; Demo stays local. See `../docs/shared-live-server.md` for current setup and verified limitations.
+
+## Integrated exploration
+
+From the normal cockpit, choose **Seat / Explore** in the bottom dock. A short seat/hyperspace transition opens free flight; **Bridge** returns to the cockpit. The same lobby/session stays connected. Accepted challenges return through the current planetary travel and saber arena. For isolated exploration without a live roster, open `/?explore=1` (optional `&dest=visit-mars`).
+
+Use destination search, W/S or Cruise, drag/arrows to steer, Space or Stop to brake, and the planet inspector for facts/cutaways. SOUND / MIX uses the shared game audio. Catalog snapshots have source/epoch information in the Data UI; they are not live satellite tracking. Integration and verification: `../docs/exploration-integration.md`.
+
+### Mars saber initiation
+
+The real arena now guides one measured setup task at a time over the live Mars scene. Keep watching your avatar on the right and self-camera at bottom-right. The matched server enforces the shared three-second countdown once both pilots finish; run the updated backend too. `/?dev=initiation` is a labelled visual review using synthetic telemetry, no real camera/phone/server. Details and device checks: `docs/saber-initiation-overlay.md`.

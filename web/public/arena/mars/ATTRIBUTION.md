@@ -24,5 +24,13 @@ CC0 1.0 (public domain) photo-scanned PBR materials from **ambientCG** (https://
 - Arena-scale terrain detail (rolling regolith, ridges, mid-distance hills) — `terrain/heightmap.ts`
 - All rock and formation geometry — `rockGeometry.ts`
 - Sky, sun halo, haze and dust — `MarsSky.tsx`, `Dust.tsx`
+- The embedded combat platform (fictional): geometry and its painted bronze/steel panel, wear and dust textures — `MarsPlatform.tsx`
+- Layered canyon walls and their strata/erosion (artistic reconstruction inspired by Jezero delta and crater-rim outcrops in Perseverance panoramas, not measured terrain) — `CanyonCliffs.tsx`
+- The platform's regolith berm and the flattened floor around it — `terrain/heightmap.ts` (`MARS_PLATFORM`); the MOLA relief beyond it is unchanged
+- Wind-blown surface dust wisps — `WindDust.tsx`
+
+## Arrival cinematic handoff
+
+`spacetomars.mp4` is played unchanged. Its final second is solid dust; the live scene starts inside fog and a screen veil whose colours were sampled from that final frame (centre #dd3d0a, mid #a82508, edges #8a1c04) — `MarsArrival.tsx`, `mars-arrival.css`.
 
 The MOLA relief is shown with a documented 2.6× vertical exaggeration and a 1/40 horizontal scale (angular size preserved).

@@ -1,106 +1,10 @@
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useTexture } from '@react-three/drei';
 import { CAMERA_POSES } from './cockpitLayout';
 import type { GraphicsQuality } from '../../state/lobbyTypes';
-import { bindUniforms } from '../../../three/bindUniforms'
-
-/*
- * Earth shading adapted from ulanch/earth (MIT, (c) 2025 Alex Ulanch):
- * day/night blend driven by sun angle, specular-masked oceans, city-light glow
- * on the night side, separate cloud shell and a fresnel atmosphere.
- * Texture credits: web/public/textures/earth/ATTRIBUTION.md
- */
-const EARTH_VERT = /* glsl */ `
-varying vec3 vN;
-varying vec3 vP;
-varying vec2 vUv;
-void main(){
-  vUv = uv;
-  vec4 wp = modelMatrix * vec4(position, 1.0);
-  vP = wp.xyz;
-  vN = normalize(mat3(modelMatrix) * normal);
-  gl_Position = projectionMatrix * viewMatrix * wp;
-}
-`;
-
-const EARTH_FRAG = /* glsl */ `
-uniform sampler2D uDay;
-uniform sampler2D uNight;
-uniform sampler2D uSpec;
-uniform sampler2D uClouds;
-uniform vec3 uSun;
-uniform float uCloudOffset;
-varying vec3 vN;
-varying vec3 vP;
-varying vec2 vUv;
-void main(){
-  vec3 N = normalize(vN);
-  vec3 V = normalize(cameraPosition - vP);
-  vec3 L = normalize(uSun);
-  float ndl = dot(N, L);
-  float dayMix = smoothstep(-0.1, 0.2, ndl);
-  vec3 day = texture2D(uDay, vUv).rgb;
-  vec3 night = texture2D(uNight, vUv).rgb;
-  float spec = texture2D(uSpec, vUv).r;
-  float cloud = texture2D(uClouds, vUv + vec2(uCloudOffset, 0.0)).r;
-
-  vec3 col = day * (0.02 + 1.1 * max(ndl, 0.0)) * (1.0 - cloud * 0.3);
-  vec3 H = normalize(L + V);
-  col += vec3(0.75, 0.85, 1.0) * pow(max(dot(N, H), 0.0), 55.0) * spec * dayMix * 0.55;
-  col += night * vec3(1.0, 0.8, 0.55) * 1.9 * (1.0 - dayMix) * (1.0 - cloud * 0.75);
-
-  float fres = pow(1.0 - max(dot(N, V), 0.0), 4.0);
-  col = mix(col, vec3(0.3, 0.56, 1.0) * (0.04 + 0.9 * max(ndl + 0.15, 0.0)), fres * 0.6);
-  gl_FragColor = vec4(col, 1.0);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}
-`;
-
-const CLOUD_FRAG = /* glsl */ `
-uniform sampler2D uClouds;
-uniform vec3 uSun;
-uniform float uCloudOffset;
-varying vec3 vN;
-varying vec3 vP;
-varying vec2 vUv;
-void main(){
-  vec3 N = normalize(vN);
-  float ndl = dot(N, normalize(uSun));
-  float c = texture2D(uClouds, vUv + vec2(uCloudOffset, 0.0)).r;
-  vec3 col = vec3(0.95, 0.97, 1.0) * (0.015 + 1.05 * max(ndl, 0.0));
-  gl_FragColor = vec4(col, c * 0.9);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}
-`;
-
-const ATMO_VERT = /* glsl */ `
-varying vec3 vN;
-varying vec3 vP;
-void main(){
-  vec4 wp = modelMatrix * vec4(position, 1.0);
-  vP = wp.xyz;
-  vN = normalize(mat3(modelMatrix) * normal);
-  gl_Position = projectionMatrix * viewMatrix * wp;
-}
-`;
-
-const ATMO_FRAG = /* glsl */ `
-uniform vec3 uSun;
-varying vec3 vN;
-varying vec3 vP;
-void main(){
-  vec3 N = normalize(vN);
-  vec3 D = normalize(vP - cameraPosition);
-  float i = pow(clamp(0.62 + dot(N, D), 0.0, 1.0), 7.0);
-  float day = smoothstep(-0.35, 0.45, dot(N, normalize(uSun)));
-  vec3 col = vec3(0.3, 0.62, 1.0) * i * (0.25 + 2.6 * day);
-  gl_FragColor = vec4(col, 1.0);
-}
-`;
+import { bindUniforms } from '../../../three/bindUniforms';
+import { PlanetEarth } from '../explore/PlanetEarth';
 
 const STAR_VERT = /* glsl */ `
 attribute float aSize;
@@ -132,7 +36,6 @@ void main(){
 
 const SUN_DIR = new THREE.Vector3(0.75, -0.25, -0.62).normalize();
 const PLANET_R = 500;
-const TEX = '/textures/earth/';
 
 /**
  * Puts Earth low on the left of the windshield: its curved horizon fills the
@@ -145,72 +48,25 @@ function planetPlacement() {
   const el = THREE.MathUtils.degToRad(-30);
   const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
   const center = cam.clone().addScaledVector(dir, D);
-  // Spin the globe so longitude FACING_LON faces the cockpit.
   const FACING_LON = -25;
   const n0 = cam.clone().sub(center);
   const yaw = Math.atan2(-n0.z, n0.x) - THREE.MathUtils.degToRad(FACING_LON);
-  return { center, yaw };
+  return { center: center.toArray() as [number, number, number], yaw };
 }
 
-function Earth({ quality, hidden }: { quality: GraphicsQuality; hidden: boolean }) {
+function LobbyEarth({ quality, hidden }: { quality: GraphicsQuality; hidden: boolean }) {
   const placement = useMemo(planetPlacement, []);
-  const gl = useThree((s) => s.gl);
-  const [day, night, spec, clouds] = useTexture([
-    TEX + (quality === 'high' ? 'earth_day_4k.jpg' : 'earth_day_2k.jpg'),
-    TEX + 'earth_night_2k.jpg',
-    TEX + 'earth_specular_1k.jpg',
-    TEX + 'earth_clouds_2k.jpg',
-  ]);
-  useMemo(() => {
-    const aniso = Math.min(4, gl.capabilities.getMaxAnisotropy());
-    day.colorSpace = night.colorSpace = THREE.SRGBColorSpace;
-    for (const t of [day, night, spec, clouds]) {
-      t.wrapS = THREE.RepeatWrapping;
-      t.anisotropy = aniso;
-      t.needsUpdate = true;
-    }
-  }, [day, night, spec, clouds, gl]);
-
-  const uniforms = useMemo(
-    () => ({ uDay: { value: day }, uNight: { value: night }, uSpec: { value: spec }, uClouds: { value: clouds }, uSun: { value: SUN_DIR }, uCloudOffset: { value: 0 } }),
-    [day, night, spec, clouds],
-  );
-  const atmoUniforms = useMemo(() => ({ uSun: { value: SUN_DIR } }), []);
   const root = useRef<THREE.Group>(null);
-  const globe = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
-    if (root.current) {
-      const target = hidden ? 0.001 : 1;
-      root.current.scale.setScalar(THREE.MathUtils.damp(root.current.scale.x, target, hidden ? 3.2 : 2.4, dt));
-    }
-    if (globe.current) globe.current.rotation.y += dt * 0.0006;
-    uniforms.uCloudOffset.value += dt * 0.000015;
+    if (!root.current) return;
+    const target = hidden ? 0.001 : 1;
+    root.current.scale.setScalar(THREE.MathUtils.damp(root.current.scale.x, target, hidden ? 3.2 : 2.4, dt));
   });
-  const seg = quality === 'high' ? 128 : 72;
   return (
     <group ref={root} position={placement.center}>
-      <group ref={globe} rotation={[0, placement.yaw, 0]}>
-        <mesh>
-          <sphereGeometry args={[PLANET_R, seg, seg / 2]} />
-          <shaderMaterial vertexShader={EARTH_VERT} fragmentShader={EARTH_FRAG} uniforms={uniforms} ref={bindUniforms(uniforms)} />
-        </mesh>
-        <mesh scale={1.006}>
-          <sphereGeometry args={[PLANET_R, seg, seg / 2]} />
-          <shaderMaterial vertexShader={EARTH_VERT} fragmentShader={CLOUD_FRAG} uniforms={uniforms} ref={bindUniforms(uniforms)} transparent depthWrite={false} />
-        </mesh>
+      <group rotation={[0, placement.yaw, 0]}>
+        <PlanetEarth quality={quality} radius={PLANET_R} position={[0, 0, 0]} sunDir={SUN_DIR} spin={0.0006} />
       </group>
-      <mesh scale={1.025}>
-        <sphereGeometry args={[PLANET_R, seg, seg / 2]} />
-        <shaderMaterial
-          vertexShader={ATMO_VERT}
-          fragmentShader={ATMO_FRAG}
-          uniforms={atmoUniforms} ref={bindUniforms(atmoUniforms)}
-          side={THREE.BackSide}
-          blending={THREE.AdditiveBlending}
-          transparent
-          depthWrite={false}
-        />
-      </mesh>
     </group>
   );
 }
@@ -258,7 +114,15 @@ function Stars({ count, warp }: { count: number; warp: number }) {
   });
   return (
     <points geometry={geometry} frustumCulled={false}>
-      <shaderMaterial vertexShader={STAR_VERT} fragmentShader={STAR_FRAG} uniforms={uniforms} ref={bindUniforms(uniforms)} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
+      <shaderMaterial
+        vertexShader={STAR_VERT}
+        fragmentShader={STAR_FRAG}
+        uniforms={uniforms}
+        ref={bindUniforms(uniforms)}
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
     </points>
   );
 }
@@ -267,9 +131,8 @@ export function SpaceEnvironment({ quality, warp, hideEarth }: { quality: Graphi
   return (
     <group name="space-environment">
       <Stars count={quality === 'high' ? 2600 : 1400} warp={warp} />
-      {/* Earth streams its textures in; the cockpit renders without waiting. */}
       <Suspense fallback={null}>
-        <Earth quality={quality} hidden={hideEarth ?? false} />
+        <LobbyEarth quality={quality} hidden={hideEarth ?? false} />
       </Suspense>
     </group>
   );

@@ -3,9 +3,16 @@ import type { Vec3 } from "../../../server/src/contracts"
 import { createStabilizer, stabilize, type StabilizerState } from "./bodyStabilizer"
 import { oneEuro } from "./oneEuro"
 
+// Deterministic jitter, so the steadiness test can't pass or fail by luck.
+let seed = 1
+const noise = () => {
+  seed = (seed * 16807) % 2147483647
+  return seed / 2147483647 - 0.5
+}
+
 function raw(jitter = 0, overrides: Record<number, Vec3> = {}): Vec3[] {
   const j: Vec3[] = Array.from({ length: 33 }, () => [9, 9, 9] as Vec3)
-  const n = () => (Math.random() - 0.5) * jitter
+  const n = () => noise() * jitter
   j[0] = [n(), 0.75 + n(), 0.05]
   j[11] = [-0.2 + n(), 0.5 + n(), 0]
   j[12] = [0.2 + n(), 0.5 + n(), 0]
@@ -31,6 +38,7 @@ describe("stabilize", () => {
   })
 
   it("steadies a jittery wrist held still", () => {
+    seed = 1
     let state: StabilizerState = createStabilizer()
     const xs: number[] = []
     for (let i = 0; i < 90; i++) {
