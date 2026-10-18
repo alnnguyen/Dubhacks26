@@ -309,9 +309,17 @@ Necessary checks only: frontend build/typecheck passed; 50 focused replay/record
 - Checks actually run after resolution: web `tsc --noEmit` clean; web vitest 193 passed, 1 opt-in live test skipped; `vite build` OK (existing large ExploreApp chunk warning); server `tsc` clean; server tests 111/111.
 - Not verified: a live two-client match on Mars and on Neptune through the new direct-to-setup flow, phone hold-to-ignite on a real iPhone, replay capture on Neptune, exploration → challenge → Neptune travel. Not deployed or pushed.
 
+<<<<<<< HEAD
 ## Mars arena platform and dust handoff — `feature/mars-arena-saber-duel` (not merged)
 
 - Goal: embedded bronze/steel combat platform in the Jezero terrain, layered canyon walls, wind dust, and a seamless `spacetomars.mp4` → live-scene handoff through the video's final dust (mirrors the Neptune arrival). Video unchanged.
 - Platform: walkable floor at the sampler's `floorY` (fighters and `heightAt(0,0)` unchanged in use); terrain mesh dips under it via `groundAt`; rocks kept off the deck.
 - Review: `/?journey=mars` (add `&skip` for the reveal only), `/?dev=arena` (Mars synthetic fighters).
 - Checks run: web typecheck, vitest (99 passed / 1 skipped), vite build; server tests (98). Headless-browser screenshots of the handoff and arena. Not yet exercised in a live two-player match or on phones.
+=======
+## Arena battle HUD — `feature/arena-health-ui` (not merged)
+
+- Brand-kit HUD over the arena (`web/src/arena3d/BattleHud.tsx`, `battle-hud.css`): name plates, segmented health with damage trail, stamina with the recover-at-40 mark, hit/knockback/guard-break/stun call-outs, combat log, LYRA line, K.O. → winner card (rematch controls kept). Display only; avatars, combat rules and networking unchanged.
+- No round timer exists on the server, so the centre clock shows elapsed duel time and the winner card shows DUEL TIME (mockup "time left" needs a backend timer first).
+- Preview: `/?dev=hud` (scripted duel over the synthetic arena). Checks: web typecheck, vitest, build; headless screenshots at 1440×900. Not yet seen in a live two-player match.
+>>>>>>> origin/feature/arena-health-ui
