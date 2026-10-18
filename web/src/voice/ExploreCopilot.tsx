@@ -13,6 +13,7 @@ import {
   type LyraAction,
   type Thought,
 } from './exploreLyra';
+import { createLyraSpeaker } from './lyraSpeak';
 import { destinationById } from '../ui/components/explore/destinations';
 import './exploreLyra.css';
 
@@ -37,7 +38,8 @@ function recognitionCtor(): (new () => Recognition) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 function readVoicePref() {
-  try { return localStorage.getItem(VOICE_KEY) === 'on'; } catch { return false; }
+  // Default on so planet thoughts speak like arena narration; persist off when the pilot mutes.
+  try { return localStorage.getItem(VOICE_KEY) !== 'off'; } catch { return true; }
 }
 
 /** LYRA during free flight: unprompted thoughts about what's around you, plus a chat you can type or talk to. */
@@ -75,6 +77,13 @@ export function ExploreCopilot({ snapshot, client, hidden, callsign, onAction }:
   useEffect(() => { setChannel(client ? 'grok' : 'local'); }, [client]);
   useEffect(() => { if (open) end.current?.scrollIntoView({ block: 'nearest' }); }, [messages, open]);
 
+  const speaker = useRef<ReturnType<typeof createLyraSpeaker> | null>(null);
+  useEffect(() => {
+    if (!client) { speaker.current?.stop(); speaker.current = null; return; }
+    speaker.current = createLyraSpeaker(client);
+    return () => { speaker.current?.stop(); speaker.current = null; };
+  }, [client]);
+
   const speakLocal = useCallback((text: string) => {
     if (!voiceOn || !('speechSynthesis' in window)) return;
     const synth = window.speechSynthesis;
@@ -88,12 +97,23 @@ export function ExploreCopilot({ snapshot, client, hidden, callsign, onAction }:
     synth.speak(utterance);
   }, [voiceOn]);
 
+  /** Prefer server Iris TTS (same path as arena cues); fall back to on-device speech in Demo / offline. */
+  const speakThought = useCallback((text: string) => {
+    if (!voiceOn || voice.current) return;
+    if (speaker.current) {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      void speaker.current.sayLine(text);
+      return;
+    }
+    speakLocal(text);
+  }, [voiceOn, speakLocal]);
+
   const show = useCallback((t: Thought) => {
     said.current.add(t.key);
     lastThoughtAt.current = Date.now();
     setThought(t);
-    if (!voice.current) speakLocal(t.text);
-  }, [speakLocal]);
+    speakThought(t.text);
+  }, [speakThought]);
 
   // Notice what changes as you fly. Interesting changes queue; the best one is shown when LYRA has room to talk.
   useEffect(() => {
@@ -134,6 +154,7 @@ export function ExploreCopilot({ snapshot, client, hidden, callsign, onAction }:
   const stopAll = useCallback(() => {
     voice.current?.close(); voice.current = null;
     recognition.current?.abort(); recognition.current = null;
+    speaker.current?.stop();
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     setPhase('idle');
   }, []);
@@ -276,7 +297,12 @@ export function ExploreCopilot({ snapshot, client, hidden, callsign, onAction }:
             <button type="button" className={phase === 'listening' ? 'ex-lyra__mic is-live' : 'ex-lyra__mic'} disabled={!listenable || (busy && phase !== 'listening')} onClick={() => void microphone()}>
               {phase === 'listening' ? 'Send voice' : 'Speak'}
             </button>
-            <button type="button" aria-pressed={voiceOn} onClick={() => { const next = !voiceOn; setVoiceOn(next); if (voice.current) voice.current.muted = !next; if (!next && 'speechSynthesis' in window) window.speechSynthesis.cancel(); }}>
+            <button type="button" aria-pressed={voiceOn} onClick={() => {
+              const next = !voiceOn;
+              setVoiceOn(next);
+              if (voice.current) voice.current.muted = !next;
+              if (!next) { speaker.current?.stop(); if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
+            }}>
               {voiceOn ? 'Voice on' : 'Voice off'}
             </button>
             <button type="button" aria-pressed={thoughtsOn} onClick={() => { setThoughtsOn(!thoughtsOn); setThought(null); }}>
