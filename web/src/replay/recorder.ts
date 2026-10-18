@@ -2,6 +2,7 @@ export interface RecordedReplay { video: Blob; duration: number }
 export const MAX_DURATION = 45;
 const MAX_BYTES = 8 * 1024 * 1024;
 const READY_TIMEOUT_MS = 3000;
+const TIMESLICE_MS = 250;
 
 /** Silent, unmirrored, 640×360 local recording. Never requests another camera. */
 export function createReplayRecorder(onClip: (clip: RecordedReplay) => void, onStatus: (message: string) => void, onStarted?: (atMs: number) => void) {
@@ -67,7 +68,10 @@ export function createReplayRecorder(onClip: (clip: RecordedReplay) => void, onS
             stopped = true;
             elapsed = Math.min(MAX_DURATION, (performance.now() - startAt) / 1000);
             cancelAnimationFrame(raf); clearTimeout(timer);
-            if (recorder.state !== 'inactive') recorder.stop(); else cleanup();
+            if (recorder.state === 'recording') {
+              try { recorder.requestData(); } catch { /* older engines may omit requestData */ }
+              recorder.stop();
+            } else cleanup();
           };
           recorder.ondataavailable = e => {
             bytes += e.data.size;
@@ -77,13 +81,23 @@ export function createReplayRecorder(onClip: (clip: RecordedReplay) => void, onS
           recorder.onerror = () => { broken = true; onStatus('Replay recording failed; the duel is unaffected.'); stop(); cleanup(); };
           recorder.onstop = () => {
             cleanup();
-            if (disposed || broken) return;
+            started = false;
+            if (broken) return;
             if (tooLarge) { onStatus('Replay exceeded the local size limit and was discarded.'); return; }
-            if (elapsed < 0.5 || !chunks.length) { onStatus('No usable replay was recorded.'); return; }
+            if (!chunks.length) {
+              onStatus(elapsed < 0.5
+                ? 'Replay was too short to save. Keep recording on through a longer exchange.'
+                : 'Replay encoder produced no video. Try Chrome or Edge, or re-enable recording and fight again.');
+              return;
+            }
+            if (elapsed < 0.5) {
+              onStatus('Replay was too short to save. Keep recording on through a longer exchange.');
+              return;
+            }
             onClip({ video: new Blob(chunks, { type: recorder.mimeType || mime }), duration: elapsed });
             onStatus(`Replay saved locally (${Math.round(elapsed)}s). Upload is optional after the duel.`);
           };
-          recorder.start(1000);
+          recorder.start(TIMESLICE_MS);
           started = true;
           onStarted?.(startAt);
           draw();
