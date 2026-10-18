@@ -22,7 +22,7 @@ export function SoundCheck() {
   }
   const cues: Array<[SoundId, string]> = [['lyraHello','LYRA hello'],['click','UI click'],['commit','Radar / hyperspace'],['back','Back buttons'],['introJump','Onboarding hyperspace'],['clash','Matchup clash'],['flyby','Ship flyby'],['charge','Rocket charge'],['jump','Short jump'],['arrive','Mars arrival']];
   return <main className="sound-check">
-    <p>SPACE BATTLES / AUDIO LISTENING ROOM</p><h1>HEAR THE <span>GALAXY</span></h1>
+    <p>KO.rbit / AUDIO LISTENING ROOM</p><h1>HEAR THE <span>GALAXY</span></h1>
     <p>Audition the supplied Grok asset pack at the game’s default mix. Switch scenes to hear the music change; try a travel cue over the cockpit bed.</p>
     <p className="sound-check__status" role="status">{status}<br />Playing loops: {audioState.loops.join(", ") || "none"}{audioState.lastCue && <><br />Last decoded cue: {audioState.lastCue}</>}{audioState.error && <><br />{audioState.error}</>}</p>
     <section><h2>SCENE BEDS</h2><div className="sound-check__buttons">{(['onboarding','cockpit','briefing','battle'] as const).map(next => <button key={next} type="button" aria-pressed={scene===next} onClick={() => void choose(next)}>{next.toUpperCase()}</button>)}<button type="button" onClick={() => { setScene(null); setStatus('Music and ambience stopped.'); }}>STOP BEDS</button></div></section>

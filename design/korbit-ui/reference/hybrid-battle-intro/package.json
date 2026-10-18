@@ -1,9 +1,9 @@
 {
-  "name": "space-battles-intro-preview",
+  "name": "korbit-glass-vs-jump",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5186",
+    "dev": "vite --host 127.0.0.1 --port 5189",
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
@@ -13,7 +13,8 @@
     "three": "^0.180.0",
     "@react-three/fiber": "^9.8.2",
     "@react-three/postprocessing": "^3.2.0",
-    "postprocessing": "^6.39.5"
+    "postprocessing": "^6.39.5",
+    "@react-three/drei": "^10.7.9"
   },
   "devDependencies": {
     "vite": "^7.3.7",

@@ -1,4 +1,4 @@
-# Shared agent instructions — Jedi Space Battle
+# Shared agent instructions — KO.rbit
 
 ## Source of truth
 

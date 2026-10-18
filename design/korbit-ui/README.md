@@ -1,4 +1,4 @@
-# Space Battles — Alan's UI handoff
+# KO.rbit — Alan's UI handoff
 
 Start with **index.html** in a browser. It is a visual field guide, not a source-code document. Double-click it after unzipping, or use a static server. The preview and field guide require no installation. Google Fonts loads remotely with local fallback families.
 

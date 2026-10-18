@@ -162,8 +162,44 @@
 .si-phone-illustration i {width:3px;height:64px;background:#dffcff;box-shadow:0 0 10px #59c8ff;animation:si-phone-glow 1.6s ease-in-out infinite alternate;}
 .si-phone-illustration span {font:700 13px/1.4 Orbitron,sans-serif;text-align:center;color:#d7f6ff;}
 .si-phone-illustration b {font:6px Orbitron,sans-serif;letter-spacing:.04em;color:#b4e6ff;border:1px solid #538cb76b;padding:10px 7px;}
-.si-pairing-panel>a {font:9px 'JetBrains Mono',monospace;color:#a4d7f5;text-decoration:none;border-bottom:1px solid #538cb76b;padding-bottom:4px;}
 @keyframes si-phone-glow {from{opacity:.6}to{opacity:1}}
 @media(max-height:760px) and (min-width:761px){.si-panel .si-swipe-phone{width:180px;padding:16px 12px;}.si-panel .si-swipe-pad{transform:scale(1.35);margin:30px auto;}.si-panel .si-swipe-phone>span{font-size:9px;}.si-phone-illustration{flex-basis:98px;height:196px;gap:12px;}.si-phone-illustration i{height:43px;}.si-pairing-art{gap:14px;}.si-qr-large{padding:9px;}}
-@media(max-width:760px){.si-overlay[data-movement=true] .si-content{width:44vw;}.si-panel{gap:12px;}.si-panel .si-swipe-phone{width:120px;padding:11px 6px;}.si-panel .si-swipe-pad{transform:scale(.85);margin:0 auto;}.si-panel .si-swipe-phone>span{font-size:6px;}.si-panel .si-swipe-phone>small{font-size:5px;}.si-panel .si-swipe-lesson>p{font-size:6px;margin-top:0;}.si-phone-illustration{display:none;}.si-qr-large{padding:7px;}.si-pairing-art{width:76%;}.si-pairing-panel>a{font-size:6px;}.si-setup-options{font-size:7px;}.si-panel .si-swipe-lesson{gap:6px;}}
+@media(max-width:760px){.si-overlay[data-movement=true] .si-content{width:44vw;}.si-panel{gap:12px;}.si-panel .si-swipe-phone{width:120px;padding:11px 6px;}.si-panel .si-swipe-pad{transform:scale(.85);margin:0 auto;}.si-panel .si-swipe-phone>span{font-size:6px;}.si-panel .si-swipe-phone>small{font-size:5px;}.si-panel .si-swipe-lesson>p{font-size:6px;margin-top:0;}.si-phone-illustration{display:none;}.si-qr-large{padding:7px;}.si-pairing-art{width:76%;}.si-setup-options{font-size:7px;}.si-panel .si-swipe-lesson{gap:6px;}}
 @media(prefers-reduced-motion:reduce){.si-phone-illustration i{animation:none;}}
+
+/* Readability pass: one type scale across calibration.
+   Labels and buttons are uppercase; guidance copy stays sentence case. The brand keeps its own casing. */
+.si-brand {font-size:12px;}
+.si-brand span,.si-meta,.si-top-progress .si-meta,.si-eyebrow,.si-feedback,.si-live-window>span,.si-live-window>b,.si-lyra .si-lyra-tag span,.si-lyra-tag b,.si-self-label,.si-countdown>span,.si-avatar-empty,.si-pilots b {font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;}
+.si-brand span {font-size:10px;}
+.si-actions button,.si-lyra-controls button,.si-setup-options summary,.arena-duel[data-initiating=true] .arena-leave {font:600 11px/1.2 Orbitron,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;}
+.arena-duel[data-initiating=true] .arena-leave {min-height:36px;padding:10px 14px;border:1px solid #31516f;border-radius:0;background:#061326eb;color:#b5dfff;}
+.arena-duel[data-initiating=true] .arena-leave:hover {background:#123151;}
+.si-redo {padding:10px 0;color:#b5d4ea;}
+.si-lyra-controls button {padding:8px 0;color:#9fcbe8;}
+.si-description {font-size:14px;line-height:1.75;color:#d2e3f0;}
+.si-lyra p {font-size:14px;}
+.si-avatar-empty small,.si-notes,.si-error,.si-setup-options .arena-replay-optin {font:12px/1.7 'JetBrains Mono',monospace;letter-spacing:0;text-transform:none;}
+.si-pilots>span {font-size:12px;}
+.si-countdown>small {font-size:12px;}
+.si-phone-illustration span {font-size:13px;}.si-phone-illustration b {font-size:10px;}
+.si-panel .si-swipe-phone>span {font-size:12px;}.si-panel .si-swipe-phone>small {font-size:9px;}.si-panel .si-swipe-lesson>p {font-size:12px;}
+@media(min-width:761px) and (max-height:760px){.si-description {font-size:13px;}.si-lyra p {font-size:13px;}}
+@media(max-width:760px){
+  .si-brand {font-size:10px;}
+  .si-meta,.si-top-progress .si-meta,.si-eyebrow,.si-feedback,.si-live-window>span,.si-live-window>b,.si-lyra .si-lyra-tag span,.si-self-label,.si-countdown>span,.si-avatar-empty,.si-pilots b {font-size:9px;letter-spacing:.1em;}
+  .si-actions button,.si-lyra-controls button,.si-setup-options summary,.arena-duel[data-initiating=true] .arena-leave {font-size:10px;}
+  .si-description,.si-lyra p {font-size:12px;}
+  .si-avatar-empty small,.si-notes,.si-error,.si-setup-options .arena-replay-optin,.si-pilots>span,.si-countdown>small {font-size:11px;}
+  .si-panel .si-swipe-phone>span {font-size:9px;}.si-panel .si-swipe-phone>small {font-size:8px;}.si-panel .si-swipe-lesson>p {font-size:10px;}
+}
+
+/* Live camera: picture-in-picture in the avatar square's top-right corner, clear of the SOUND/MIX dock.
+   Shown only with the avatar; the QR and swipe panels get the whole square. */
+.arena-duel[data-initiating=true] .arena-self,.si-preview-camera {z-index:6;width:min(180px,calc(var(--si-square)*.32));height:auto;aspect-ratio:16/9;object-fit:cover;right:calc(6vw + 10px);top:calc(50% - var(--si-square)/2 + 10px);bottom:auto;border-radius:0;border:1px solid #87dcff66;box-shadow:0 8px 22px #02071199;}
+.si-self-label {right:calc(6vw + 14px);top:calc(50% - var(--si-square)/2 + 14px);bottom:auto;z-index:7;padding:3px 6px;background:#051320cc;}
+.arena-duel[data-initiating=true]:has(.si-overlay:not([data-panel=avatar])) :is(.arena-self,.si-self-label,.si-preview-camera) {visibility:hidden;}
+@media(max-width:760px){
+  .arena-duel[data-initiating=true] .arena-self,.si-preview-camera {right:calc(3vw + 6px);top:calc(38% - var(--si-square)/2 + 6px);}
+  .si-self-label {right:calc(3vw + 8px);top:calc(38% - var(--si-square)/2 + 8px);}
+}

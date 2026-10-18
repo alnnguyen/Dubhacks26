@@ -1,4 +1,4 @@
-# Space Battles — audio integration handoff
+# KO.rbit — audio integration handoff
 
 October 18, 2026 · Alex / role D · alex-dev working tree
 

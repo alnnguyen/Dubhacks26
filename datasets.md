@@ -1,4 +1,4 @@
-# Jedi Space Battle: real space datasets and APIs (DubHacks 26)
+# KO.rbit: real space datasets and APIs (DubHacks 26)
 
 _Compiled Sat Oct 17, 2026, about 2:55 PM PT. Every URL below was checked live from the box with curl or WebFetch (HTTP 200 unless noted). CORS = whether a phone browser can call it directly; "no" means proxy it through `apps/server`._
 

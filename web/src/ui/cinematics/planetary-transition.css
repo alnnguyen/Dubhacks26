@@ -140,8 +140,9 @@
 .planetary-transition__skip {
   position: absolute;
   z-index: 5;
-  right: max(env(safe-area-inset-right), 18px);
-  bottom: max(env(safe-area-inset-bottom), 22px);
+  right: max(env(safe-area-inset-right), 14px);
+  /* Sit above the fixed SOUND/MIX dock (bottom 14px, 44px tall) instead of under it. */
+  bottom: calc(max(env(safe-area-inset-bottom), 14px) + 56px);
   min-height: 44px;
   padding: 0 16px;
   border: 1px solid rgba(109, 220, 246, 0.55);
@@ -198,8 +199,8 @@
 .planetary-transition__error {
   position: absolute;
   z-index: 5;
-  right: max(env(safe-area-inset-right), 18px);
-  bottom: max(env(safe-area-inset-bottom), 78px);
+  right: max(env(safe-area-inset-right), 14px);
+  bottom: calc(max(env(safe-area-inset-bottom), 14px) + 112px);
   max-width: min(82vw, 440px);
   margin: 0;
   color: #ffe5d3;

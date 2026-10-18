@@ -1,4 +1,4 @@
-# Space Battles – audio pack
+# KO.rbit – audio pack
 
 All files are **CC0 / public domain** (Kenney.nl packs, OpenGameArt items whose license field is CC0 only, or original sounds generated for this project and released CC0). **No attribution required** for any file. Optional credit line: "Sounds by Kenney.nl and OpenGameArt contributors (CC0)".
 

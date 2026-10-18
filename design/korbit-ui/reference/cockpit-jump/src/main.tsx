@@ -19,7 +19,7 @@ function Preview(){
  return <main className={`cj-root ${running?'cj-running':''} ${reduced?'cj-reduced':''}`} data-mode={mode}>
   <div className="cj-scene"><CockpitScene clock={clock} onReady={onReady}/></div>
   <div className="cj-glass" aria-hidden/>
-  <header className="cj-header"><div><span className="cj-mark">✦</span><strong>SPACE BATTLES</strong><i>/</i><span>FLIGHT DECK</span></div><small><b/> {mode==='idle'?'CONTACT ACQUIRED':mode==='done'?'ARRIVAL CONFIRMED':'HYPERDRIVE ENGAGED'}</small></header>
+  <header className="cj-header"><div><span className="cj-mark">✦</span><strong>KO.rbit</strong><i>/</i><span>FLIGHT DECK</span></div><small><b/> {mode==='idle'?'CONTACT ACQUIRED':mode==='done'?'ARRIVAL CONFIRMED':'HYPERDRIVE ENGAGED'}</small></header>
   {mode==='idle'&&<section className="cj-match"><p>RIVAL SIGNAL LOCKED</p><div className="cj-target"><span/><span/><span/><span/><i>+</i></div><h1>VEX</h1><small>REDSHIFT <span>/</span> STRIKE CLASS</small><button disabled={!ready} onClick={play}>{ready?'ENGAGE JUMP':'POWERING BRIDGE…'} <span>↗</span></button></section>}
   {running&&<div key={run} className="cj-timeline" style={style}>
    <div className="cj-confirm"><span className="cj-confirm__line"/><p>MATCH CONFIRMED</p><small>PREPARING JUMP VECTOR</small></div>
