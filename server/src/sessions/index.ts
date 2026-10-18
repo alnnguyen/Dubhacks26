@@ -1,45 +1,289 @@
-import type { PlayerSlot } from "../contracts.js";
-import type { Match } from "../game/match.js";
+import { randomBytes } from "node:crypto";
+import type {
+  ChallengeStatus,
+  ChallengeView,
+  CommandReply,
+  LobbyView,
+  Pilot,
+  PlayerSlot,
+  PlayerView,
+  ProjectileLanded,
+  RejectReason,
+  WorldId,
+} from "../contracts.js";
+import { COMMAND_ID_PATTERN, IN_MATCH_COMMAND_TYPES, Match, type InMatchCommandType } from "../game/match.js";
+import { RULES, WORLD_IDS } from "../game/rules.js";
 
 const PLAYER_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+const CALLSIGN_PATTERN = /^[A-Z0-9][A-Z0-9 _-]{0,13}$/;
 
-export type JoinResult =
-  | { ok: true; slot: PlayerSlot; reclaimed: boolean }
-  | { ok: false; reason: "invalid_request" | "match_full" };
+type Timer = ReturnType<typeof setTimeout>;
 
-// Maps the phone's stored playerId to its slot in the single demo match.
-export class Sessions {
-  private slotsByPlayerId = new Map<string, PlayerSlot>();
+// Keyed by the phone's private playerId; other phones only ever see `id`.
+interface PilotRecord {
+  playerId: string;
+  id: string;
+  callsign: string;
+  connected: boolean;
+  wins: number;
+  losses: number;
+  match: { match: Match; slot: PlayerSlot } | null;
+  // The most recent challenge involving this pilot, in any status.
+  challengeId: string | null;
+  // Reply already sent for each lobby commandId, so retries repeat it.
+  replies: Map<string, CommandReply>;
+}
 
-  constructor(private match: Match) {}
+interface ChallengeRecord {
+  id: string;
+  challenger: PilotRecord;
+  defender: PilotRecord;
+  status: ChallengeStatus;
+  expiresAt: number;
+  timer?: Timer;
+}
 
-  slotOf(playerId: string): PlayerSlot | undefined {
-    return this.slotsByPlayerId.get(playerId);
+export interface LobbyEvents {
+  // Any lobby or match change; the server re-sends views to connected players.
+  changed: () => void;
+  projectileLanded: (playerIds: string[], event: ProjectileLanded) => void;
+}
+
+export interface LobbyOptions {
+  // The server picks each match's world once. Injectable for tests.
+  pickWorld?: () => WorldId;
+}
+
+export type JoinResult = { ok: true } | { ok: false; reason: "invalid_request" };
+
+// One shared demo room: pilots, challenges between them, and the matches accepted challenges start.
+// Every player action, from the app or a provider adapter, goes through handleCommand.
+export class Lobby {
+  private pilots = new Map<string, PilotRecord>();
+  private challenges = new Map<string, ChallengeRecord>();
+  private matches = new Set<Match>();
+  private nextMatch = 1;
+  private nextChallenge = 1;
+  private pickWorld: () => WorldId;
+
+  constructor(private events: LobbyEvents, options: LobbyOptions = {}) {
+    this.pickWorld = options.pickWorld ?? (() => WORLD_IDS[Math.floor(Math.random() * WORLD_IDS.length)]);
   }
 
-  join(playerId: unknown): JoinResult {
+  join(playerId: unknown, callsign?: unknown): JoinResult {
     if (typeof playerId !== "string" || !PLAYER_ID_PATTERN.test(playerId)) {
       return { ok: false, reason: "invalid_request" };
     }
 
-    const existing = this.slotsByPlayerId.get(playerId);
-    if (existing !== undefined) {
-      this.match.reconnect(existing);
-      return { ok: true, slot: existing, reclaimed: true };
+    let pilot = this.pilots.get(playerId);
+    if (!pilot) {
+      const id = `p${randomBytes(4).toString("hex")}`;
+      pilot = {
+        playerId,
+        id,
+        callsign: `PILOT-${id.slice(1, 5).toUpperCase()}`,
+        connected: true,
+        wins: 0,
+        losses: 0,
+        match: null,
+        challengeId: null,
+        replies: new Map(),
+      };
+      this.pilots.set(playerId, pilot);
     }
+    pilot.connected = true;
+    const requested = normalizeCallsign(callsign);
+    if (requested) pilot.callsign = requested;
+    if (pilot.match) pilot.match.match.reconnect(pilot.match.slot);
 
-    const free = ([1, 2] as const).find((slot) => !this.match.hasPlayer(slot));
-    if (free === undefined) {
-      return { ok: false, reason: "match_full" };
-    }
-
-    this.slotsByPlayerId.set(playerId, free);
-    this.match.addPlayer(free);
-    return { ok: true, slot: free, reclaimed: false };
+    this.events.changed();
+    return { ok: true };
   }
 
   disconnect(playerId: string): void {
-    const slot = this.slotsByPlayerId.get(playerId);
-    if (slot !== undefined) this.match.disconnect(slot);
+    const pilot = this.pilots.get(playerId);
+    if (!pilot) return;
+    pilot.connected = false;
+    // A pilot who isn't here can't answer or wait for an answer.
+    const challenge = this.pendingChallengeOf(pilot);
+    if (challenge) this.close(challenge, "cancelled");
+    if (pilot.match) pilot.match.match.disconnect(pilot.match.slot);
+    this.events.changed();
   }
+
+  handleCommand(playerId: string, command: unknown): CommandReply {
+    const pilot = this.pilots.get(playerId);
+    const raw = (typeof command === "object" && command !== null ? command : {}) as Record<string, unknown>;
+    const commandId = typeof raw.commandId === "string" ? raw.commandId : "";
+    if (!pilot) return { commandId, status: "rejected", reason: "not_joined" };
+    if (!COMMAND_ID_PATTERN.test(commandId)) return { commandId, status: "rejected", reason: "invalid_command" };
+
+    // Combat and ready belong to the match, which keeps its own retry replies.
+    if (IN_MATCH_COMMAND_TYPES.includes(raw.type as InMatchCommandType)) {
+      if (!pilot.match) return { commandId, status: "rejected", reason: "not_in_match" };
+      return pilot.match.match.handleCommand(pilot.match.slot, command);
+    }
+
+    const previous = pilot.replies.get(commandId);
+    if (previous) return previous;
+
+    const reason = this.apply(pilot, raw);
+    const reply: CommandReply = reason
+      ? { commandId, status: "rejected", reason }
+      : { commandId, status: "accepted" };
+    if (reason !== "invalid_command") pilot.replies.set(commandId, reply);
+    if (!reason) this.events.changed();
+    return reply;
+  }
+
+  lobbyView(playerId: string): LobbyView {
+    const pilot = this.pilots.get(playerId)!;
+    const pilots = [...this.pilots.values()].filter((p) => p !== pilot && p.connected).map(publicPilot);
+    const challenge = pilot.challengeId === null ? undefined : this.challenges.get(pilot.challengeId);
+    return { you: publicPilot(pilot), pilots, challenge: challenge ? challengeView(challenge, pilot) : null };
+  }
+
+  matchView(playerId: string): PlayerView | null {
+    const seat = this.pilots.get(playerId)?.match;
+    return seat ? seat.match.toView(seat.slot) : null;
+  }
+
+  // Stops every pending timer, e.g. when the server shuts down.
+  dispose(): void {
+    for (const challenge of this.challenges.values()) clearTimeout(challenge.timer);
+    for (const match of this.matches) match.dispose();
+  }
+
+  private apply(pilot: PilotRecord, command: Record<string, unknown>): RejectReason | null {
+    switch (command.type) {
+      case "setCallsign": {
+        const callsign = normalizeCallsign(command.callsign);
+        if (!callsign) return "invalid_command";
+        pilot.callsign = callsign;
+        return null;
+      }
+
+      case "challenge": {
+        if (typeof command.pilotId !== "string") return "invalid_command";
+        if (pilot.match) return "in_match";
+        if (this.pendingChallengeOf(pilot)) return "busy";
+        const defender = [...this.pilots.values()].find((p) => p.id === command.pilotId);
+        if (!defender || defender === pilot || !defender.connected || defender.match || this.pendingChallengeOf(defender)) {
+          return "pilot_unavailable";
+        }
+        this.open(pilot, defender);
+        return null;
+      }
+
+      case "acceptChallenge":
+      case "declineChallenge":
+      case "cancelChallenge": {
+        if (typeof command.challengeId !== "string") return "invalid_command";
+        const challenge = this.challenges.get(command.challengeId);
+        const role = command.type === "cancelChallenge" ? "challenger" : "defender";
+        if (!challenge || challenge.status !== "pending" || challenge[role] !== pilot) return "challenge_unavailable";
+
+        if (command.type === "acceptChallenge") {
+          this.close(challenge, "accepted");
+          this.startMatch(challenge.challenger, challenge.defender);
+        } else {
+          this.close(challenge, command.type === "declineChallenge" ? "declined" : "cancelled");
+        }
+        return null;
+      }
+
+      case "leaveMatch": {
+        if (!pilot.match) return "not_in_match";
+        const { match, slot } = pilot.match;
+        match.leave(slot);
+        pilot.match = null;
+        if (![...this.pilots.values()].some((p) => p.match?.match === match)) {
+          match.dispose();
+          this.matches.delete(match);
+        }
+        return null;
+      }
+
+      default:
+        return "invalid_command";
+    }
+  }
+
+  private open(challenger: PilotRecord, defender: PilotRecord): void {
+    const challenge: ChallengeRecord = {
+      id: `ch${this.nextChallenge++}`,
+      challenger,
+      defender,
+      status: "pending",
+      expiresAt: Date.now() + RULES.challengeExpiryMs,
+    };
+    challenge.timer = setTimeout(() => {
+      this.close(challenge, "expired");
+      this.events.changed();
+    }, RULES.challengeExpiryMs);
+    this.challenges.set(challenge.id, challenge);
+    challenger.challengeId = challenge.id;
+    defender.challengeId = challenge.id;
+  }
+
+  private close(challenge: ChallengeRecord, status: ChallengeStatus): void {
+    clearTimeout(challenge.timer);
+    challenge.status = status;
+  }
+
+  private pendingChallengeOf(pilot: PilotRecord): ChallengeRecord | undefined {
+    const challenge = pilot.challengeId === null ? undefined : this.challenges.get(pilot.challengeId);
+    return challenge?.status === "pending" ? challenge : undefined;
+  }
+
+  private startMatch(challenger: PilotRecord, defender: PilotRecord): void {
+    const seats = { 1: challenger, 2: defender } as const;
+    const match = new Match(
+      `m${this.nextMatch++}`,
+      this.pickWorld(),
+      {
+        1: { pilotId: challenger.id, callsign: challenger.callsign },
+        2: { pilotId: defender.id, callsign: defender.callsign },
+      },
+      {
+        changed: () => this.events.changed(),
+        projectileLanded: (event) => this.events.projectileLanded([challenger.playerId, defender.playerId], event),
+        finished: (result) => {
+          if (result.winner === null) return;
+          seats[result.winner].wins += 1;
+          seats[result.winner === 1 ? 2 : 1].losses += 1;
+        },
+      },
+    );
+    this.matches.add(match);
+    challenger.match = { match, slot: 1 };
+    defender.match = { match, slot: 2 };
+  }
+}
+
+function normalizeCallsign(callsign: unknown): string | null {
+  if (typeof callsign !== "string") return null;
+  const normalized = callsign.trim().replace(/\s+/g, " ").toUpperCase();
+  return CALLSIGN_PATTERN.test(normalized) ? normalized : null;
+}
+
+function publicPilot(pilot: PilotRecord): Pilot {
+  return {
+    id: pilot.id,
+    callsign: pilot.callsign,
+    status: pilot.match ? "in-duel" : "available",
+    wins: pilot.wins,
+    losses: pilot.losses,
+  };
+}
+
+function challengeView(challenge: ChallengeRecord, pilot: PilotRecord): ChallengeView {
+  const role = challenge.challenger === pilot ? "challenger" : "defender";
+  return {
+    id: challenge.id,
+    role,
+    opponent: publicPilot(role === "challenger" ? challenge.defender : challenge.challenger),
+    status: challenge.status,
+    expiresInMs: challenge.status === "pending" ? Math.max(0, challenge.expiresAt - Date.now()) : null,
+  };
 }

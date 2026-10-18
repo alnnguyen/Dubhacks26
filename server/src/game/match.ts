@@ -1,6 +1,6 @@
 import type {
   CommandReply,
-  CommandType,
+  MatchCommandType,
   MatchPhase,
   MatchResult,
   MatchSnapshot,
@@ -10,8 +10,9 @@ import type {
   ProjectileLanded,
   RejectReason,
   Weapon,
+  WorldId,
 } from "../contracts.js";
-import { RULES, WEAPONS } from "./rules.js";
+import { RULES, weaponsFor, world, type WeaponRules } from "./rules.js";
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -19,7 +20,10 @@ type Timer = ReturnType<typeof setTimeout>;
 // toSnapshot converts them to remaining milliseconds for the phones.
 interface Player {
   slot: PlayerSlot;
+  pilotId: string;
+  callsign: string;
   connected: boolean;
+  ready: boolean;
   health: number;
   weapon: Weapon;
   windupEndsAt: number | null;
@@ -34,10 +38,19 @@ interface Player {
 export interface MatchEvents {
   changed: () => void;
   projectileLanded: (event: ProjectileLanded) => void;
+  finished: (result: MatchResult) => void;
 }
 
-const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
-const COMMAND_TYPES: readonly CommandType[] = [
+export interface MatchPilot {
+  pilotId: string;
+  callsign: string;
+}
+
+export const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+// leaveMatch is handled by the lobby, which detaches the player after leave().
+export type InMatchCommandType = Exclude<MatchCommandType, "leaveMatch">;
+export const IN_MATCH_COMMAND_TYPES: readonly InMatchCommandType[] = [
+  "ready",
   "rockActive",
   "gunActive",
   "throwRock",
@@ -50,19 +63,32 @@ export class Match {
   private players = new Map<PlayerSlot, Player>();
   private phase: MatchPhase = "waiting";
   private result: MatchResult | null = null;
+  private weapons: Record<Weapon, WeaponRules>;
   // Reply already sent for each "slot:commandId", so retries repeat it.
   private replies = new Map<string, CommandReply>();
 
-  constructor(readonly matchId: string, private events: MatchEvents) {}
-
-  hasPlayer(slot: PlayerSlot): boolean {
-    return this.players.has(slot);
+  // Both players are in the match from the start; it begins once both are ready.
+  constructor(
+    readonly matchId: string,
+    readonly worldId: WorldId,
+    pilots: Record<PlayerSlot, MatchPilot>,
+    private events: MatchEvents,
+  ) {
+    this.weapons = weaponsFor(worldId);
+    for (const slot of [1, 2] as const) this.addPlayer(slot, pilots[slot]);
   }
 
-  addPlayer(slot: PlayerSlot): void {
+  get isFinished(): boolean {
+    return this.phase === "finished";
+  }
+
+  private addPlayer(slot: PlayerSlot, pilot: MatchPilot): void {
     this.players.set(slot, {
       slot,
+      pilotId: pilot.pilotId,
+      callsign: pilot.callsign,
       connected: true,
+      ready: false,
       health: RULES.startingHealth,
       weapon: RULES.startingWeapon,
       windupEndsAt: null,
@@ -73,16 +99,11 @@ export class Match {
       reconnectEndsAt: null,
       timers: {},
     });
-    if (this.players.size === 2) {
-      this.phase = "active";
-      // A player who left while waiting starts their grace period now.
-      for (const p of this.players.values()) if (!p.connected) this.startGrace(p);
-    }
-    this.events.changed();
   }
 
   reconnect(slot: PlayerSlot): void {
     const player = this.players.get(slot)!;
+    if (player.connected) return;
     player.connected = true;
     player.reconnectEndsAt = null;
     clearTimeout(player.timers.reconnect);
@@ -96,7 +117,14 @@ export class Match {
     this.cancelProjectile(player);
     this.clearBlock(player);
 
-    if (this.phase === "active") this.startGrace(player);
+    if (this.phase !== "finished") this.startGrace(player);
+    this.events.changed();
+  }
+
+  // Leaving before the end gives the match to the other player.
+  leave(slot: PlayerSlot): void {
+    if (this.phase === "finished") return;
+    this.finish({ winner: slot === 1 ? 2 : 1, reason: "forfeit" });
     this.events.changed();
   }
 
@@ -129,8 +157,11 @@ export class Match {
       .sort((a, b) => a.slot - b.slot)
       .map((p) => ({
         slot: p.slot,
+        pilotId: p.pilotId,
+        callsign: p.callsign,
         connected: p.connected,
         reconnectEndsInMs: remaining(p.reconnectEndsAt),
+        ready: p.ready,
         health: p.health,
         action: p.blockEndsAt !== null ? "blocking" : p.windupEndsAt !== null ? "attacking" : "idle",
         weapon: p.weapon,
@@ -145,7 +176,7 @@ export class Match {
             ? null
             : { weapon: p.projectile.weapon, landsInMs: Math.max(0, p.projectile.landsAt - now) },
       }));
-    return { matchId: this.matchId, phase: this.phase, players, result: this.result };
+    return { matchId: this.matchId, phase: this.phase, world: world(this.worldId), players, result: this.result };
   }
 
   toView(slot: PlayerSlot): PlayerView {
@@ -153,9 +184,10 @@ export class Match {
     return {
       matchId: snapshot.matchId,
       phase: snapshot.phase,
+      world: snapshot.world,
       result: snapshot.result,
       you: snapshot.players.find((p) => p.slot === slot)!,
-      rival: snapshot.players.find((p) => p.slot !== slot) ?? null,
+      rival: snapshot.players.find((p) => p.slot !== slot)!,
     };
   }
 
@@ -166,7 +198,13 @@ export class Match {
     }
   }
 
-  private apply(player: Player, type: CommandType): RejectReason | null {
+  private apply(player: Player, type: InMatchCommandType): RejectReason | null {
+    if (type === "ready") {
+      if (this.phase !== "waiting") return "match_not_active";
+      player.ready = true;
+      if ([...this.players.values()].every((p) => p.ready)) this.phase = "active";
+      return null;
+    }
     if (this.phase !== "active") return "match_not_active";
     const now = Date.now();
 
@@ -209,7 +247,7 @@ export class Match {
     const cooldownEndsAt = player.cooldownEndsAt[weapon];
     if (cooldownEndsAt !== null && now < cooldownEndsAt) return "on_cooldown";
 
-    const rules = WEAPONS[weapon];
+    const rules = this.weapons[weapon];
     player.cooldownEndsAt[weapon] = now + rules.cooldownMs;
     player.projectile = { weapon, landsAt: now + rules.flightMs };
     player.timers.projectile = setTimeout(() => this.land(player), rules.flightMs);
@@ -229,7 +267,7 @@ export class Match {
     attacker.projectile = null;
     const defender = this.players.get(attacker.slot === 1 ? 2 : 1)!;
     const blocked = defender.blockEndsAt !== null;
-    const damage = blocked ? 0 : Math.min(WEAPONS[weapon].damage, defender.health);
+    const damage = blocked ? 0 : Math.min(this.weapons[weapon].damage, defender.health);
     defender.health -= damage;
 
     this.events.projectileLanded({ attackerSlot: attacker.slot, weapon, blocked, damage });
@@ -262,6 +300,7 @@ export class Match {
       player.windupEndsAt = null;
       player.reconnectEndsAt = null;
     }
+    this.events.finished(result);
   }
 
   private cancelProjectile(player: Player): void {
@@ -278,10 +317,10 @@ export class Match {
   }
 }
 
-function parseCommand(command: unknown): { commandId: string; type: CommandType } | null {
+function parseCommand(command: unknown): { commandId: string; type: InMatchCommandType } | null {
   if (typeof command !== "object" || command === null) return null;
   const { commandId, type } = command as Record<string, unknown>;
   if (typeof commandId !== "string" || !COMMAND_ID_PATTERN.test(commandId)) return null;
-  if (!COMMAND_TYPES.includes(type as CommandType)) return null;
-  return { commandId, type: type as CommandType };
+  if (!IN_MATCH_COMMAND_TYPES.includes(type as InMatchCommandType)) return null;
+  return { commandId, type: type as InMatchCommandType };
 }
