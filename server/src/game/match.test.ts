@@ -1,24 +1,36 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, mock, test } from "node:test";
-import type { CommandType, PlayerSlot, ProjectileLanded } from "../contracts.js";
-import { Match } from "./match.js";
-import { MARS_GRAVITY, RULES, WEAPONS, rockFlightMs } from "./rules.js";
+import type { MatchCommandType, MatchResult, PlayerSlot, ProjectileLanded } from "../contracts.js";
+import { Match, type MatchEvents } from "./match.js";
+import { RULES, rockFlightMs, weaponsFor, world } from "./rules.js";
 
-const ROCK = WEAPONS.rock;
-const GUN = WEAPONS.gun;
+const ROCK = weaponsFor("mars").rock;
+const GUN = weaponsFor("mars").gun;
+const PILOTS = { 1: { pilotId: "p1", callsign: "ONE" }, 2: { pilotId: "p2", callsign: "TWO" } };
 
 let match: Match;
 let landings: ProjectileLanded[];
+let results: MatchResult[];
 let nextId: number;
+
+function newMatch(events: Partial<MatchEvents> = {}): Match {
+  return new Match("test", "mars", PILOTS, {
+    changed: () => {},
+    projectileLanded: (e) => landings.push(e),
+    finished: (r) => results.push(r),
+    ...events,
+  });
+}
 
 beforeEach(() => {
   // Fake setTimeout and Date so tests can fast-forward time with mock.timers.tick().
   mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_000_000 });
   landings = [];
+  results = [];
   nextId = 0;
-  match = new Match("test", { changed: () => {}, projectileLanded: (e) => landings.push(e) });
-  match.addPlayer(1);
-  match.addPlayer(2);
+  match = newMatch();
+  send(1, "ready");
+  send(2, "ready");
 });
 
 afterEach(() => {
@@ -26,7 +38,7 @@ afterEach(() => {
   mock.timers.reset();
 });
 
-function send(slot: PlayerSlot, type: CommandType, commandId = `cmd-${nextId++}`) {
+function send(slot: PlayerSlot, type: MatchCommandType, commandId = `cmd-${nextId++}`) {
   return match.handleCommand(slot, { commandId, type });
 }
 
@@ -112,9 +124,24 @@ describe("rock", () => {
     send(2, "rockActive");
   });
 
-  test("Mars flight time follows the gameplay mapping", () => {
-    assert.equal(rockFlightMs(MARS_GRAVITY), 1302);
+  test("flight time follows the gameplay mapping of each world's gravity", () => {
+    assert.equal(rockFlightMs(world("mars").gravityMps2), 1302);
     assert.equal(ROCK.flightMs, 1302);
+    assert.deepEqual(
+      (["earth", "mars", "moon"] as const).map((id) => weaponsFor(id).rock.flightMs),
+      [800, 1302, 1980],
+    );
+  });
+
+  test("a Moon match uses the Moon's longer flight time", () => {
+    const moon = new Match("moon", "moon", PILOTS, { changed: () => {}, projectileLanded: () => {}, finished: () => {} });
+    moon.handleCommand(1, { commandId: "r1", type: "ready" });
+    moon.handleCommand(2, { commandId: "r2", type: "ready" });
+    moon.handleCommand(1, { commandId: "a", type: "rockActive" });
+    moon.handleCommand(1, { commandId: "t", type: "throwRock" });
+    assert.equal(moon.toView(1).world.id, "moon");
+    assert.equal(moon.toView(1).you.projectile?.landsInMs, 1980);
+    moon.dispose();
   });
 
   test("an unblocked rock lands after the flight time and deals damage", () => {
@@ -210,6 +237,7 @@ describe("rock", () => {
     assert.equal(snapshot.players[1].health, 0);
     assert.equal(snapshot.phase, "finished");
     assert.deepEqual(snapshot.result, { winner: 1, reason: "knockout" });
+    assert.deepEqual(results, [{ winner: 1, reason: "knockout" }]);
   });
 });
 
@@ -240,14 +268,42 @@ describe("commands and match lifecycle", () => {
     assert.equal(match.handleCommand(1, null).status, "rejected");
   });
 
-  test("commands are rejected until both players join", () => {
-    const waiting = new Match("waiting", { changed: () => {}, projectileLanded: () => {} });
-    waiting.addPlayer(1);
+  test("the match starts once both players are ready, and not before", () => {
+    const waiting = newMatch();
+    assert.equal(waiting.toView(1).phase, "waiting");
     assert.deepEqual(waiting.handleCommand(1, { commandId: "a", type: "fireGun" }), {
       commandId: "a",
       status: "rejected",
       reason: "match_not_active",
     });
+    assert.equal(waiting.handleCommand(1, { commandId: "r", type: "ready" }).status, "accepted");
+    assert.equal(waiting.toView(2).rival.ready, true);
+    assert.equal(waiting.toView(1).phase, "waiting");
+    waiting.handleCommand(2, { commandId: "r", type: "ready" });
+    assert.equal(waiting.toView(1).phase, "active");
+    assert.equal(waiting.handleCommand(1, { commandId: "b", type: "fireGun" }).status, "accepted");
+    assert.deepEqual(waiting.handleCommand(1, { commandId: "r2", type: "ready" }), {
+      commandId: "r2",
+      status: "rejected",
+      reason: "match_not_active",
+    });
+    waiting.dispose();
+  });
+
+  test("leaving gives the match to the other player", () => {
+    match.leave(2);
+    assert.deepEqual(match.toSnapshot().result, { winner: 1, reason: "forfeit" });
+    assert.deepEqual(results, [{ winner: 1, reason: "forfeit" }]);
+    match.leave(1);
+    assert.equal(results.length, 1);
+  });
+
+  test("disconnecting during the briefing also starts the grace period", () => {
+    const waiting = newMatch();
+    waiting.disconnect(1);
+    mock.timers.tick(RULES.reconnectGraceMs);
+    assert.deepEqual(waiting.toView(2).result, { winner: 2, reason: "forfeit" });
+    waiting.dispose();
   });
 
   test("reconnecting within the grace period keeps the match going", () => {
@@ -281,8 +337,9 @@ describe("commands and match lifecycle", () => {
     mock.timers.tick(GUN.flightMs);
     const view1 = match.toView(1);
     const view2 = match.toView(2);
-    assert.deepEqual([view1.you.slot, view1.rival?.slot], [1, 2]);
-    assert.equal(view1.rival?.health, 100 - GUN.damage);
+    assert.deepEqual([view1.you.slot, view1.rival.slot], [1, 2]);
+    assert.deepEqual([view1.you.callsign, view1.rival.pilotId], ["ONE", "p2"]);
+    assert.equal(view1.rival.health, 100 - GUN.damage);
     assert.deepEqual(view2.you, view1.rival);
     assert.deepEqual(view2.rival, view1.you);
   });

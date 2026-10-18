@@ -1,4 +1,4 @@
-import type { Weapon } from "../contracts.js";
+import type { Weapon, World, WorldId } from "../contracts.js";
 
 // Placeholder design numbers to tune with C after play-testing.
 export const RULES = {
@@ -7,14 +7,27 @@ export const RULES = {
   blockLimitMs: 1500,
   blockCooldownMs: 2000,
   reconnectGraceMs: 15000,
+  challengeExpiryMs: 30000,
 };
 
-// NASA Planetary Fact Sheet value. Fixed until the world wheel selects one.
-export const MARS_GRAVITY = 3.7;
+// Rounded surface gravity, m/s², from NASA's Planetary Fact Sheet
+// (https://nssdc.gsfc.nasa.gov/planetary/factsheet/), retrieved 2026-10-17.
+const GRAVITY: Record<WorldId, { name: string; gravityMps2: number }> = {
+  earth: { name: "Earth", gravityMps2: 9.8 },
+  mars: { name: "Mars", gravityMps2: 3.7 },
+  moon: { name: "Moon", gravityMps2: 1.6 },
+};
+
+export const WORLD_IDS = Object.keys(GRAVITY) as WorldId[];
 
 // Gameplay mapping from real gravity to flight time, not projectile physics.
 export function rockFlightMs(gravity: number): number {
   return Math.round(800 * Math.sqrt(9.8 / gravity));
+}
+
+export function world(id: WorldId): World {
+  const { name, gravityMps2 } = GRAVITY[id];
+  return { id, name, gravityMps2, rockFlightMs: rockFlightMs(gravityMps2) };
 }
 
 export interface WeaponRules {
@@ -25,8 +38,11 @@ export interface WeaponRules {
   flightMs: number;
 }
 
-export const WEAPONS: Record<Weapon, WeaponRules> = {
-  rock: { damage: 20, windupMs: 300, cooldownMs: 3000, flightMs: rockFlightMs(MARS_GRAVITY) },
-  // A slow bolt, so the defender can see it coming and block.
-  gun: { damage: 20, windupMs: 0, cooldownMs: 1000, flightMs: 800 },
-};
+// Only the rock depends on the world's gravity.
+export function weaponsFor(id: WorldId): Record<Weapon, WeaponRules> {
+  return {
+    rock: { damage: 20, windupMs: 300, cooldownMs: 3000, flightMs: world(id).rockFlightMs },
+    // A slow bolt, so the defender can see it coming and block.
+    gun: { damage: 20, windupMs: 0, cooldownMs: 1000, flightMs: 800 },
+  };
+}

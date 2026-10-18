@@ -1,15 +1,35 @@
 import { io } from "socket.io-client"
 // Temporary cross-folder import until server/src/contracts.ts moves to packages/contracts.
 import type {
+  ChallengeView,
+  Command,
   CommandReply,
-  CommandType,
   JoinReply,
+  LobbyView,
+  MatchResult,
+  Pilot,
+  PlayerState,
   PlayerView,
   ProjectileLanded,
   Weapon,
+  World,
 } from "../../../server/src/contracts"
 
-export type { CommandReply, PlayerView, ProjectileLanded, Weapon }
+export type {
+  ChallengeView,
+  CommandReply,
+  LobbyView,
+  MatchResult,
+  Pilot,
+  PlayerState,
+  PlayerView,
+  ProjectileLanded,
+  Weapon,
+  World,
+}
+
+/** A command without its ID; this module adds one. */
+type Payload = Command extends infer C ? (C extends Command ? Omit<C, "commandId"> : never) : never
 
 export type ConnectionStatus = "connecting" | "online" | "offline"
 
@@ -20,6 +40,7 @@ export type ClientReply =
 
 export const REPLY_TIMEOUT_MS = 3000
 const PLAYER_ID_KEY = "jedi.playerId"
+const CALLSIGN_KEY = "jedi.callsign"
 
 /** The subset of a Socket.IO client socket this module uses, so tests can fake it. */
 export interface SocketLike {
@@ -32,19 +53,33 @@ export interface SocketLike {
 export interface GameClientOptions {
   /** Defaults to the page's own origin, which Vite proxies to the game server. */
   url?: string
-  storage?: Pick<Storage, "getItem" | "setItem">
+  storage?: Pick<Storage, "getItem" | "setItem"> | null
   createSocket?: (url: string | undefined) => SocketLike
   now?: () => number
 }
 
 export interface GameClient {
   status(): ConnectionStatus
-  /** Why the last join failed, e.g. "match_full". Null while joined or still trying. */
+  /** Why the last join failed, e.g. "invalid_request". Null while joined or still trying. */
   joinError(): string | null
+  /** The shared room: you, the other connected pilots, and your latest challenge. Null until joined. */
+  lobby(): LobbyView | null
+  /** Your match, or null while you're not in one. */
   view(): PlayerView | null
   onStatus(listener: (status: ConnectionStatus) => void): () => void
-  onView(listener: (view: PlayerView) => void): () => void
+  onLobby(listener: (lobby: LobbyView) => void): () => void
+  onView(listener: (view: PlayerView | null) => void): () => void
   onProjectileLanded(listener: (event: ProjectileLanded) => void): () => void
+  /** Stored on the phone and sent on every join, so it survives reloads. */
+  setCallsign(callsign: string): Promise<ClientReply>
+  challenge(pilotId: string): Promise<ClientReply>
+  acceptChallenge(challengeId: string): Promise<ClientReply>
+  declineChallenge(challengeId: string): Promise<ClientReply>
+  cancelChallenge(challengeId: string): Promise<ClientReply>
+  /** Finished the briefing. The match starts once both players are ready. */
+  ready(): Promise<ClientReply>
+  /** Back to the lobby. Before the match ends this forfeits it. */
+  leaveMatch(): Promise<ClientReply>
   /** Make a weapon active. Instant; only the active weapon can fire. */
   gunActive(): Promise<ClientReply>
   rockActive(): Promise<ClientReply>
@@ -57,17 +92,20 @@ export interface GameClient {
 
 export function createGameClient(options: GameClientOptions = {}): GameClient {
   const now = options.now ?? Date.now
-  const playerId = loadPlayerId(options.storage ?? safeLocalStorage())
+  const storage = options.storage === undefined ? safeLocalStorage() : options.storage
+  const playerId = loadPlayerId(storage)
   const socket = (options.createSocket ?? defaultSocket)(options.url)
 
   let status: ConnectionStatus = "connecting"
   let joinError: string | null = null
+  let lobby: LobbyView | null = null
   let view: PlayerView | null = null
   // Starts at page-load time so IDs after a reload are higher than any sent before it.
   let nextCommand = now()
 
   const statusListeners = new Set<(status: ConnectionStatus) => void>()
-  const viewListeners = new Set<(view: PlayerView) => void>()
+  const lobbyListeners = new Set<(lobby: LobbyView) => void>()
+  const viewListeners = new Set<(view: PlayerView | null) => void>()
   const landedListeners = new Set<(event: ProjectileLanded) => void>()
 
   function setStatus(next: ConnectionStatus) {
@@ -76,7 +114,12 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     statusListeners.forEach((listener) => listener(next))
   }
 
-  function setView(next: PlayerView) {
+  function setLobby(next: LobbyView) {
+    lobby = next
+    lobbyListeners.forEach((listener) => listener(next))
+  }
+
+  function setView(next: PlayerView | null) {
     view = next
     viewListeners.forEach((listener) => listener(next))
   }
@@ -84,30 +127,33 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   // Socket.IO reconnects by itself; every new connection must join again.
   socket.on("connect", () => {
     setStatus("connecting")
-    socket.timeout(REPLY_TIMEOUT_MS).emit("join", { playerId }, (err, reply: JoinReply) => {
+    const callsign = readStorage(storage, CALLSIGN_KEY) ?? undefined
+    socket.timeout(REPLY_TIMEOUT_MS).emit("join", { playerId, callsign }, (err, reply: JoinReply) => {
       if (err) return setStatus("offline")
       if (!reply.ok) {
         joinError = reply.reason
         return setStatus("offline")
       }
       joinError = null
+      setLobby(reply.lobby)
       setView(reply.view)
       setStatus("online")
     })
   })
   socket.on("disconnect", () => setStatus("offline"))
   socket.on("connect_error", () => setStatus("offline"))
-  socket.on("view", (next: PlayerView) => setView(next))
+  socket.on("lobby", (next: LobbyView) => setLobby(next))
+  socket.on("view", (next: PlayerView | null) => setView(next))
   socket.on("projectileLanded", (event: ProjectileLanded) => landedListeners.forEach((listener) => listener(event)))
 
-  function send(type: CommandType): Promise<ClientReply> {
+  function send(payload: Payload): Promise<ClientReply> {
     const commandId = `c${nextCommand++}`
     // Refuse instead of letting Socket.IO buffer it: a shot fired seconds late is worse than none.
     if (status !== "online" || !socket.connected) {
       return Promise.resolve({ commandId, status: "rejected", reason: "offline" })
     }
     return new Promise((resolve) => {
-      socket.timeout(REPLY_TIMEOUT_MS).emit("command", { commandId, type }, (err, reply: CommandReply) => {
+      socket.timeout(REPLY_TIMEOUT_MS).emit("command", { commandId, ...payload }, (err, reply: CommandReply) => {
         resolve(err ? { commandId, status: "rejected", reason: "no_response" } : reply)
       })
     })
@@ -121,16 +167,28 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   return {
     status: () => status,
     joinError: () => joinError,
+    lobby: () => lobby,
     view: () => view,
     onStatus: (listener) => subscribe(statusListeners, listener),
+    onLobby: (listener) => subscribe(lobbyListeners, listener),
     onView: (listener) => subscribe(viewListeners, listener),
     onProjectileLanded: (listener) => subscribe(landedListeners, listener),
-    gunActive: () => send("gunActive"),
-    rockActive: () => send("rockActive"),
-    fireGun: () => send("fireGun"),
-    throwRock: () => send("throwRock"),
-    startBlock: () => send("startBlock"),
-    endBlock: () => send("endBlock"),
+    setCallsign: (callsign) => {
+      writeStorage(storage, CALLSIGN_KEY, callsign)
+      return send({ type: "setCallsign", callsign })
+    },
+    challenge: (pilotId) => send({ type: "challenge", pilotId }),
+    acceptChallenge: (challengeId) => send({ type: "acceptChallenge", challengeId }),
+    declineChallenge: (challengeId) => send({ type: "declineChallenge", challengeId }),
+    cancelChallenge: (challengeId) => send({ type: "cancelChallenge", challengeId }),
+    ready: () => send({ type: "ready" }),
+    leaveMatch: () => send({ type: "leaveMatch" }),
+    gunActive: () => send({ type: "gunActive" }),
+    rockActive: () => send({ type: "rockActive" }),
+    fireGun: () => send({ type: "fireGun" }),
+    throwRock: () => send({ type: "throwRock" }),
+    startBlock: () => send({ type: "startBlock" }),
+    endBlock: () => send({ type: "endBlock" }),
     close: () => {
       socket.disconnect()
       setStatus("offline")
@@ -144,15 +202,25 @@ function defaultSocket(url: string | undefined): SocketLike {
 
 // Without storage (private mode, blocked site data) the ID lasts only for this page load.
 function loadPlayerId(storage: Pick<Storage, "getItem" | "setItem"> | null): string {
-  try {
-    const stored = storage?.getItem(PLAYER_ID_KEY)
-    if (stored) return stored
-  } catch { /* fall through to a fresh ID */ }
+  const stored = readStorage(storage, PLAYER_ID_KEY)
+  if (stored) return stored
   const id = crypto.randomUUID()
-  try {
-    storage?.setItem(PLAYER_ID_KEY, id)
-  } catch { /* keep the in-memory ID */ }
+  writeStorage(storage, PLAYER_ID_KEY, id)
   return id
+}
+
+function readStorage(storage: Pick<Storage, "getItem"> | null, key: string): string | null {
+  try {
+    return storage?.getItem(key) ?? null
+  } catch {
+    return null
+  }
+}
+
+function writeStorage(storage: Pick<Storage, "setItem"> | null, key: string, value: string) {
+  try {
+    storage?.setItem(key, value)
+  } catch { /* keep going without it */ }
 }
 
 function safeLocalStorage(): Pick<Storage, "getItem" | "setItem"> | null {

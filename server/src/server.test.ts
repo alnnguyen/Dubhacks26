@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { io as connect, type Socket } from "socket.io-client";
-import type { ClientToServerEvents, JoinReply, PlayerView, ServerToClientEvents } from "./contracts.js";
+import type {
+  ClientToServerEvents,
+  Command,
+  CommandReply,
+  JoinReply,
+  LobbyView,
+  PlayerView,
+  ServerToClientEvents,
+} from "./contracts.js";
 import { startServer, type RunningServer } from "./server.js";
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -10,7 +18,7 @@ let server: RunningServer;
 const clients: Client[] = [];
 
 before(async () => {
-  server = await startServer({ port: 0, allowedOrigins: ["http://localhost:5173"] });
+  server = await startServer({ port: 0, allowedOrigins: ["http://localhost:5173"] }, { pickWorld: () => "earth" });
 });
 
 after(async () => {
@@ -24,78 +32,106 @@ function open(): Client {
   return client;
 }
 
-function join(client: Client, playerId: string): Promise<JoinReply> {
-  return new Promise((resolve) => client.emit("join", { playerId }, resolve));
+function join(client: Client, playerId: string, callsign?: string): Promise<JoinReply> {
+  return new Promise((resolve) => client.emit("join", { playerId, callsign }, resolve));
 }
 
-function nextView(client: Client, matches: (v: PlayerView) => boolean): Promise<PlayerView> {
+function send(client: Client, command: Command): Promise<CommandReply> {
+  return new Promise((resolve) => client.emit("command", command, resolve));
+}
+
+function next<E extends "lobby" | "view">(
+  client: Client,
+  event: E,
+  matches: (value: Parameters<ServerToClientEvents[E]>[0]) => boolean,
+): Promise<Parameters<ServerToClientEvents[E]>[0]> {
   return new Promise((resolve) => {
-    const listener = (view: PlayerView) => {
-      if (!matches(view)) return;
-      client.off("view", listener);
-      resolve(view);
+    const listener = (value: never) => {
+      if (!matches(value)) return;
+      client.off(event, listener as never);
+      resolve(value);
     };
-    client.on("view", listener);
+    client.on(event, listener as never);
   });
 }
 
-// Tests share one server and run in order: they build on the same demo match.
+// Tests share one server and run in order: they build on the same lobby.
 
-test("two players join and each receives their own view", async () => {
-  const alice = open();
-  const bob = open();
-  const aliceSeesBob = nextView(alice, (v) => v.phase === "active");
+let alice: Client;
+let bob: Client;
+let bobPilotId: string;
 
-  const aliceJoin = await join(alice, "player-alice");
+test("two players join the lobby and see each other", async () => {
+  alice = open();
+  bob = open();
+  const aliceJoin = await join(alice, "player-alice", "alice");
   assert.ok(aliceJoin.ok);
-  assert.equal(aliceJoin.slot, 1);
-  assert.equal(aliceJoin.view.phase, "waiting");
-  assert.equal(aliceJoin.view.you.slot, 1);
-  assert.equal(aliceJoin.view.rival, null);
+  assert.equal(aliceJoin.view, null);
 
-  const bobJoin = await join(bob, "player-bob");
+  const aliceSeesBob = next(alice, "lobby", (l: LobbyView) => l.pilots.length === 1);
+  const bobJoin = await join(bob, "player-bob", "bob");
   assert.ok(bobJoin.ok);
-  assert.equal(bobJoin.view.phase, "active");
-  assert.deepEqual([bobJoin.view.you.slot, bobJoin.view.rival?.slot], [2, 1]);
-
-  const a = await aliceSeesBob;
-  assert.deepEqual([a.you.slot, a.rival?.slot], [1, 2]);
-  assert.deepEqual(a.you, bobJoin.view.rival);
-  assert.deepEqual(a.rival, bobJoin.view.you);
-});
-
-test("a third player is rejected", async () => {
-  assert.deepEqual(await join(open(), "player-carol"), { ok: false, reason: "match_full" });
+  assert.deepEqual(bobJoin.lobby.pilots.map((p) => p.callsign), ["ALICE"]);
+  bobPilotId = bobJoin.lobby.you.id;
+  assert.equal((await aliceSeesBob).pilots[0].callsign, "BOB");
 });
 
 test("malformed join is rejected", async () => {
   assert.deepEqual(await join(open(), "x"), { ok: false, reason: "invalid_request" });
 });
 
-test("a command is acknowledged and a retry gets the same reply", async () => {
-  const [, bob] = clients;
-  const send = () =>
-    new Promise((resolve) => bob.emit("command", { commandId: "bob-block-1", type: "startBlock" }, resolve));
-  assert.deepEqual(await send(), { commandId: "bob-block-1", status: "accepted" });
-  assert.deepEqual(await send(), { commandId: "bob-block-1", status: "accepted" });
-});
-
 test("a socket that has not joined cannot send commands", async () => {
-  const stranger = open();
-  const reply = await new Promise((resolve) =>
-    stranger.emit("command", { commandId: "c1", type: "throwRock" }, resolve),
-  );
-  assert.deepEqual(reply, { commandId: "c1", status: "rejected", reason: "not_joined" });
+  assert.deepEqual(await send(open(), { commandId: "c1", type: "throwRock" }), {
+    commandId: "c1",
+    status: "rejected",
+    reason: "not_joined",
+  });
 });
 
-test("a player who disconnects reclaims their slot with the same playerId", async () => {
-  const [alice, bob] = clients;
-  const bobSeesAliceLeave = nextView(bob, (v) => v.rival?.connected === false);
+test("a challenge reaches the defender, and accepting puts both in the same match", async () => {
+  const bobIncoming = next(bob, "lobby", (l: LobbyView) => l.challenge?.status === "pending");
+  const reply = await send(alice, { commandId: "ch-1", type: "challenge", pilotId: bobPilotId });
+  assert.equal(reply.status, "accepted");
+  const incoming = (await bobIncoming).challenge!;
+  assert.deepEqual([incoming.role, incoming.opponent.callsign], ["defender", "ALICE"]);
+
+  const aliceMatch = next(alice, "view", (v: PlayerView | null) => v !== null);
+  assert.equal((await send(bob, { commandId: "acc-1", type: "acceptChallenge", challengeId: incoming.id })).status, "accepted");
+  const view = (await aliceMatch)!;
+  assert.deepEqual([view.phase, view.world.id, view.rival.callsign], ["waiting", "earth", "BOB"]);
+});
+
+test("the match starts when both are ready, and a retried command isn't applied twice", async () => {
+  const active = next(alice, "view", (v: PlayerView | null) => v?.phase === "active");
+  await send(alice, { commandId: "ready-1", type: "ready" });
+  await send(bob, { commandId: "ready-1", type: "ready" });
+  await active;
+
+  const block = { commandId: "bob-block-1", type: "startBlock" } as const;
+  assert.deepEqual(await send(bob, block), { commandId: "bob-block-1", status: "accepted" });
+  assert.deepEqual(await send(bob, block), { commandId: "bob-block-1", status: "accepted" });
+});
+
+test("a player who disconnects reclaims their match with the same playerId", async () => {
+  const bobSeesAliceLeave = next(bob, "view", (v: PlayerView | null) => v?.rival.connected === false);
   alice.disconnect();
   await bobSeesAliceLeave;
 
-  const bobSeesAliceReturn = nextView(bob, (v) => v.rival?.connected === true);
-  const rejoin = await join(open(), "player-alice");
-  assert.equal(rejoin.ok && rejoin.slot, 1);
+  const bobSeesAliceReturn = next(bob, "view", (v: PlayerView | null) => v?.rival.connected === true);
+  alice = open();
+  const rejoin = await join(alice, "player-alice");
+  assert.ok(rejoin.ok);
+  assert.equal(rejoin.view?.you.slot, 1);
+  assert.equal(rejoin.view?.phase, "active");
   await bobSeesAliceReturn;
+});
+
+test("leaving forfeits, and both return to the lobby", async () => {
+  const aliceResult = next(alice, "view", (v: PlayerView | null) => v?.phase === "finished");
+  await send(bob, { commandId: "leave-1", type: "leaveMatch" });
+  assert.deepEqual((await aliceResult)!.result, { winner: 1, reason: "forfeit" });
+
+  const aliceBack = next(alice, "view", (v: PlayerView | null) => v === null);
+  await send(alice, { commandId: "leave-1", type: "leaveMatch" });
+  await aliceBack;
 });
