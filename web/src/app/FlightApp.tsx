@@ -64,7 +64,8 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
 
   useEffect(() => client.onSaberResolved(event => {
     const mine = event.attackerSlot === client.view()?.you.slot;
-    if (event.outcome === 'blocked') setNote(mine ? 'Clash! Your swing hit their blade.' : 'You blocked their swing.');
+    if (event.outcome === 'guardBreak') setNote(mine ? 'Guard broken! Strike now.' : "Your guard was broken — you're stunned.");
+    else if (event.outcome === 'blocked') setNote(mine ? 'Clash! Your swing hit their blade.' : 'You blocked their swing.');
     else setNote(mine ? `Hit! −${event.damage} rival health.` : `You were hit: −${event.damage} health.`);
   }), [client]);
 

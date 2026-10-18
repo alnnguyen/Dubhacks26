@@ -86,7 +86,7 @@ const STEP_KEYS: Record<string, StepDirection> = {
   d: "right",
   arrowright: "right",
 };
-const BLOCKED_TOAST_MS = 900;
+const TOAST_MS = 900;
 
 // Setup steps shown as a checklist (the final "done" isn't a step to do).
 const CHECKLIST: SetupStep[] = STEP_ORDER.filter((step) => step !== "done");
@@ -148,25 +148,26 @@ export function ArenaDuel({
   const [winded, setWinded] = useState(false);
   const [rivalWinded, setRivalWinded] = useState(false);
 
+  const showToast = useCallback((text: string) => {
+    setToast(text);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), TOAST_MS);
+  }, []);
+
   // Flicks and keys both go through the server's validated step command.
   const step = useCallback(
     (direction: StepDirection) => {
       void client.step(direction).then((reply) => {
         if (reply.status !== "rejected") return;
-        if (reply.reason === "exhausted") setToast("Out of stamina");
+        if (reply.reason === "exhausted") showToast("Out of stamina");
+        else if (reply.reason === "stunned") showToast("Stunned");
         else if (reply.reason === "blocked")
-          setToast(
+          showToast(
             direction === "forward" ? "Your rival is there" : "Edge of the arena",
           );
-        else return;
-        window.clearTimeout(toastTimer.current);
-        toastTimer.current = window.setTimeout(
-          () => setToast(null),
-          BLOCKED_TOAST_MS,
-        );
       });
     },
-    [client],
+    [client, showToast],
   );
   const stepRef = useRef(step);
   stepRef.current = step;
@@ -246,8 +247,14 @@ export function ArenaDuel({
       const players = frameRef.current?.players ?? [];
       const attacker = players.find((p) => p.slot === event.attackerSlot);
       const defender = players.find((p) => p.slot !== event.attackerSlot);
+      if (event.outcome === "guardBreak")
+        showToast(
+          event.attackerSlot === slotRef.current
+            ? "Guard broken! Free hit"
+            : "Guard broken — stunned!",
+        );
       let at: Vec3 | null = null;
-      if (event.outcome === "blocked" && attacker?.blade && defender?.blade) {
+      if (event.outcome !== "hit" && attacker?.blade && defender?.blade) {
         at = midpoint(
           midpoint(attacker.blade.hilt, attacker.blade.tip),
           midpoint(defender.blade.hilt, defender.blade.tip),
@@ -268,7 +275,7 @@ export function ArenaDuel({
       offPhone();
       offResolved();
     };
-  }, [client]);
+  }, [client, showToast]);
 
   useEffect(() => {
     if (!running) return;

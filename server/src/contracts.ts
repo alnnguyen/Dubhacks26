@@ -104,6 +104,8 @@ export interface ArenaPlayer {
   stamina: number;
   // Ran dry: no steps until stamina recovers.
   winded: boolean;
+  // Guard broken: no swings, steps or guard for a moment.
+  stunned: boolean;
 }
 
 // Both players in world coordinates, sent to both laptops on every server tick.
@@ -118,7 +120,8 @@ export interface ArenaFrame {
 
 export interface SaberResolved {
   attackerSlot: PlayerSlot;
-  outcome: "blocked" | "hit";
+  // "guardBreak": the attack swung along the defender's held guard, which broke; the defender is stunned.
+  outcome: "blocked" | "hit" | "guardBreak";
   damage: number;
 }
 
@@ -250,6 +253,8 @@ export type RejectReason =
   | "blocked"
   // Not enough stamina for that step, or winded.
   | "exhausted"
+  // Guard broken a moment ago.
+  | "stunned"
   | "challenge_unavailable";
 
 export type CommandReply =

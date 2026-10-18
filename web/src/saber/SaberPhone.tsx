@@ -51,7 +51,7 @@ export function SaberPhone({ code }: { code: string }) {
       rerender((n) => n + 1)
     })
     const offResolved = client.onResolved((event) => {
-      if (event.outcome === "blocked") audio.clash()
+      if (event.outcome !== "hit") audio.clash()
       else if (event.attackerSlot === client.status()?.match?.slot) audio.hit()
       else audio.hurt()
     })

@@ -29,6 +29,7 @@ function serverFrame(slot: PlayerSlot, hips: Vec3, withBlade = true): ArenaFrame
         swinging: false,
         stamina: 100,
         winded: false,
+        stunned: false,
       },
     ],
   }
@@ -67,7 +68,7 @@ describe("withLocalFighter", () => {
 
   it("stands at the predicted spot from a step glide, facing the rival", () => {
     const frame = serverFrame(1, [0, 1, 0])
-    frame.players.push({ slot: 2, cell: { q: 0, r: 1 }, facing: [0, -1], joints: null, blade: null, swinging: false, stamina: 100, winded: false })
+    frame.players.push({ slot: 2, cell: { q: 0, r: 1 }, facing: [0, -1], joints: null, blade: null, swinging: false, stamina: 100, winded: false, stunned: false })
     // Predicted one column to the right of the server's (lagging) spot.
     const f = withLocalFighter(frame, 1, local([0, 1, 0]), [0.65, 0])
     const me = f.players[0]

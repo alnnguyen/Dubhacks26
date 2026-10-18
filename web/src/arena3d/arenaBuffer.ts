@@ -68,7 +68,7 @@ function blendPlayer(a: ArenaPlayer, b: ArenaPlayer, u: number): ArenaPlayer {
   const fx = a.facing[0] + (b.facing[0] - a.facing[0]) * u
   const fz = a.facing[1] + (b.facing[1] - a.facing[1]) * u
   const fl = Math.hypot(fx, fz) || 1
-  return { slot: b.slot, cell: b.cell, facing: [fx / fl, fz / fl], joints, blade, swinging: b.swinging, stamina: b.stamina, winded: b.winded }
+  return { slot: b.slot, cell: b.cell, facing: [fx / fl, fz / fl], joints, blade, swinging: b.swinging, stamina: b.stamina, winded: b.winded, stunned: b.stunned }
 }
 
 /**

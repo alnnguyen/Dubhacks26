@@ -59,8 +59,8 @@ export function ArenaPreview() {
         serverMs: performance.now(),
         engaged: true,
         players: [
-          { slot: 1, cell: { q: 0, r: -1 }, facing: [0, 1], joints: j.map((p) => toWorld(p, 1)), blade: blade(1, j[16], [Math.sin(a), 0, Math.cos(a)]), swinging: phase > 0.5 && phase < 0.65, stamina: 100, winded: false },
-          { slot: 2, cell: { q: 0, r: 1 }, facing: [0, -1], joints: j.map((p) => toWorld(p, 2)), blade: blade(2, [-0.455, -0.05, 0.336], [0, 1, 0]), swinging: false, stamina: 100, winded: false },
+          { slot: 1, cell: { q: 0, r: -1 }, facing: [0, 1], joints: j.map((p) => toWorld(p, 1)), blade: blade(1, j[16], [Math.sin(a), 0, Math.cos(a)]), swinging: phase > 0.5 && phase < 0.65, stamina: 100, winded: false, stunned: false },
+          { slot: 2, cell: { q: 0, r: 1 }, facing: [0, -1], joints: j.map((p) => toWorld(p, 2)), blade: blade(2, [-0.455, -0.05, 0.336], [0, 1, 0]), swinging: false, stamina: 100, winded: false, stunned: false },
         ],
       }
       const cycle = Math.floor(t / 2)

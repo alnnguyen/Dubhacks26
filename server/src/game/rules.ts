@@ -36,6 +36,18 @@ export const SABER = {
   // Tip speed that starts a swing, and the lower speed that ends it.
   swingStartSpeed: 2.5,
   swingEndSpeed: 1.2,
+  // A swing only counts (hits, blocks or guard breaks) once the tip has got this far
+  // from where it started, in the swinger's own frame: a blade held out, or
+  // shaking, never hurts someone who steps onto it.
+  minSwingTravel: 0.3,
+  // Guard break: any guard that's in the way blocks, but an attack swung along
+  // the line of a guard held still (a vertical chop onto an upright guard, a
+  // sideways slash onto a flat one, or the same diagonal), within this many
+  // degrees as both players see it, breaks it and stuns the defender.
+  guardMatchDeg: 30,
+  // Stunned: no swings, no steps and no guard (the blade blocks nothing), long
+  // enough for the attacker to follow up with a free hit.
+  stunMs: 700,
   // A swing that hits or is blocked can't start again for this long.
   swingCooldownMs: 600,
   // A clash also briefly stops the defender from swinging back.

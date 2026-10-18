@@ -17,7 +17,7 @@ import { cellToWorld, type Board } from "./gridBoard"
  */
 export const toThree = (v: Vec3): THREE.Vector3 => new THREE.Vector3(v[0], v[1], -v[2])
 
-export type ImpactFlash = { kind: "blocked" | "hit"; at: Vec3; startedMs: number }
+export type ImpactFlash = { kind: "blocked" | "hit" | "guardBreak"; at: Vec3; startedMs: number }
 
 // The swing trail: about this much of the blade's recent path, as a fading ribbon.
 const TRAIL_MS = 120
@@ -84,7 +84,9 @@ function Avatar({ frameRef, slot, color, flashRef }: {
     const age = flash ? performance.now() - flash.startedMs : Infinity
     const hitMe = flash?.kind === "hit" && age < 300 && player?.joints && isNear(flash.at, player.joints)
     material.emissive.copy(hitMe ? hurt : base)
-    material.emissiveIntensity = hitMe ? 2.5 : 0.6
+    // A stunned fighter (guard broken) flickers until they can act again.
+    const stunned = player?.stunned && Math.floor(performance.now() / 80) % 2 === 0
+    material.emissiveIntensity = hitMe ? 2.5 : stunned ? 0.1 : 0.6
   })
 
   return (
@@ -158,6 +160,8 @@ function Blade({ frameRef, slot, color }: { frameRef: RefObject<ArenaFrame | nul
     const a = toThree(blade.hilt)
     const b = toThree(blade.tip)
     updateTrail(a, b, player?.swinging ?? false)
+    // A stunned fighter's guard is down: their blade gutters and blocks nothing.
+    glowMaterial.opacity = player?.stunned ? 0.12 : 0.55
     if (core.current) placeBetween(core.current, a, b)
     if (glow.current) placeBetween(glow.current, a, b)
     if (hilt.current) {
@@ -207,6 +211,12 @@ function Blade({ frameRef, slot, color }: { frameRef: RefObject<ArenaFrame | nul
   )
 }
 
+const IMPACT_COLORS: Record<ImpactFlash["kind"], { core: string; light: string }> = {
+  blocked: { core: "#ffffff", light: "#bfe6ff" },
+  hit: { core: "#ff6a4a", light: "#ff6a4a" },
+  guardBreak: { core: "#ffd34d", light: "#ffc23a" },
+}
+
 function Impact({ flashRef }: { flashRef: RefObject<ImpactFlash | null> }) {
   const mesh = useRef<THREE.Mesh>(null)
   const light = useRef<THREE.PointLight>(null)
@@ -224,11 +234,12 @@ function Impact({ flashRef }: { flashRef: RefObject<ImpactFlash | null> }) {
     const at = toThree(flash.at)
     const t = age / 0.3
     mesh.current!.position.copy(at)
-    mesh.current!.scale.setScalar(0.05 + 0.35 * t)
+    // A guard break bursts bigger, in gold.
+    mesh.current!.scale.setScalar(0.05 + (flash.kind === "guardBreak" ? 0.6 : 0.35) * t)
     material.opacity = 1 - t
-    material.color.set(flash.kind === "blocked" ? "#ffffff" : "#ff6a4a").multiplyScalar(4)
+    material.color.set(IMPACT_COLORS[flash.kind].core).multiplyScalar(4)
     light.current!.position.copy(at)
-    light.current!.color.set(flash.kind === "blocked" ? "#bfe6ff" : "#ff6a4a")
+    light.current!.color.set(IMPACT_COLORS[flash.kind].light)
   })
   return (
     <>

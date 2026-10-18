@@ -76,13 +76,20 @@ interface Saber {
   // Stamina as of `at`; it refills from regenFrom on (see stamina()).
   stamina: { value: number; at: number; regenFrom: number; winded: boolean };
   swinging: boolean;
+  // While swinging: the tip where the swing started (own body frame), and the
+  // farthest it has got from there.
+  swing: { from: Vec3; reach: number } | null;
   cooldownEndsAt: number | null;
+  // Guard broken: no swings, steps or guard until this time.
+  stunnedUntil: number;
   // Readiness last announced, so a change re-sends the views.
   announced: string;
 }
 
 const HANDS: readonly Hand[] = ["left", "right"];
 const STEP_DIRECTIONS: readonly StepDirection[] = ["forward", "back", "left", "right"];
+// How far a swing must have moved across the space between the players (not toward them) to have a line.
+const ATTACK_LINE_MIN = 0.15;
 // Below this you can't afford any step.
 const CHEAPEST_STEP = Math.min(...Object.values(SABER.stepStamina));
 // Start in the middle row of each side, straight across from each other: one step each to engage.
@@ -242,6 +249,7 @@ export class Match {
     if (!STEP_DIRECTIONS.includes(direction as StepDirection)) return "invalid_command";
     const player = this.players.get(slot)!;
     const now = Date.now();
+    if (now < player.saber.stunnedUntil) return "stunned";
     // Refused up front, so a step you can't afford isn't buffered either.
     if (!this.canAfford(player, direction as StepDirection, now)) return "exhausted";
     // Mid-glide: remember one step and take it the moment this one lands, so quick swipes aren't lost.
@@ -409,35 +417,47 @@ export class Match {
     const blades = new Map(players.map((p) => [p.slot, this.blade(p, now)]));
     const previous = new Map(players.map((p) => [p.slot, p.saber.lastBlade]));
 
-    for (const attacker of players) {
-      const saber = attacker.saber;
-      const from = previous.get(attacker.slot) ?? null;
-      const to = blades.get(attacker.slot) ?? null;
+    // Every player's swing first, so contact is judged on both players' state for this tick.
+    for (const p of players) {
+      const saber = p.saber;
+      const from = previous.get(p.slot) ?? null;
+      const to = blades.get(p.slot) ?? null;
       // Tracking loss or a missing phone drops the swing rather than finishing it.
       if (!fighting || !from || !to) {
         saber.swinging = false;
         continue;
       }
       // Measured in the player's own body frame, so stepping or turning with the blade held still isn't a swing.
-      const tipNow = this.bodyTip(attacker, to, now);
+      const tipNow = this.bodyTip(p, to, now);
       const tipThen = saber.lastBodyTip ?? tipNow;
       const speed = length(sub(tipNow, tipThen)) / (elapsedMs / 1000);
       const coolingDown = saber.cooldownEndsAt !== null && now < saber.cooldownEndsAt;
-      if (!saber.swinging) saber.swinging = speed >= SABER.swingStartSpeed && !coolingDown;
-      else if (speed < SABER.swingEndSpeed) saber.swinging = false;
-      if (!saber.swinging || this.phase !== "active") continue;
+      if (!saber.swinging) {
+        saber.swinging = speed >= SABER.swingStartSpeed && !coolingDown;
+        if (saber.swinging) saber.swing = { from: tipThen, reach: 0 };
+      } else if (speed < SABER.swingEndSpeed) saber.swinging = false;
+      if (saber.swinging && saber.swing) saber.swing.reach = Math.max(saber.swing.reach, length(sub(tipNow, saber.swing.from)));
+    }
 
+    for (const attacker of players) {
+      if (this.phase !== "active" || !this.committed(attacker)) continue;
+      const from = previous.get(attacker.slot)!;
+      const to = blades.get(attacker.slot)!;
       const defender = players.find((p) => p.slot !== attacker.slot)!;
       const defenderTo = blades.get(defender.slot) ?? null;
       const defenderFrom = previous.get(defender.slot) ?? defenderTo;
       const joints = this.worldJoints(defender, now);
+      // A stunned player's guard is down: their blade blocks nothing.
+      const guard = defenderTo && defenderFrom && !this.stunned(defender, now) ? defenderTo : null;
       const outcome = resolveSweep(
         { from, to },
-        defenderTo && defenderFrom ? { from: defenderFrom, to: defenderTo } : null,
+        guard ? { from: defenderFrom!, to: guard } : null,
         joints ? bodyShape(joints) : null,
         SABER,
       );
-      if (outcome === "blocked") {
+      if (outcome === "blocked" && this.guardMatches(attacker, to, defender, guard!, now)) {
+        this.guardBreak(attacker, defender, now);
+      } else if (outcome === "blocked") {
         this.endSwing(attacker, now);
         defender.saber.swinging = false;
         defender.saber.cooldownEndsAt = Math.max(defender.saber.cooldownEndsAt ?? 0, now + SABER.recoilMs);
@@ -472,8 +492,45 @@ export class Match {
         swinging: p.saber.swinging,
         stamina: Math.round((100 * this.stamina(p, now)) / SABER.staminaMax),
         winded: this.winded(p, now),
+        stunned: this.stunned(p, now),
       })),
     });
+  }
+
+  // A swing that has really travelled, rather than a blade held out or shaking.
+  private committed(p: Player): boolean {
+    return p.saber.swinging && p.saber.swing !== null && p.saber.swing.reach >= SABER.minSwingTravel;
+  }
+
+  private stunned(p: Player, now: number): boolean {
+    return now < p.saber.stunnedUntil;
+  }
+
+  // A guard held still (not itself a swing) along the line of the attack, as both players see it:
+  // both projected onto the upright plane between them, and compared as lines.
+  private guardMatches(attacker: Player, blade: ArenaBlade, defender: Player, guard: ArenaBlade, now: number): boolean {
+    if (this.committed(defender)) return false;
+    const facing = this.facing(attacker, now);
+    const motion = directionToWorld(sub(this.bodyTip(attacker, blade, now), attacker.saber.swing!.from), facing);
+    // A thrust mostly toward the rival, or a guard pointed at them, has no line to match.
+    const a = lineAngle(motion, facing, ATTACK_LINE_MIN);
+    const g = lineAngle(sub(guard.tip, guard.hilt), facing, SABER.bladeLength / 2);
+    if (a === null || g === null) return false;
+    const diff = Math.abs(a - g);
+    return Math.min(diff, 180 - diff) <= SABER.guardMatchDeg;
+  }
+
+  // The defender's guard breaks: no swings, steps or guard for a moment. The attacker's swing ends
+  // here, but with no cooldown, so a fresh swing can follow up for a free hit.
+  private guardBreak(attacker: Player, defender: Player, now: number): void {
+    attacker.saber.swinging = false;
+    defender.saber.swinging = false;
+    defender.saber.stunnedUntil = now + SABER.stunMs;
+    defender.saber.cooldownEndsAt = Math.max(defender.saber.cooldownEndsAt ?? 0, now + SABER.stunMs);
+    clearTimeout(defender.timers.step);
+    defender.saber.queuedStep = null;
+    this.events.saberResolved({ attackerSlot: attacker.slot, outcome: "guardBreak", damage: 0 });
+    this.events.changed();
   }
 
   // Each swing resolves at most once: it ends here and can't restart until the cooldown passes.
@@ -618,9 +675,20 @@ function newSaber(cell: Cell): Saber {
     queuedStep: null,
     stamina: { value: SABER.staminaMax, at: 0, regenFrom: 0, winded: false },
     swinging: false,
+    swing: null,
     cooldownEndsAt: null,
+    stunnedUntil: 0,
     announced: "",
   };
+}
+
+// The angle (0..180°) of v as a line in the upright plane facing along `facing`, or null if v
+// has less than `min` in that plane.
+function lineAngle(v: Vec3, facing: Facing, min: number): number | null {
+  const side = v[0] * facing[1] - v[2] * facing[0];
+  if (Math.hypot(side, v[1]) < min) return null;
+  const angle = (Math.atan2(v[1], side) * 180) / Math.PI;
+  return angle < 0 ? angle + 180 : angle;
 }
 
 const isNumberIn = (v: unknown, min: number, max: number): v is number =>

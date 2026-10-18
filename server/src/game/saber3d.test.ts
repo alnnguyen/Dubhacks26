@@ -181,6 +181,63 @@ describe("saber duel in the arena", () => {
     assert.equal(health(2), 100);
   });
 
+  test("a blade held out at someone stepping in doesn't hurt them, even shaking", () => {
+    // Slot 1 points straight at slot 2 and wobbles a few degrees each tick: fast, but going nowhere.
+    for (let i = 0; i < 20; i++) step(slash(i % 2 ? 4 : -4));
+    assert.ok(frames.at(-1)!.players[0].swinging, "the wobble is fast enough to be a swing");
+    assert.equal(resolved.length, 0);
+    // A real thrust from the same spot does land.
+    step(slash(40));
+    step(slash(10));
+    step(slash(-20));
+    assert.equal(resolved.at(-1)?.outcome, "hit");
+  });
+
+  // Slot 1's right hand chopping straight down in front of them, from overhead.
+  const chop = (angleDeg: number): Input => ({ dir: [0, Math.sin(deg(angleDeg)), Math.cos(deg(angleDeg))] });
+  function chopDown(defender: Input) {
+    for (const angle of [80, 65, 50, 35, 20, 5]) step(chop(angle), defender);
+  }
+  // Slot 2's left hand, at rest in front of them, holding the blade upright or flat (pointing to their right).
+  const uprightGuard: Input = { hand: "left", dir: [0, 1, 0] };
+  const flatGuard: Input = { hand: "left", dir: [1, 0, 0] };
+
+  test("a vertical chop onto an upright guard breaks it and stuns the defender", () => {
+    chopDown(uprightGuard);
+    assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "guardBreak", damage: 0 }]);
+    assert.equal(health(2), 100);
+    assert.equal(frames.at(-1)!.players[1].stunned, true);
+    assert.equal(frames.at(-1)!.players[0].stunned, false);
+    assert.equal(match.step(2, "back"), "stunned");
+    assert.equal(match.step(1, "back"), null, "the attacker is free to move");
+    mock.timers.tick(SABER.stunMs);
+    assert.equal(frames.at(-1)!.players[1].stunned, false);
+    assert.equal(match.step(2, "back"), null);
+  });
+
+  test("a sideways slash onto a flat guard breaks it too", () => {
+    swingAcross(flatGuard);
+    assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "guardBreak", damage: 0 }]);
+  });
+
+  test("an attack across the guard's line just blocks", () => {
+    chopDown(flatGuard);
+    assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "blocked", damage: 0 }]);
+    assert.equal(frames.at(-1)!.players[1].stunned, false);
+  });
+
+  test("a broken guard is down: the attacker follows up for a free hit", () => {
+    chopDown(uprightGuard);
+    assert.equal(resolved.at(-1)?.outcome, "guardBreak");
+    // Slot 2 holds a guard that blocks this slash (see the blocking test)...
+    step(slash(60), guard);
+    step(slash(60), guard);
+    swingAcross(guard);
+    // ...but it's down while stunned, and the attacker has no cooldown after a break.
+    assert.deepEqual(resolved.at(-1), { attackerSlot: 1, outcome: "hit", damage: SABER.damage });
+    assert.equal(health(2), 100 - SABER.damage);
+  });
+
   test("a slow movement into the body is not a swing", () => {
     for (let a = 60; a >= -15; a -= 1) step(slash(a));
     assert.equal(resolved.length, 0);

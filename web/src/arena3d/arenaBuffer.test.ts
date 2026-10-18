@@ -18,6 +18,7 @@ function frame(serverMs: number, x: number, angleDeg = 0): ArenaFrame {
         swinging: false,
         stamina: 100,
         winded: false,
+        stunned: false,
       },
     ],
   }
