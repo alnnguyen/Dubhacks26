@@ -5,9 +5,12 @@ const HyperspaceTunnel = lazy(() => import('./HyperspaceTunnel').then(m => ({ de
 import { KeywordBlock } from './KeywordBlock';
 import { LaserInput } from './LaserInput';
 import './onboarding.css';
+import { gameAudio } from '../audio/gameAudio';
+import { useAudioScene } from '../audio/useAudioScene';
 const steps = ['welcome', 'callsign', 'ship', 'bridge'] as const;
 type Step = typeof steps[number] | 'closing' | 'hyperspace';
 export function OnboardingFlow({onComplete}:{onComplete:(identity:PilotIdentity)=>void}) {
+ useAudioScene('onboarding');
  const reduce = useReducedMotion() ?? false;
  const [step,setStep]=useState<Step>('welcome');
  const [callsign,setCallsign]=useState('STARHAWK');
@@ -15,6 +18,8 @@ export function OnboardingFlow({onComplete}:{onComplete:(identity:PilotIdentity)
  const [accent,setAccent]=useState<AccentId>('cyan');
  const identity=useMemo(()=>({callsign:sanitizeCallsign(callsign),shipName:sanitizeShipName(shipName),accent}),[callsign,shipName,accent]);
  const index=steps.indexOf(step as typeof steps[number]);
+ const boardingWarp = step === 'closing' || step === 'hyperspace';
+ useEffect(() => { if (boardingWarp) return gameAudio.play('introJump'); }, [boardingWarp]);
  useEffect(()=>{if(step!=='closing')return;const id=setTimeout(()=>setStep('hyperspace'),700);return()=>clearTimeout(id)},[step]);
  const finish=()=>onComplete(savePilotIdentity(identity));
  function submit(e:FormEvent){e.preventDefault();if(step==='callsign'&&identity.callsign)setStep('ship');if(step==='ship'&&identity.shipName)setStep('bridge')}

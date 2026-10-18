@@ -3,6 +3,7 @@ import type { PlanetId, PlanetaryCinematicState } from './sequence';
 import { buildPlanetarySequence } from './sequence';
 import type { PlanetarySound } from './PlanetarySound';
 import './planetary-transition.css';
+import { gameAudio } from '../../audio/gameAudio';
 
 const VIDEO_URL = '/cinematics/spacetomars.mp4';
 
@@ -36,6 +37,11 @@ export function PlanetaryTransition({
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const completeOnce = useRef(false);
+  const travelSound = useRef({ jumped: false, arrived: false });
+  const soundStops = useRef<Array<() => void>>([]);
+  const arrivalStop = useRef<(() => void) | null>(null);
+  const landedNaturally = useRef(false);
+  useEffect(() => () => { soundStops.current.forEach(stop => stop()); if (!landedNaturally.current) arrivalStop.current?.(); gameAudio.setEngine(false); }, []);
   const [state, setState] = useState<PlanetaryCinematicState>({ phase: 'idle', selectedPlanet: 'earth' });
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [videoError, setVideoError] = useState(false);
@@ -96,7 +102,7 @@ export function PlanetaryTransition({
     if (!audioEnabled) return;
     if (state.phase === 'roulette') audio.tick();
     else if (state.phase === 'locked') audio.lock();
-    else if (state.phase === 'zooming') audio.engine();
+    else if (state.phase === 'zooming') { audio.engine(); soundStops.current.push(gameAudio.play('charge')); }
   }, [audio, audioEnabled, state.phase, state.selectedPlanet]);
 
   useEffect(() => {
@@ -112,6 +118,15 @@ export function PlanetaryTransition({
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [state.phase, videoError]);
+
+  useEffect(() => {
+    gameAudio.setEngine(videoPlaying && !travelSound.current.arrived);
+    if (videoPlaying && !travelSound.current.jumped) {
+      travelSound.current.jumped = true;
+      soundStops.current.push(gameAudio.play('jump'));
+    }
+    return () => gameAudio.setEngine(false);
+  }, [videoPlaying]);
 
   const locked = state.phase === 'locked' || state.phase === 'zooming' || state.phase === 'flash' || state.phase === 'video';
   const holdFlash = state.phase === 'video' && !videoPlaying && !videoError;
@@ -145,11 +160,18 @@ export function PlanetaryTransition({
         aria-label="Spaceship travel from the cockpit to Mars"
         onLoadedData={captureBackdrop}
         onTimeUpdate={() => {
-          if (video.current && video.current.duration && video.current.currentTime / video.current.duration > 0.84) captureBackdrop();
+          if (video.current && video.current.duration && video.current.currentTime / video.current.duration > 0.84) {
+            captureBackdrop();
+            if (!travelSound.current.arrived) {
+              travelSound.current.arrived = true;
+              gameAudio.setEngine(false);
+              arrivalStop.current = gameAudio.play('arrive');
+            }
+          }
         }}
         onPlaying={() => setVideoPlaying(true)}
         onPause={() => setVideoPlaying(false)}
-        onEnded={complete}
+        onEnded={() => { landedNaturally.current = true; complete(); }}
         onError={() => setVideoError(true)}
       />
       <div

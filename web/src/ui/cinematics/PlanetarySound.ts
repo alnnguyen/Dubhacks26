@@ -1,24 +1,11 @@
+import { gameAudio } from '../../audio/gameAudio';
 type OscillatorShape = OscillatorType;
 
-type WebkitWindow = Window & {
-  webkitAudioContext?: typeof AudioContext;
-};
-
 export class PlanetarySound {
-  private context: AudioContext | null = null;
   private timeouts = new Set<number>();
+  private voices = new Set<() => void>();
 
-  async unlock(): Promise<boolean> {
-    const AudioContextType = window.AudioContext ?? (window as WebkitWindow).webkitAudioContext;
-    if (!AudioContextType) return false;
-    try {
-      this.context ??= new AudioContextType();
-      await this.context.resume();
-      return this.context.state === 'running';
-    } catch {
-      return false;
-    }
-  }
+  unlock(): Promise<boolean> { return gameAudio.unlock(); }
 
   activation() {
     this.sweep(105, 480, 0.48, 'sine', 0.045);
@@ -47,15 +34,14 @@ export class PlanetarySound {
   dispose() {
     this.timeouts.forEach((timeout) => window.clearTimeout(timeout));
     this.timeouts.clear();
-    const context = this.context;
-    this.context = null;
-    if (!context || context.state === 'closed') return;
-    void context.close().catch(() => {});
+    this.voices.forEach(stop => stop());
+    this.voices.clear();
   }
 
   private sweep(startHz: number, endHz: number, duration: number, shape: OscillatorShape, volume: number) {
-    const context = this.context;
-    if (!context || context.state !== 'running' || document.visibilityState === 'hidden') return;
+    const mix = gameAudio.synthesisOutput();
+    if (!mix || document.visibilityState === 'hidden') return;
+    const { context, output } = mix;
 
     const now = context.currentTime;
     const oscillator = context.createOscillator();
@@ -67,8 +53,11 @@ export class PlanetarySound {
     gain.gain.exponentialRampToValueAtTime(volume, now + Math.min(0.025, duration * 0.25));
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     oscillator.connect(gain);
-    gain.connect(context.destination);
+    gain.connect(output);
+    const stop = () => { try { oscillator.stop(); } catch { /* Already ended. */ } };
+    this.voices.add(stop);
     oscillator.onended = () => {
+      this.voices.delete(stop);
       oscillator.disconnect();
       gain.disconnect();
     };

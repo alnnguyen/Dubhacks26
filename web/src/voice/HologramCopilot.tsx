@@ -5,6 +5,7 @@ import { CopilotVoice, type CopilotPhase } from './CopilotVoice';
 import { guideAnswer, type GuideAnswer } from './copilotGuide';
 import { HologramPortrait } from './HologramPortrait';
 import './hologram.css';
+import { gameAudio } from '../audio/gameAudio';
 
 type Message = {id: number; role: 'user' | 'assistant'; text: string; source?: 'guide' | 'grok'; action?: GuideAnswer};
 const QUICK = [{label: 'Combat basics', text: 'How do I fight?'}, {label: 'Find a matchup', text: 'Who should I challenge?'}, {label: 'Navigate', text: 'Help me navigate the galaxy.'}];
@@ -31,6 +32,7 @@ export function HologramCopilot({lobby, client, hidden, onNavigate, onSelectPilo
   const end = useRef<HTMLDivElement>(null), launcher = useRef<HTMLButtonElement>(null);
   const titleId = useId(), panelId = useId();
   const busy = phase !== 'idle';
+  useEffect(() => phase === 'listening' || phase === 'speaking' ? gameAudio.duck() : undefined, [phase]);
 
   function stop() { operation.current++; voice.current?.close(); voice.current = null; setPhase('idle'); setChannel('ready'); setError(''); setMessages(current => current.map(m => m.id === replyId.current && !m.text.trim() ? {...m, text: 'Transmission stopped. Ask again when you’re ready.', source: 'guide'} : m)); }
   function close() { stop(); setOpen(false); launcher.current?.focus({preventScroll: true}); }
