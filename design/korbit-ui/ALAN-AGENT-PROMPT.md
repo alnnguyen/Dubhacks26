@@ -1,6 +1,6 @@
 # Paste into Alan's coding agent
 
-We are building galaxy exploration for Space Battles. Match the supplied UI handoff, especially `BRAND-GUIDELINES.md`, `GALAXY-EXPLORATION-HANDOFF.md`, and the actual source under `reference/saber-cinematic-preview/`. Open the visual board and cinematic preview to compare the result. The archive contains historical references too; the latest cinematic preview and glass hybrid VS are the preferred direction.
+We are building galaxy exploration for KO.rbit. Match the supplied UI handoff, especially `BRAND-GUIDELINES.md`, `GALAXY-EXPLORATION-HANDOFF.md`, and the actual source under `reference/saber-cinematic-preview/`. Open the visual board and cinematic preview to compare the result. The archive contains historical references too; the latest cinematic preview and glass hybrid VS are the preferred direction.
 
 First inspect the current branch, repository instructions, exploration scene, font loading, shared state, existing gameplay controls, and world/challenge contracts. Preserve other teammates' work. This is an integration into the current app; do not replace the game with the standalone preview or restore an older copied cockpit.
 

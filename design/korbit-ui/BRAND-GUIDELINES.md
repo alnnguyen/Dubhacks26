@@ -1,8 +1,8 @@
-# Space Battles — UI & motion guidelines
+# KO.rbit — UI & motion guidelines
 
 Version 1 · October 18, 2026 · Handoff for Alan and the team
 
-This documents the actual cinematic saber-initiation preview and the earlier **Glass VS → hyperspace → Mars** trial. The cinematic preview is the primary visual reference. Exploration recommendations below extend that system; they are not claims about features already integrated into the game. “Space Battles” is the working display name. NIGHTFALL, NOVA-7, VEX, and SD / 26 are sample labels, not new required product names.
+This documents the actual cinematic saber-initiation preview and the earlier **Glass VS → hyperspace → Mars** trial. The cinematic preview is the primary visual reference. Exploration recommendations below extend that system; they are not claims about features already integrated into the game. “KO.rbit” is the working display name. NIGHTFALL, NOVA-7, VEX, and SD / 26 are sample labels, not new required product names.
 
 ## 1. The visual idea
 

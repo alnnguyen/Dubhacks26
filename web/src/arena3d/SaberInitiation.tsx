@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { SaberStart, SetupStep } from "../../../server/src/contracts";
 import { INSTRUCTIONS, STEP_ORDER } from "./setupWizard";
 import lyraPortrait from "../voice/assets/lyra-hologram.png";
+import { BRAND_NAME } from "../ui/brand";
 import "./saber-initiation.css";
 
 const STEPS = STEP_ORDER.filter(s => s !== "done");
@@ -89,7 +90,7 @@ export function SaberInitiation(p: SaberInitiationProps) {
 
   return <section className="si-overlay" aria-label="Saber initiation" data-step={p.step} data-movement={movement} data-panel={panel}>
     <div className="si-shade" aria-hidden="true" />
-    <div className="si-brand">✦ SPACE BATTLES <span>/ SABER INITIATION</span></div>
+    <div className="si-brand">✦ {BRAND_NAME} <span>/ SABER INITIATION</span></div>
     <nav className="si-top-progress" aria-label="Initiation progress">
       <div className="si-meta"><span>SABER INITIATION</span><span>{!p.running ? "READY TO BEGIN" : p.step === "done" ? `${String(STEPS.length).padStart(2, "0")} / ${String(STEPS.length).padStart(2, "0")} COMPLETE` : `${String(index + 1).padStart(2, "0")} / ${String(STEPS.length).padStart(2, "0")}`}</span></div>
       <ol className="si-rail" aria-label="Setup progress">{STEPS.map((s, i) => <li key={s} data-done={i < index} aria-current={s === p.step ? "step" : undefined}><i role={i === index ? "progressbar" : undefined} aria-label={i === index ? `Current task hold: ${COPY[s].label}` : undefined} aria-valuemin={i === index ? 0 : undefined} aria-valuemax={i === index ? 100 : undefined} aria-valuenow={i === index ? Math.round(progress * 100) : undefined}><b style={{width:`${i < index ? 100 : i === index ? Math.round(progress * 100) : 0}%`}} /></i><span className="si-sr-only">{COPY[s].label}</span></li>)}</ol>
@@ -115,7 +116,6 @@ export function SaberInitiation(p: SaberInitiationProps) {
       <span>{pairing ? "DEVICE PAIRING" : movement ? "PHONE CONTROLS" : `YOU / ${p.yourName}`}</span>
       {pairing ? <div className="si-panel si-pairing-panel">
         <div className="si-pairing-art"><div className="si-qr-large">{p.qr ? <img src={p.qr} width="280" height="280" alt="Scan to connect your saber phone" /> : <p>Preparing your QR…</p>}</div><div className="si-phone-illustration" aria-hidden="true"><i /><span>SABER<br />ONLINE</span><b>IGNITE SABER ↗</b></div></div>
-        {p.saberUrl && <a href={p.saberUrl} target="_blank" rel="noreferrer">Open phone controller ↗</a>}
       </div> : movement ? <div className="si-panel"><SwipeLesson /></div> : (!p.running || !p.bodySeen) && <div className="si-avatar-empty">{p.loading ? "STARTING CAMERA…" : p.running ? "STEP INTO VIEW" : "YOUR AVATAR APPEARS HERE"}<small>{p.running ? "Face your laptop and show your upper body." : "Start your camera to see your movements."}</small></div>}
       <b>{pairing ? p.phonePaired ? "LINKED · AWAITING MOTION" : "SCAN TO LINK" : movement ? "ONE SWIPE · ONE MOVE" : p.running && p.bodySeen ? "● BODY TRACKED" : "○ AWAITING BODY"}{!pairing && !movement && <em>{p.step !== "done" ? "SABER PREVIEW" : p.phoneLive ? "SABER ONLINE" : "SABER STANDBY"}</em>}</b>
     </div>

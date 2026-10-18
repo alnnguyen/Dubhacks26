@@ -20,13 +20,13 @@ export function OnboardingFlow({onComplete}:{onComplete:(identity:PilotIdentity)
  function submit(e:FormEvent){e.preventDefault();if(step==='callsign'&&identity.callsign)setStep('ship');if(step==='ship'&&identity.shipName)setStep('bridge')}
  return <main className="obn-root" data-step={step}>
   <div className="obn-atmosphere" aria-hidden/><div className="obn-horizon" aria-hidden/>
-  {index>=0&&<><header className="obn-masthead"><div className="obn-brand"><b>✦</b><span>SPACE BATTLES</span><i>/</i><span className="obn-muted">PILOT UPLINK</span></div><span className="obn-counter">0{index+1}<small> / 04</small></span></header>
+  {index>=0&&<><header className="obn-masthead"><div className="obn-brand"><b>✦</b><span>KO.rbit</span><i>/</i><span className="obn-muted">PILOT UPLINK</span></div><span className="obn-counter">0{index+1}<small> / 04</small></span></header>
   <div className="obn-stage"><AnimatePresence mode="wait"><motion.section key={step} className="obn-scene"
    initial={{opacity:0}} animate={{opacity:1}} exit={reduce?{opacity:0}:{opacity:0,x:'-110vw',rotate:3,scale:1.04}}
    transition={{duration:reduce?.15:.32}}>
    <span className="obn-laser-edge" aria-hidden/>
    <p className="obn-kicker">{step==='welcome'?'BEYOND THE SCREEN. INTO THE FIGHT.':step==='callsign'?'01 / ESTABLISH YOUR IDENTITY':step==='ship'?`${identity.callsign} / HULL REGISTRY`:'JUMP COORDINATES CONFIRMED'}</p>
-   <h1 className="obn-title"><span className="obn-title__lead">{step==='welcome'?'WELCOME TO':step==='callsign'?'ENTER YOUR':step==='ship'?'NAME YOUR':'TAKE YOUR PLACE ON THE'}</span><KeywordBlock text={step==='welcome'?'SPACE BATTLES':step==='callsign'?'CALLSIGN':step==='ship'?'STARSHIP':'BRIDGE'}/></h1>
+   <h1 className="obn-title"><span className="obn-title__lead">{step==='welcome'?'WELCOME TO':step==='callsign'?'ENTER YOUR':step==='ship'?'NAME YOUR':'TAKE YOUR PLACE ON THE'}</span><KeywordBlock text={step==='welcome'?'KO.rbit':step==='callsign'?'CALLSIGN':step==='ship'?'STARSHIP':'BRIDGE'}/></h1>
    <div className="obn-content">
     {step==='welcome'&&<><p className="obn-sub">Your world. Your starship. Your next rival.</p><button className="obn-cta" onClick={()=>setStep('callsign')}>BEGIN TRANSMISSION <span>↗</span></button></>}
     {(step==='callsign'||step==='ship')&&<form onSubmit={submit} className="obn-form">

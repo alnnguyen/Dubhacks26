@@ -37,13 +37,13 @@ def fetch(url, name, fallback=None):
         return json.loads(body)
     used = url
     try:
-        body = urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'space-battles-hackathon-importer'}), timeout=40).read()
+        body = urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'korbit-hackathon-importer'}), timeout=40).read()
     except Exception as error:  # rate limit or outage: try the stated fallback once
         if not fallback:
             raise
         print(f'  {name}: {error} -> trying fallback {fallback}', file=sys.stderr)
         used = fallback
-        body = urllib.request.urlopen(urllib.request.Request(fallback, headers={'User-Agent': 'space-battles-hackathon-importer'}), timeout=40).read()
+        body = urllib.request.urlopen(urllib.request.Request(fallback, headers={'User-Agent': 'korbit-hackathon-importer'}), timeout=40).read()
     meta = {'name': name, 'url': used, 'sha256': hashlib.sha256(body).hexdigest(), 'retrievedAt': datetime.now(timezone.utc).isoformat()}
     path.write_bytes(body)
     path.with_suffix('.meta').write_text(json.dumps(meta))

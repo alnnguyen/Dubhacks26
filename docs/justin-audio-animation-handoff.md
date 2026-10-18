@@ -29,10 +29,10 @@ Open `/?audio=check` on your frontend to audition the actual tracks and cues wit
 
 - Existing game onboarding: `web/src/onboarding/`.
 - Existing game planet wheel/travel: `web/src/ui/cinematics/`.
-- New visual field guide: `design/space-battles-ui/index.html`.
-- New nine-slide saber-setup reel: `design/space-battles-ui/reference/saber-cinematic-preview/index.html`.
-- Earlier glass VS / hyperspace source: `design/space-battles-ui/reference/hybrid-battle-intro/`.
-- Typography, colors, spacing, component recipes, exact motion timing: `design/space-battles-ui/BRAND-GUIDELINES.md`.
+- New visual field guide: `design/korbit-ui/index.html`.
+- New nine-slide saber-setup reel: `design/korbit-ui/reference/saber-cinematic-preview/index.html`.
+- Earlier glass VS / hyperspace source: `design/korbit-ui/reference/hybrid-battle-intro/`.
+- Typography, colors, spacing, component recipes, exact motion timing: `design/korbit-ui/BRAND-GUIDELINES.md`.
 - Galaxy exploration brief and agent prompt are beside that guide.
 - `web/duel-result-preview.html` is a separate draft result-screen preview, not wired to live results.
 
@@ -41,7 +41,7 @@ The new saber reel simulates setup. Its joystick explains the updated phone cont
 To view the field guide and its linked previews:
 
 ```sh
-python3 -m http.server 8892 --bind 127.0.0.1 --directory design/space-battles-ui
+python3 -m http.server 8892 --bind 127.0.0.1 --directory design/korbit-ui
 ```
 
 Open http://127.0.0.1:8892/. The static HTML guide/reel need no build. Historical React/Three.js references have their own package/README files; reuse visual pieces in the current renderer rather than overwriting active gameplay with an older scene copy.

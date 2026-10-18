@@ -1,4 +1,4 @@
-/* Space Battles handoff tokens. Opt-in scope; not global app overrides. */
+/* KO.rbit handoff tokens. Opt-in scope; not global app overrides. */
 .sb-brand {
   --sb-font-display: 'Orbitron', system-ui, sans-serif;
   --sb-font-mono: 'JetBrains Mono', monospace;

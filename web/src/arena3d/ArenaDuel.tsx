@@ -539,7 +539,7 @@ export function ArenaDuel({
         notes={wizard.notes} error={error} onStart={() => setRunning(true)} onRedo={redoSetup}
       />}
       <SaberCountdown start={saberStart} remaining={countdown} fresh={!finished && serverFresh && wizard.step === "done" && youArmed && rivalArmed} />
-      {running && !fighting && !finished && <span className="si-self-label">YOUR CAMERA / LIVE FEEDBACK</span>}
+      {running && !fighting && !finished && <span className="si-self-label">LIVE CAMERA</span>}
 
       {(fighting || finished) && (
         <BattleHud client={client} view={view} fighting={fighting} finished={finished}>
