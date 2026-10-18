@@ -5,6 +5,7 @@ import { useProgress } from '@react-three/drei';
 import { isLocalDestination, type LocalZoomCommand, type LocalZoomRequest } from '../components/explore/localNavigation';
 import { ExploreHud, type ExploreMode } from '../components/explore/ExploreHud';
 import { MissionBanner, type Mission } from '../components/explore/MissionBanner';
+import { ModeSwitchDialog } from '../components/explore/ModeSwitchDialog';
 import { DESTINATIONS, destinationById, type ExploreDestination } from '../components/explore/destinations';
 import type { FlightInput, FlightTelemetry } from '../components/explore/ShipFlightController';
 import { planetFacts, scienceForBodyId, type BodyScience } from '../components/explore/bodiesScience';
@@ -93,6 +94,8 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
   const announce = useCallback((m: Omit<Mission, 'id'>) => setMission({ ...m, id: ++missionSeq.current }), []);
   const clearMission = useCallback(() => setMission(null), []);
   const [mode, setMode] = useState<ExploreMode>(initialMode);
+  const [pendingMode, setPendingMode] = useState<ExploreMode | null>(null);
+  const [wipe, setWipe] = useState(0);
   const entered = useRef(false);
   useEffect(() => { try { localStorage.setItem(MODE_KEY, mode); } catch { /* private mode */ } }, [mode]);
   // Peaceful explore: other pilots' ships and contacts are hidden, and you stop sharing your location.
@@ -201,6 +204,20 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
     return () => clearTimeout(timer);
   }, [jumping, onWarpFinished, settings.reducedMotion]);
 
+  // Entering a mode closes panels, flies you back to the starting point near Earth, then plays the mode title.
+  const confirmMode = () => {
+    const next = pendingMode;
+    if (!next) return;
+    setPendingMode(null);
+    setNavOpen(false); setCreditsOpen(false); setLearn(null); setCutawayOpen(false); setInspectId(null);
+    setInput(EMPTY_INPUT); setZoomRequest(undefined);
+    setMode(next);
+    setWipe((n) => n + 1);
+    startJump('sol');
+    announce({ eyebrow: next === 'explore' ? 'Mode / peaceful explore' : 'Mode / multiplayer flight', lead: 'Entering', word: next === 'explore' ? 'Explore' : 'Flight',
+      detail: 'Back at the starting point near Earth', laser: true, holdMs: 2600 });
+  };
+
   const closeInspect = useCallback(() => {
     setCutawayOpen(false);
     setInspectId(null);
@@ -228,7 +245,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
 
   const busy = challenge.kind !== 'idle' && challenge.kind !== 'declined';
   const warp = jumping || challenge.kind === 'launching' ? 1 : 0;
-  const flightEnabled = sceneReady && !jumping && !navOpen && !creditsOpen && !learn && !inspectId && !busy;
+  const flightEnabled = sceneReady && !jumping && !navOpen && !creditsOpen && !learn && !inspectId && !busy && !pendingMode;
   useEffect(() => { if (!flightEnabled) setInput(EMPTY_INPUT); }, [flightEnabled]);
   useEffect(() => {
     const clear = () => setInput(EMPTY_INPUT);
@@ -346,7 +363,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       <ExploreHud
         destination={destination}
         mode={mode}
-        onMode={setMode}
+        onMode={(next) => { if (next !== mode) setPendingMode(next); }}
         onBridge={() => onExit ? onExit() : window.location.assign('/')}
         onZoom={isLocalDestination(destination) ? requestZoom : undefined}
         ready={sceneReady}
@@ -419,6 +436,11 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       />
 
       <MissionBanner mission={mission} onDone={clearMission} />
+
+      <AnimatePresence>
+        {pendingMode && <ModeSwitchDialog key="mode-switch" mode={pendingMode} onEnter={confirmMode} onBack={() => setPendingMode(null)} />}
+      </AnimatePresence>
+      {wipe > 0 && <div key={wipe} className="gx-mode-wipe" aria-hidden />}
 
       <ExploreCopilot
         snapshot={snapshot}

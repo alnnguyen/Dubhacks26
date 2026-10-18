@@ -21,10 +21,7 @@ import { gameAudio } from '../../audio/gameAudio';
 import { useAudioScene } from '../../audio/useAudioScene';
 
 const SpaceshipScene = lazy(() => import('../components/spaceship/SpaceshipScene').then((m) => ({ default: m.SpaceshipScene })));
-
-const ExploreApp = lazy(() => import('./ExploreApp').then(m => ({ default: m.ExploreApp })));
-const HyperspaceTunnel = lazy(() => import('../../onboarding/HyperspaceTunnel').then(m => ({ default: m.HyperspaceTunnel })));
-type BridgePhase = 'bridge' | 'boarding' | 'warping' | 'drive';
+const ExploreApp = lazy(() => import('./ExploreApp').then((m) => ({ default: m.ExploreApp })));
 
 export interface SpaceshipHomeProps {
   /** Real lobby adapter from the multiplayer module. Uses local mocks when omitted. */
@@ -40,6 +37,13 @@ export interface SpaceshipHomeProps {
   /** Read-only Grok access through this live player connection; omitted in Demo. */
   copilotClient?: GameClient;
 }
+
+/** Time for CameraController to ease into the seat before the drive warp. */
+const SEAT_EASE_MS = 1600;
+/** Forward push + fade from the seat into flight (replaces the hyperspace tunnel cut). */
+const SEAT_PUSH_MS = 1100;
+
+type BridgePhase = 'bridge' | 'boarding' | 'warping' | 'drive';
 
 function initialSettings(): SceneSettings {
   const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -124,7 +128,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
   }, [phase, challenge.kind]);
   useEffect(() => {
     if (phase !== 'boarding') return;
-    const id = window.setTimeout(() => setPhase('warping'), settings.reducedMotion ? 280 : 1600);
+    const id = window.setTimeout(() => setPhase('warping'), settings.reducedMotion ? 280 : SEAT_EASE_MS);
     return () => window.clearTimeout(id);
   }, [phase, settings.reducedMotion]);
 
@@ -133,9 +137,9 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
     if (selectedId && !lobby.nearby.some((p) => p.id === selectedId)) setSelectedId(null);
   }, [lobby.nearby, selectedId]);
 
-  const sitInPilot = useCallback(() => { setView('pilot'); setPhase('boarding'); }, []);
+  const sitInPilot = useCallback(() => { void import('./ExploreApp'); setView('pilot'); setPhase('boarding'); }, []);
   const navigate = useCallback((v: LobbyView) => {
-    if (v === 'pilot') { setView('pilot'); setPhase('boarding'); }
+    if (v === 'pilot') { void import('./ExploreApp'); setView('pilot'); setPhase('boarding'); }
     else setView(v);
   }, []);
   const closePanel = useCallback(() => { setPhase('bridge'); setView('lobby'); }, []);
@@ -305,13 +309,18 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
         />
       </div>
 
+      {/* Seat → flight: the camera pushes toward the glass while the cockpit fades into the void flight mode boots from. */}
+      {phase === 'warping' && (
+        <div className="sd-seat-launch" aria-hidden style={{ animationDuration: `${settings.reducedMotion ? 250 : SEAT_PUSH_MS}ms` }}
+          onAnimationEnd={(e) => { if (e.target === e.currentTarget) setPhase('drive'); }}>
+          <p>Engaging flight systems</p>
+        </div>
+      )}
+
       <div className="sd-launch" data-active={challenge.kind === 'launching' && !travelActive} aria-hidden={challenge.kind !== 'launching' || travelActive}>
         <p>Expanding domain…</p>
       </div>
 
-      {phase === 'warping' && <Suspense fallback={<div className="ob-warp"/>}>
-        <HyperspaceTunnel active caption="Launching free flight…" durationMs={settings.reducedMotion ? 400 : 2000} onFinished={() => setPhase('drive')} />
-      </Suspense>}
 
       {travelActive && (
         <PlanetaryTransition

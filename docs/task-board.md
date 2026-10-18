@@ -279,3 +279,10 @@ Applied the approved duel-result-preview design to the real finished-match overl
 Watch Replay is now a large blue Perceptron-labelled action above Rematch. It expands and scrolls to the existing actual replay panel; provider upload still requires its separate consent/action. No recording or provider request is triggered by the new button. Source paths: DuelResult component/CSS, ArenaDuel result rendering, labelled synthetic /?dev=result route. Server contracts, combat rules, camera/phone calibration and audio assets are unchanged.
 
 Validation: web production build/typecheck passed; 21 existing client-command tests passed. Browser review used the production component with labelled synthetic results: Victory, Defeated, pending-rematch disabled state, rival Accept rematch state and Watch Replay opening were verified; no console warning/error logs. Physical end-of-duel and real provider playback are not claimed by this UI check. Not pushed. The unrelated shared-live-server.md tunnel edit is preserved.
+
+
+## Restore Alan cockpit/seat and mode animations — October 18
+
+Integrated source 09b5291 from origin/codex/cinematic-arena-replay, omitted earlier because the requested integration was replay-only. The source commit predates the replay work and changes cockpit/exploration presentation: measured left-seat camera pose, pilot flight stick, pilotLaunch forward push, 1.1-second seat-to-flight fade, warm exploration import, Flight/Explore confirmation/reset and mode title/wipe. Resolved against current launch persistence and cockpit actions without reintroducing old briefing/result/duel flows. Existing sound hooks, actual challenge travel, saber setup/countdown, cinematic results and prominent Perceptron replay action are preserved.
+
+Validation limited to conflict/diff review and frontend production build/typecheck, which passed (existing large exploration chunk warning). No broad suite, paid provider calls or deployment. Actual cockpit/seat animation needs user visual confirmation. The unrelated shared-live-server.md note remains untouched. Not pushed.
