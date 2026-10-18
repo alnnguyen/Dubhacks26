@@ -1,3 +1,5 @@
+import { VictoryScene } from '../vfx/VictoryScene';
+import { KillingBlow } from "../vfx/KillingBlow";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { SpaceshipHome } from '../ui/screens/SpaceshipHome';
 import { ArenaDuel } from '../arena3d/ArenaDuel';
@@ -101,6 +103,8 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const { world, you, rival } = view;
   const screen = view.phase === 'finished' ? 'result' : view.phase === 'waiting' && !you.ready ? 'briefing' : 'duel';
   return <main className="flight-flow">
+    <KillingBlow client={client} />
+    {screen === 'result' && <VictoryScene winner={view.result?.winner ?? null}/>}
     <header className="flight-header">
       <span>FLIGHT SYSTEMS / {screen.toUpperCase()}</span>
       <button onClick={leave}>{view.phase === 'finished' ? 'Return to cockpit' : 'Forfeit & return'}</button>

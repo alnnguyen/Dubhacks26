@@ -130,3 +130,14 @@ Shared music/effects mixer and supplied audio pack integrated into alex-dev work
 - Positive saber/projectile damage pushes the defender 0.65 m away from the attacker, capped at 3.9 m separation. Interrupts voluntary glides and clears buffered movement; blocks do not push. Rule tuning: SABER.knockbackMeters.
 - Validation: server build and all 61 game tests passed; frontend production build/typecheck passed. Updated cooldown/knockout tests to close distance after hits; hit and block regressions assert displacement/no displacement. Full server suite attempted but socket tests failed and the process did not finish in the restricted environment; stopped it. No claim of full-suite or actual-device verification.
 - Status: Integration; actual two-player visual/device check remains open. Branch: codex/damage-knockback. No new environment variables, external messages or deployment.
+
+## Mars arena visual polish — feature/saber-duel-ui
+
+Goal: add read-only atmosphere/combat presentation; preserve working saber gameplay. New code lives in `web/src/vfx/`; small visual wiring edits only in ArenaScene, ArenaDuel (existing flash metadata), MarsEnvironment (default-on old dust option) and FlightApp (knockout overlay). No backend/contracts/controls/physics changes, no dependencies/environment variables/deployment. See `web/src/vfx/README.md` for module map, exact observer hooks, measured draw calls/FPS, limitations and toggles. Acceptance: typecheck/build, existing frontend suite, pool/visual-clock tests, browser high/low/master-off and synthetic impact checks. All 186 frontend tests passed (one opt-in live test skipped); actual multiplayer/device combat not repeated. New atmosphere uses two draw calls; observed total 67 baseline vs 75 high, roughly mid-80s FPS locally. Status: locally verified, ready for visual review; no deployment.
+
+### Arena scenery and pilot presentation follow-up
+- Goal/owned paths: visual-only layers in `web/src/vfx`, minimal FlightApp result glue. No interface, input, combat, networking or physics changes.
+- Added colored dueling pools/spotlights, short-range saber illumination, decorative distant wreck/beacon/smoke, first-tracking scan rings, joint-mounted helmet frames and shoulder insignias, separate result portrait camera, restrained rust-red haze.
+- Identity details currently distinguish the two pilots; no new customization/network contract was introduced.
+- Checks: typecheck, production build, four VFX runtime tests passed; synthetic arena visually inspected. Real multiplayer and result-screen visual verification remain outstanding. No new dependencies or environment variables.
+- Follow-up preview: fixed a VFX context hot-reload failure by extracting `context.ts`; preview renders afterward. One medium-quality dev sample showed 46 FPS / 87 calls; this is not a controlled benchmark or a 60 FPS claim.
