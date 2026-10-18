@@ -3,7 +3,7 @@ export const MAX_DURATION = 45;
 const MAX_BYTES = 8 * 1024 * 1024;
 
 /** Silent, unmirrored, 640×360 local recording. Never requests another camera. */
-export function createReplayRecorder(onClip: (clip: RecordedReplay) => void, onStatus: (message: string) => void) {
+export function createReplayRecorder(onClip: (clip: RecordedReplay) => void, onStatus: (message: string) => void, onStarted?: (atMs: number) => void) {
   let started = false;
   let disposed = false;
   let stop = () => {};
@@ -62,6 +62,7 @@ export function createReplayRecorder(onClip: (clip: RecordedReplay) => void, onS
         };
         recorder.start(1000);
         started = true;
+        onStarted?.(startAt);
         draw();
         timer = setTimeout(stop, MAX_DURATION * 1000);
         onStatus('Recording locally · first 45 seconds · no audio');

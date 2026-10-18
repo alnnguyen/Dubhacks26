@@ -549,7 +549,7 @@ export function ArenaDuel({
         <button type="button" className="arena-leave" onClick={finished ? onLeave : onForfeit}>
           {finished ? "Back to bridge" : "Forfeit"}
         </button>
-        {fighting && replayEnabled && onReplayEnabled && <button type="button" onClick={() => onReplayEnabled(false)}>Stop replay recording</button>}
+        {fighting && replayEnabled && onReplayEnabled && <button type="button" className="arena-replay-stop" onClick={() => onReplayEnabled(false)}>Stop replay recording</button>}
         <p className="arena-note" role="status">
           {fighting
             ? note

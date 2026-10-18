@@ -14,8 +14,8 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const client = providedClient ?? getGameClient();
   const lobby = useServerLobby(client);
   const view = useGameView(client);
-  const replay = useReplay(view?.matchId);
   const [replayEnabled, setReplayEnabled] = useState(false);
+  const replay = useReplay(view?.matchId, client, replayEnabled);
   useEffect(() => { setReplayEnabled(false); }, [view?.matchId]);
   // Private pair code: a phone opening /?saber=<code> becomes this pilot's lightsaber.
   const pairCode = useGameLobby(client)?.pairCode ?? '';
@@ -119,7 +119,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   // One mounted arena preserves the camera and calibration through the result and rematch.
   return <>
     <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} onForfeit={forfeit} onRematch={rematch} replayEnabled={replayEnabled} onReplayEnabled={setReplayEnabled} onReplaySource={replay.start}
-      resultExtra={<ReplayPanel key={view.matchId} client={client} matchId={view.matchId} clip={replay.clip} status={replay.status} onDiscard={replay.discard} />} />
+      resultExtra={<ReplayPanel key={view.matchId} client={client} matchId={view.matchId} clip={replay.clip} arena={replay.arena} board={view.board} mySlot={view.you.slot} status={replay.status} onDiscard={replay.discard} />} />
     {entryError && <aside className="flight-entry-error" role="alert"><p>{entryError}</p><button type="button" disabled={entering} onClick={() => readyForArrival(view.matchId)}>{entering ? 'Connecting…' : 'Retry arena entry'}</button></aside>}
   </>;
 }
