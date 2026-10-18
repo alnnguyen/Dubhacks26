@@ -175,7 +175,17 @@ function Impact({ flashRef }: { flashRef: RefObject<ImpactFlash | null> }) {
   )
 }
 
-/** Over your own shoulder, looking at the rival. Follows your hips as you step. */
+// Looking down at 35°: steep enough that walking forward reads as moving up the
+// screen (matching a pinch nudged up), shallow enough that blade heights and
+// the rival's torso still read.
+const CAMERA_PITCH = (35 * Math.PI) / 180
+// From the aim point (halfway to the rival, a little above the hips) back along the view.
+const CAMERA_DISTANCE = 3.8
+const AIM_AHEAD = 0.65
+const AIM_HEIGHT = 0.3
+const SHOULDER_OFFSET = 0.45
+
+/** Over your own shoulder, looking down at the duel. Follows your hips as you walk. */
 function ShoulderCamera({ frameRef, mySlot, groundY }: {
   frameRef: RefObject<ArenaFrame | null>
   mySlot: PlayerSlot
@@ -191,9 +201,14 @@ function ShoulderCamera({ frameRef, mySlot, groundY }: {
       : toThree([0, 1, mySlot === 1 ? 0 : 1.3])
     // The camera isn't inside the arena's ground group, so it adds the ground height itself.
     hips.y += groundY
-    const desired = hips.clone().addScaledVector(forward, -2.3).addScaledVector(right, 0.55).add(new THREE.Vector3(0, 0.95, 0))
+    const aim = hips.clone().addScaledVector(forward, AIM_AHEAD).add(new THREE.Vector3(0, AIM_HEIGHT, 0))
+    const desired = aim
+      .clone()
+      .addScaledVector(forward, -CAMERA_DISTANCE * Math.cos(CAMERA_PITCH))
+      .addScaledVector(right, SHOULDER_OFFSET)
+      .add(new THREE.Vector3(0, CAMERA_DISTANCE * Math.sin(CAMERA_PITCH), 0))
     camera.position.lerp(desired, 0.12)
-    target.current.lerp(hips.clone().addScaledVector(forward, 1.4).add(new THREE.Vector3(0, 0.45, 0)), 0.12)
+    target.current.lerp(aim, 0.12)
     camera.lookAt(target.current)
   })
   return null
