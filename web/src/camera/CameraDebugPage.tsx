@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { createBattleInput, stepBattleInput, type BattleInputState } from "../vision/battleInput"
+import { createHandLock, resetHandLock, tickHandLock, type HandLockState } from "../vision/handLock"
+import { classifyGesture } from "../vision/landmarks"
 import type { BattleCommand, Phase, TouchInput } from "../vision/types"
 import {
   createRockVisual,
@@ -34,6 +36,7 @@ export function CameraDebugPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const battleRef = useRef<BattleInputState>(createBattleInput(performance.now()))
   const rockRef = useRef<RockVisualState>(createRockVisual())
+  const lockRef = useRef<HandLockState>(createHandLock())
   const touchRef = useRef<TouchInput>({ ...idleTouch })
   const visionRef = useRef<VisionBundle | null>(null)
   const stopCameraRef = useRef<(() => void) | null>(null)
@@ -45,6 +48,7 @@ export function CameraDebugPage() {
   const [status, setStatus] = useState("Idle")
   const [cameraKind, setCameraKind] = useState<DebugCameraKind | null>(null)
   const [cameraNote, setCameraNote] = useState("")
+  const [cameraWide, setCameraWide] = useState(false)
   const [phase, setPhase] = useState<Phase>("IDLE")
   const [gesture, setGesture] = useState("none")
   const [intent, setIntent] = useState("lost")
@@ -52,6 +56,8 @@ export function CameraDebugPage() {
   const [handCount, setHandCount] = useState(0)
   const [poseOk, setPoseOk] = useState(false)
   const [rockMode, setRockMode] = useState("hidden")
+  const [lockPhase, setLockPhase] = useState<HandLockState["phase"]>("calibrating")
+  const [lockProgress, setLockProgress] = useState(0)
   const [commandLog, setCommandLog] = useState<LogLine[]>([])
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
@@ -77,6 +83,12 @@ export function CameraDebugPage() {
     setTouchUi(next)
   }
 
+  function recalibrate() {
+    lockRef.current = resetHandLock()
+    setLockPhase("calibrating")
+    setLockProgress(0)
+  }
+
   async function start() {
     setError(null)
     setStatus("Loading MediaPipe…")
@@ -92,6 +104,7 @@ export function CameraDebugPage() {
       stopCameraRef.current = session.stop
       setCameraKind(session.kind)
       setCameraNote(session.note)
+      setCameraWide(session.wide)
 
       const video = videoRef.current
       if (!video) throw new Error("Missing video element")
@@ -100,7 +113,10 @@ export function CameraDebugPage() {
 
       battleRef.current = createBattleInput(performance.now())
       rockRef.current = createRockVisual()
-      setRockMode("hidden")
+      lockRef.current = createHandLock()
+      setLockPhase("calibrating")
+      setLockProgress(0)
+      setRockMode("ground")
       setRunning(true)
       setStatus("Running")
       loop()
@@ -151,12 +167,20 @@ export function CameraDebugPage() {
         poseRef.current = poseFromLandmarker(poseResult)
       }
 
+      const lock = tickHandLock(lockRef.current, { nowMs, hands })
+      lockRef.current = lock
+      setLockPhase(lock.phase)
+      setLockProgress(lock.progress01)
+
+      const gesturesPaused = lock.phase !== "locked"
       const stepped = stepBattleInput(battleRef.current, {
         nowMs,
         hands,
         touch: touchRef.current,
         sessionId: SESSION_ID,
         matchId: MATCH_ID,
+        lockHint: lock.phase === "locked" ? lock.hint : null,
+        gesturesPaused,
       })
       battleRef.current = stepped.state
       pushCommands(stepped.commands)
@@ -168,12 +192,19 @@ export function CameraDebugPage() {
       setPoseOk(Boolean(poseRef.current))
 
       const ownHand = hands.find((hand) => hand.id === stepped.ownHandId) ?? null
+      const rockHand =
+        ownHand ??
+        (gesturesPaused ? null : hands.find((hand) => hand.landmarks.length >= 21) ?? null)
       const rockFrame = tickRockVisual(rockRef.current, {
         nowMs,
         phase: stepped.phase,
         commands: stepped.commands,
-        ownHand,
+        ownHand: rockHand,
         target: opponentTarget(poseRef.current),
+        palmOpen:
+          stepped.gesture === "palm" ||
+          touchRef.current.lift ||
+          (rockHand ? classifyGesture(rockHand.landmarks) === "palm" : false),
       })
       rockRef.current = rockFrame.state
       setRockMode(rockFrame.state.mode)
@@ -186,7 +217,7 @@ export function CameraDebugPage() {
       }
       const ctx = canvas.getContext("2d")
       if (ctx) {
-        drawCameraOverlay(ctx, width, height, hands, stepped.ownHandId, poseRef.current, rockFrame.drawAt)
+        drawCameraOverlay(ctx, width, height, hands, stepped.ownHandId, poseRef.current, rockFrame.draw.rocks)
       }
     }
 
@@ -198,19 +229,27 @@ export function CameraDebugPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const lockBanner =
+    lockPhase === "calibrating"
+      ? `Hold your hand low in front of the lens for 2 seconds… ${Math.round(lockProgress * 100)}%`
+      : lockPhase === "lost"
+        ? "Hand lock lost — Recalibrate. Touch Lift/Throw/Block still work."
+        : "Hand locked — opponent hands ignored."
+
   return (
     <main className="page">
       <header className="header">
         <h1>Camera debug</h1>
         <p>
-          Role C harness — MediaPipe hands + pose into <code>stepBattleInput</code>. Screen-space rock
-          only (no gun/saber, no catch). Not the lobby.
+          Role C harness — hand lock, ~0.5× rear when available, ground rocks, palm pickup, velocity
+          throw. Screen-space overlay for iPhone (not WebXR / ARKit). Not the lobby.
         </p>
       </header>
 
       <section className="stage">
         <video ref={videoRef} className="video" playsInline muted autoPlay />
         <canvas ref={canvasRef} className="overlay" />
+        {running ? <div className={`lock-banner ${lockPhase}`}>{lockBanner}</div> : null}
       </section>
 
       <section className="controls">
@@ -223,6 +262,9 @@ export function CameraDebugPage() {
             Stop
           </button>
         )}
+        <button type="button" onClick={recalibrate} disabled={!running}>
+          Recalibrate
+        </button>
         <button
           type="button"
           className={touchUi.lift ? "on" : ""}
@@ -270,6 +312,11 @@ export function CameraDebugPage() {
         </p>
         <p>
           <strong>Camera</strong> {cameraKind ?? "—"} {cameraNote ? `· ${cameraNote}` : ""}
+          {cameraKind === "environment" && !cameraWide ? " · banner: wide unavailable" : ""}
+        </p>
+        <p>
+          <strong>Hand lock</strong> {lockPhase}
+          {lockPhase === "calibrating" ? ` · ${Math.round(lockProgress * 100)}%` : ""}
         </p>
         <p>
           <strong>Phase</strong> {phase} · <strong>gesture</strong> {gesture} · <strong>intent</strong>{" "}
@@ -280,9 +327,12 @@ export function CameraDebugPage() {
           <strong>pose</strong> {poseOk ? "yes" : "no"} · <strong>rock</strong> {rockMode}
         </p>
         {error ? <p className="error">{error}</p> : null}
+        {!cameraWide && cameraKind === "environment" ? (
+          <p className="warn">Wide lens unavailable — default rear. Use rear / 0.5 if the phone offers it.</p>
+        ) : null}
         <p className="hint">
-          Framing: hand low/near the lens, opponent farther. Green = own hand. Rock floats on hold, arcs
-          on throw, vanishes on cancel. Block is the defense — there is no catch. Gun/saber are deferred.
+          Calibrate your near hand first. Rocks sit in the lower third — open palm (or Lift) to pick up;
+          swipe + fist or Throw to fling toward upper-center / shoulders. Cancel drops. No gun/saber yet.
         </p>
       </section>
 

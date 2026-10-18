@@ -15,6 +15,7 @@ npm run dev
 
 Open the printed HTTPS URL (self-signed), usually `https://localhost:5173`. Accept the certificate warning. Click **Start camera**.
 
+- Prefers rear ~0.5× / min zoom when the phone exposes it; otherwise shows “Wide lens unavailable — default rear.”
 - Laptop with no rear lens falls back to the front camera and labels that clearly.
 - `localhost` / Vite HTTPS both count as a secure context for `getUserMedia`.
 
@@ -28,18 +29,26 @@ With the Vite server running:
 # Cloudflare (no account required for a quick tunnel)
 npx --yes cloudflared tunnel --url https://localhost:5173
 
-# or ngrok
+# or ngrok (Vite allows .ngrok-free.app and .ngrok-free.dev)
 ngrok http https://localhost:5173
 ```
 
-Open the `https://…` tunnel URL on the **demo phone**, allow camera, use the **rear** lens when prompted, then check:
+Open the tunnel URL **with the camera harness**:
 
-1. Own hand (green) and opponent pose health stub together in one frame.
-2. Palm hold → rock floats above the hand + `startLift` in the command log.
-3. Fist → rock arcs toward the opponent + `releaseRock` (no catch).
-4. Cover the lens / leave frame / Cancel → rock vanishes + `cancelLift`, never a throw mid-flight from loss.
-5. Touch Lift / Throw / Block / Cancel emit the same command names as gestures.
-6. Deny permission once and confirm a clear error (no crash).
+`https://YOUR-SUBDOMAIN.ngrok-free.dev/?debug=camera`
+
+(Tap through ngrok’s interstitial if shown.) Allow camera, use the **rear / 0.5×** lens when the phone offers it, then check:
+
+1. **Hand lock**: hold your hand low for ~2s; opponent’s hand must not fire lift/throw. Lost lock → Recalibrate (touch still works).
+2. Own locked hand (green) and opponent pose health stub together in one frame.
+3. **Ground rocks** in the lower third as soon as the camera starts.
+4. Open palm near a rock (or hold **Lift**) → rock rises to the hand (`lifting` → `held`, larger while held).
+5. Swipe + fist / **Throw** → rock arcs toward upper-center / shoulders + `releaseRock`.
+6. Cover the lens / Cancel → rock drops; never accidental mid-flight launch from tracking loss.
+7. Touch Lift / Throw / Block / Cancel emit the same command names as gestures.
+8. Deny permission once and confirm a clear error (no crash).
+
+This is a **screen-space overlay POC** (fake ground band + MediaPipe hand tracking). It works on iPhone Safari over HTTPS. Floor-mesh WebXR was removed (needs Android Chrome or a commercial WebAR SDK such as 8th Wall for real plane AR on iPhone).
 
 Record pass/fail in `docs/task-board.md` or `docs/qa-checklist.md` with device/browser. This harness does not need A’s lobby or B’s WebSocket for the framing gate.
 

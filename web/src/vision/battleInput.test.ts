@@ -110,4 +110,40 @@ describe("battle input", () => {
     expect(result.intent).toBe("lost")
     expect(result.phase).toBe("IDLE")
   })
+
+  it("prefers the locked near hand over a larger distant opponent hand", () => {
+    const own = synthesizeHand("palm", { id: "own", scale: 1.5, origin: { x: 0.55, y: 0.84 } })
+    const other = synthesizeHand("palm", { id: "other", scale: 2.2, origin: { x: 0.4, y: 0.28 } })
+    const hint = { center: { x: 0.55, y: 0.84 }, minSpan: 0.08 }
+    const result = stepBattleInput(createBattleInput(0), {
+      nowMs: 0,
+      hands: [other, own],
+      touch: null,
+      lockHint: hint,
+      ...ids,
+    })
+    expect(result.ownHandId).toBe("own")
+    expect(result.phase).toBe("CHARGING")
+  })
+
+  it("pauses camera gestures while calibrating but still accepts touch lift", () => {
+    const hands = ownAndOpponent("palm")
+    const paused = stepBattleInput(createBattleInput(0), {
+      nowMs: 0,
+      hands,
+      touch: null,
+      gesturesPaused: true,
+      ...ids,
+    })
+    expect(paused.intent).toBe("ambiguous")
+    expect(paused.commands).toEqual([])
+    const touched = stepBattleInput(paused.state, {
+      nowMs: 0,
+      hands,
+      touch: { ...idleTouch, lift: true },
+      gesturesPaused: true,
+      ...ids,
+    })
+    expect(touched.phase).toBe("CHARGING")
+  })
 })

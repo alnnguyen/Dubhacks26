@@ -4,7 +4,7 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 
 ## Doing
 
-- C (Alan): camera debug harness + MediaPipe + screen-space rock (hold/arc/cancel) in `web/`. Gun/saber deferred per PLAN. Run `cd web && npm run dev`, tunnel for phones — framing checklist in `web/README.md`. Human must still mark phone pass/fail on demo devices. Still needs B's frozen command schema and A's lobby mount for multiplayer.
+- C (Alan): hand lock (2s calibrate) + ~0.5× rear preference + first-person rock retune on camera harness. Unit tests green (`cd web && npm test` 67). Human phone pass/fail via `/?debug=camera` + ngrok still open. Gun/saber deferred. Still needs B command map (`throwRock`/`startBlock`) and A lobby mount.
 
 ## Ready — unblock first
 

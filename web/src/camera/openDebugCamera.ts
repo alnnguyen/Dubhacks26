@@ -10,7 +10,6 @@ export type DebugCameraKind = "environment" | "user"
 
 export type DebugCameraSession = RearCameraSession & {
   kind: DebugCameraKind
-  note: string
 }
 
 const USER_CAMERA_CONSTRAINTS: MediaStreamConstraints = {
@@ -31,7 +30,6 @@ export async function openDebugCamera(
     return {
       ...session,
       kind: "environment",
-      note: "Rear / environment camera",
     }
   } catch (error) {
     if (!(error instanceof CameraStartError) || error.code === "insecure" || error.code === "denied") {
@@ -57,7 +55,8 @@ export async function openDebugCamera(
   return {
     stream,
     kind: "user",
-    note: "Laptop fallback — front / user camera (not the phone rear framing setup)",
+    wide: false,
+    note: "Laptop fallback — front / user camera (not the phone rear / 0.5× framing setup)",
     stop() {
       for (const track of stream.getTracks()) track.stop()
     },

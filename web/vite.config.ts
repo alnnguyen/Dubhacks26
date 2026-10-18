@@ -8,11 +8,21 @@ export default defineConfig({
     host: true,
     port: 5173,
     https: true,
-    allowedHosts: [".trycloudflare.com", ".ngrok-free.app", ".ngrok.io"],
+    allowedHosts: [
+      ".trycloudflare.com",
+      ".ngrok-free.app",
+      ".ngrok-free.dev",
+      ".ngrok.io",
+    ],
   },
   preview: {
     host: true,
-    allowedHosts: [".trycloudflare.com", ".ngrok-free.app", ".ngrok.io"],
+    allowedHosts: [
+      ".trycloudflare.com",
+      ".ngrok-free.app",
+      ".ngrok-free.dev",
+      ".ngrok.io",
+    ],
   },
   build: {
     chunkSizeWarningLimit: 1500,
