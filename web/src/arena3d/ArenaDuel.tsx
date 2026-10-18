@@ -1,3 +1,4 @@
+import { isFinishingHit } from "../vfx/observations";
 import { Component, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import QRCode from "qrcode";
@@ -242,6 +243,9 @@ export function ArenaDuel({
       if (at)
         flashRef.current = {
           kind: event.outcome,
+          damage: event.damage,
+          isKill: isFinishingHit(event, client.view()),
+          targetSlot: defender?.slot,
           at,
           startedMs: performance.now(),
         };

@@ -2,6 +2,10 @@ import { Suspense, use, useMemo, useRef, type RefObject } from "react"
 import * as THREE from "three"
 import { Canvas, useFrame } from "@react-three/fiber"
 import { Bloom, EffectComposer } from "@react-three/postprocessing"
+import { VFX } from "../vfx/config"
+import { VfxProvider, VfxLayer, VfxGround } from "../vfx/VfxLayer"
+import { HitReaction } from "../vfx/HitReaction"
+import type { VisualImpact } from "../vfx/runtime"
 import type { ArenaFrame, PlayerSlot, Vec3 } from "../../../server/src/contracts"
 import { MarsEnvironment, loadTerrainSampler } from "../arena/mars/MarsEnvironment"
 import { cellToWorld, type Board } from "./gridBoard"
@@ -17,7 +21,7 @@ import { cellToWorld, type Board } from "./gridBoard"
  */
 export const toThree = (v: Vec3): THREE.Vector3 => new THREE.Vector3(v[0], v[1], -v[2])
 
-export type ImpactFlash = { kind: "blocked" | "hit"; at: Vec3; startedMs: number }
+export type ImpactFlash = VisualImpact
 
 // The swing trail: about this much of the blade's recent path, as a fading ribbon.
 const TRAIL_MS = 120
@@ -88,7 +92,7 @@ function Avatar({ frameRef, slot, color, flashRef }: {
   })
 
   return (
-    <group>
+    <HitReaction slot={slot}><group>
       {BONES.map((_, k) => (
         <mesh key={k} ref={(m) => void (limbs.current[k] = m)} material={material} castShadow>
           <cylinderGeometry args={[LIMB_RADIUS, LIMB_RADIUS, 1, 10]} />
@@ -97,7 +101,7 @@ function Avatar({ frameRef, slot, color, flashRef }: {
       <mesh ref={head} material={material} castShadow>
         <sphereGeometry args={[HEAD_RADIUS, 20, 14]} />
       </mesh>
-    </group>
+    </group></HitReaction>
   )
 }
 
@@ -341,12 +345,13 @@ function Fighters({ frameRef, flashRef, mySlot, board, groundY }: FightersProps 
   const rivalSlot: PlayerSlot = mySlot === 1 ? 2 : 1
   return (
     <group position={[0, groundY, 0]}>
+      <VfxGround value={groundY} />
       <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} />
       <Avatar frameRef={frameRef} slot={mySlot} color={COLORS.you} flashRef={flashRef} />
       <Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} />
       <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} />
       <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} />
-      <Impact flashRef={flashRef} />
+      {!VFX.enabled && <Impact flashRef={flashRef} />}
       <DuelMarkers frameRef={frameRef} mySlot={mySlot} board={board} />
     </group>
   )
@@ -377,6 +382,7 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
       camera={{ fov: 55, near: 0.05, far: 400, position: [0, 2, 2.5] }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
+      <VfxProvider>
       <FrameSampler getFrame={getFrame} frameRef={frameRef} />
       {basicGraphics ? <>
         <color attach="background" args={["#1b0f0b"]} />
@@ -394,12 +400,12 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
           </>
         }
       >
-        <MarsEnvironment quality="low" obstacles={[]} />
+        <MarsEnvironment quality="low" obstacles={[]} dustEnabled={!VFX.enabled} />
         <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} />
       </Suspense>}
-      {!basicGraphics && <EffectComposer multisampling={0} enableNormalPass={false}>
-        <Bloom mipmapBlur intensity={0.9} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.55} />
-      </EffectComposer>}
+      {!VFX.enabled && !basicGraphics && <EffectComposer multisampling={0} enableNormalPass={false}><Bloom mipmapBlur intensity={0.9} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.55}/></EffectComposer>}
+      <VfxLayer frameRef={frameRef} flashRef={flashRef} basic={basicGraphics} />
+      </VfxProvider>
     </Canvas>
   )
 }

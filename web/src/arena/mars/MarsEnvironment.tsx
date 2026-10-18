@@ -18,6 +18,8 @@ export function loadTerrainSampler() {
 }
 
 export interface MarsEnvironmentProps {
+  /** Optional arena VFX replacement; other consumers keep the original dust by default. */
+  dustEnabled?: boolean
   quality: GraphicsQuality
   obstacles: ArenaObstacle[]
   reducedMotion?: boolean
@@ -59,7 +61,7 @@ function MarsLights({ sunDir, quality }: { sunDir: THREE.Vector3; quality: Graph
 }
 
 /** The Jezero arena, meant to be placed inside an R3F <Canvas>. Player stands at the origin facing -z. */
-export function MarsEnvironment({ quality, obstacles, reducedMotion = false }: MarsEnvironmentProps) {
+export function MarsEnvironment({ quality, obstacles, reducedMotion = false, dustEnabled = true }: MarsEnvironmentProps) {
   const sampler = use(loadTerrainSampler())
   const sunDir = useMemo(() => sunDirection(render.sunElevationDeg, render.sunAzimuthDeg), [])
   const skyColors = render.sky
@@ -77,7 +79,7 @@ export function MarsEnvironment({ quality, obstacles, reducedMotion = false }: M
         <MarsRocks sampler={sampler} obstacles={obstacles} quality={quality} />
         <BakeShadows />
       </Suspense>
-      <Dust count={quality === 'high' ? 700 : 300} reducedMotion={reducedMotion} />
+      {dustEnabled && <Dust count={quality === 'high' ? 700 : 300} reducedMotion={reducedMotion} />}
     </>
   )
 }

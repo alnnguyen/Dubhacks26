@@ -136,3 +136,17 @@ Shared music/effects mixer and supplied audio pack integrated into alex-dev work
 - Goal: lightsaber-only combat, as requested by Justin. Removed rock/gun server commands, state, events and rules; matching web client API; the old phone-camera duel (LiveDuel, CameraDebugPage, DevMars, vision, overlay, gun model) and its routes. See docs/contracts.md. Excludes D's Grok briefing fixtures, shared manifests/dependencies and deployment.
 - Validation: server build plus 70 game/session/socket tests passed; web typecheck, 94 tests (one opt-in live test skipped) and production build passed. No device check yet.
 - Status: Integration; staged on saber-duel for Justin to commit. No new environment variables, external messages or deployment.
+## Mars arena visual polish — feature/saber-duel-ui
+
+Goal: add read-only atmosphere/combat presentation; preserve working saber gameplay. New code lives in `web/src/vfx/`; small visual wiring edits only in ArenaScene, ArenaDuel (existing flash metadata), MarsEnvironment (default-on old dust option) and FlightApp (knockout overlay). No backend/contracts/controls/physics changes, no dependencies/environment variables/deployment. See `web/src/vfx/README.md` for module map, exact observer hooks, measured draw calls/FPS, limitations and toggles. Acceptance: typecheck/build, existing frontend suite, pool/visual-clock tests, browser high/low/master-off and synthetic impact checks. All 186 frontend tests passed (one opt-in live test skipped); actual multiplayer/device combat not repeated. New atmosphere uses two draw calls; observed total 67 baseline vs 75 high, roughly mid-80s FPS locally. Status: locally verified, ready for visual review; no deployment.
+
+### Arena scenery and pilot presentation follow-up
+- Goal/owned paths: visual-only layers in `web/src/vfx`, minimal FlightApp result glue. No interface, input, combat, networking or physics changes.
+- Added colored dueling pools/spotlights, short-range saber illumination, decorative distant wreck/beacon/smoke, first-tracking scan rings, joint-mounted helmet frames and shoulder insignias, separate result portrait camera, restrained rust-red haze.
+- Identity details currently distinguish the two pilots; no new customization/network contract was introduced.
+- Checks: typecheck, production build, four VFX runtime tests passed; synthetic arena visually inspected. Real multiplayer and result-screen visual verification remain outstanding. No new dependencies or environment variables.
+- Follow-up preview: fixed a VFX context hot-reload failure by extracting `context.ts`; preview renders afterward. One medium-quality dev sample showed 46 FPS / 87 calls; this is not a controlled benchmark or a 60 FPS claim.
+
+### Animation integration — October 18
+- User authorized pushing and merging the arena animation work into the working `saber-duel` branch, then creating `saturn` from that merge.
+- Preserved both sides of the task-board documentation conflict. Frontend suite after integration: 98 passed, one opt-in live test skipped. No deployment.
