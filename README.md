@@ -1,4 +1,4 @@
-# Jedi Space Battles
+# KO.rbit
 
 **DubHacks 2026** · Two phones. One cockpit. A camera duel shaped by real planetary gravity.
 
@@ -128,6 +128,8 @@ datasets.md   NASA / JPL / imagery research for SpaceXAI provenance
 | B | Justin | Server, lobby/match contracts, networking |
 | C | Alan | Camera, gestures, overlays, gun/rock CV |
 | D | Alex | Photon, Grok Voice / LYRA, Cursor + sponsor evidence |
+
+**Web:** default `/` is onboarding → cockpit (`BridgeApp`; next glue is FlightApp’s real lobby). Other routes: `/?explore=1` (free-flight solar system + hyperspace + challenge→duel handoff), `/?camera=1` / `/?debug=camera` (Alan harness), `/?dev=mars` (camera + Mars, no match), `/?arena=mars` (scene only), `/?pvp=1` (LiveDuel rehearsal). Real challenge → briefing → duel lives in `FlightApp`.
 
 Rules of engagement: [`AGENTS.md`](AGENTS.md) · Living plan: [`PLAN.md`](PLAN.md) · Board: [`docs/task-board.md`](docs/task-board.md)
 

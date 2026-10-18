@@ -722,8 +722,6 @@
 @media(prefers-reduced-motion:reduce) { .ex-planet-backdrop * { scroll-behavior:auto; } }
 .ex-root:has(.ex-planet-backdrop) .ex-exit { visibility:hidden; }
 
-.sd-pilot-hint{position:absolute;left:50%;bottom:calc(var(--safe-b) + 18px);transform:translateX(-50%);margin:0;padding:8px 14px;max-width:min(420px,calc(100vw - 32px));text-align:center;font:11px var(--mono);color:var(--muted);background:#030d16a6;border:1px solid var(--holo-faint);pointer-events:none}
-
 /* Pilot contacts actions + rival ship labels (multiplayer exploration) */
 .ex-contacts__actions { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .ex-contacts[open] { z-index: 31; }

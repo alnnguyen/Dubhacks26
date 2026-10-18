@@ -14,9 +14,8 @@ class ReplayGraphicsBoundary extends Component<{ children: ReactNode; onBasic: (
   render() { return this.state.error ? <div className="cinematic-error" role="alert"><p>Replay graphics could not load. The webcam recording is still available.</p><button onClick={this.props.onBasic}>Retry with simple graphics</button></div> : this.props.children; }
 }
 
-export function CinematicReplay({ recording, moments = EMPTY, board, mySlot, destination, fixture = false, onSync, pauseSignal = 0 }: {
+export function CinematicReplay({ recording, moments = EMPTY, board, mySlot, destination = 'mars', fixture = false, onSync, pauseSignal = 0 }: {
   recording: ArenaRecording; moments?: ReplayMoment[]; board: Board; mySlot: PlayerSlot;
-  /** The world the duel was fought on; defaults to Mars like the live scene. */
   destination?: DestinationId;
   fixture?: boolean;
   pauseSignal?: number;

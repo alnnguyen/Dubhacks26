@@ -237,7 +237,7 @@ export function ExploreUniverse({
       {!catalogMode && <ExploreStars count={starCount} warp={warp} radius={environment === 'deep-field' ? 1800 : 2600} />}
       {catalogMode && <CatalogScene destination={destination} onLearn={onLearn ?? (() => {})} />}
       <MilkyWayDisk visible={milky} />
-
+      
       {environment === 'solar' && <SolarBodies quality={quality} />}
       {environment === 'mars-surface' && (
         <>

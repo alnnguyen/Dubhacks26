@@ -154,7 +154,8 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
   const { settings, view, mood, anchors, cinematic } = props;
   const high = settings.quality === 'high';
   const cinematicActive = cinematic.phase !== 'idle';
-  const pose = mood === 'launch' ? CAMERA_POSES.launch : CAMERA_POSES[view];
+  // Launching from the pilot seat pushes forward from the seat itself, not from the cabin center.
+  const pose = mood === 'launch' ? (view === 'pilot' ? CAMERA_POSES.pilotLaunch : CAMERA_POSES.launch) : CAMERA_POSES[view];
   const marsTarget = useRef<THREE.Group>(null);
   const maxDpr = cinematicActive ? 1.2 : high ? Math.min(window.devicePixelRatio || 1, 1.75) : 1.25;
   const dpr: [number, number] = [1, maxDpr];

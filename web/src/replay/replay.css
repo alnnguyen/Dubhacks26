@@ -50,6 +50,3 @@
 .cinematic-error { position:absolute; inset:0; z-index:6; padding:35px; background:#08111b; }
 @media(max-width:600px){ .cinematic-stage { height:330px; } .cinematic-heading { flex-direction:column; gap:4px; } .cinematic-title { right:4%; left:4%; padding:9px; } .cinematic-title strong { font-size:20px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; } .cinematic-title span,.cinematic-title small { font-size:8px; }.cinematic-impact { top:19%; font-size:9px; }.cinematic-heading+ p { font-size:12px; } }
 @media(prefers-reduced-motion:reduce){ .cinematic-transition { display:none; }.cinematic-title { animation:none; } }
-
-.arena-result:has(.replay-panel) { width:min(1000px,calc(100% - 32px)); max-height:88dvh; overflow:auto; box-sizing:border-box; text-align:left; }
-.si-setup-options .arena-replay-optin { display:flex; align-items:flex-start; gap:8px; max-width:420px; margin:12px 0; font-size:10px; line-height:1.6; }

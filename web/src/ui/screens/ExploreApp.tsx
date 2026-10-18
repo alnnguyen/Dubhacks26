@@ -1,10 +1,13 @@
-import { AnimatePresence } from 'motion/react';
+import { BRAND_NAME } from '../brand';
+import { AnimatePresence, motion } from 'motion/react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExploreBoundary } from '../components/explore/ExploreBoundary';
 import { useProgress } from '@react-three/drei';
 import { isLocalDestination, type LocalZoomCommand, type LocalZoomRequest } from '../components/explore/localNavigation';
 import { ExploreHud, type ExploreMode } from '../components/explore/ExploreHud';
 import { MissionBanner, type Mission } from '../components/explore/MissionBanner';
+import { ModeSwitchDialog } from '../components/explore/ModeSwitchDialog';
+import { ExploreIntro } from '../components/explore/ExploreIntro';
 import { DESTINATIONS, destinationById, type ExploreDestination } from '../components/explore/destinations';
 import type { FlightInput, FlightTelemetry } from '../components/explore/ShipFlightController';
 import { planetFacts, scienceForBodyId, type BodyScience } from '../components/explore/bodiesScience';
@@ -23,8 +26,6 @@ import '../styles/spaceship.css';
 import '../styles/explore.css';
 import '../styles/galaxyBrand.css';
 import '../../onboarding/onboarding.css';
-import { gameAudio } from '../../audio/gameAudio';
-import { useAudioScene } from '../../audio/useAudioScene';
 
 const ExploreScene = lazy(() =>
   import('../components/explore/ExploreScene').then((m) => ({ default: m.ExploreScene })),
@@ -33,6 +34,7 @@ const HyperspaceTunnel = lazy(() =>
   import('../../onboarding/HyperspaceTunnel').then((m) => ({ default: m.HyperspaceTunnel })),
 );
 
+const LAUNCH_MS = 1700;
 
 function initialSettings(): SceneSettings {
   const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -65,11 +67,34 @@ export interface ExploreAppProps {
   settings?: SceneSettings;
   onSettingsChange?: (s: SceneSettings) => void;
   onExit?: () => void;
-  onBattleLaunch?: () => void;
+  /** Both pilots engaged a match: leave free flight so the cockpit can run the Mars travel sequence. */
+  onMatchLaunch?: () => void;
+  /** Engage button handler; defaults to the lobby's launch action. */
+  onEngage?: () => void;
+  /** Live connection for LYRA's Grok Voice. Omitted in Demo, where she uses the local guide. */
   copilotClient?: GameClient;
 }
 
-export function ExploreApp({ lobby: external, settings: settingsProp, onSettingsChange, onExit, onBattleLaunch, copilotClient }: ExploreAppProps = {}) {
+export function ExploreApp(props: ExploreAppProps = {}) {
+  const [entryMode, setEntryMode] = useState<ExploreMode | null>(null);
+  // Warm modules while the pilot chooses; effects still wait for explicit entry.
+  useEffect(() => {
+    void import('../../onboarding/HyperspaceTunnel').catch(() => undefined);
+    void import('../components/explore/ExploreScene').catch(() => undefined);
+  }, []);
+  return <>
+    {entryMode !== null && <ExploreFlight {...props} entryMode={entryMode} />}
+    <AnimatePresence initial={false}>
+      {entryMode === null && <motion.div key="mode-choice" className="ex-entry-choice"
+        exit={{opacity:0}} transition={{duration:props.settings?.reducedMotion ? .15 : .4}}>
+        <ExploreIntro initialMode={initialMode()} reducedMotion={props.settings?.reducedMotion}
+          onEnter={setEntryMode} onBack={() => props.onExit ? props.onExit() : window.location.assign('/')} />
+      </motion.div>}
+    </AnimatePresence>
+  </>;
+}
+
+function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChange, onExit, onMatchLaunch, onEngage, copilotClient, entryMode }: ExploreAppProps & { entryMode: ExploreMode }) {
   const mock = useMockLobby({ enabled: false });
   const lobby = external ?? mock.lobby;
   const { challenge, actions } = lobby;
@@ -92,7 +117,9 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
   const missionSeq = useRef(0);
   const announce = useCallback((m: Omit<Mission, 'id'>) => setMission({ ...m, id: ++missionSeq.current }), []);
   const clearMission = useCallback(() => setMission(null), []);
-  const [mode, setMode] = useState<ExploreMode>(initialMode);
+  const [mode, setMode] = useState<ExploreMode>(entryMode);
+  const [pendingMode, setPendingMode] = useState<ExploreMode | null>(null);
+  const [wipe, setWipe] = useState(0);
   const entered = useRef(false);
   useEffect(() => { try { localStorage.setItem(MODE_KEY, mode); } catch { /* private mode */ } }, [mode]);
   // Peaceful explore: other pilots' ships and contacts are hidden, and you stop sharing your location.
@@ -100,8 +127,6 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
   const visiblePilots = peaceful ? NO_PILOTS : lobby.nearby;
   const [pendingJump, setPendingJump] = useState<ExploreDestination | null>(null);
   const [jumping, setJumping] = useState(false);
-  useAudioScene(jumping ? 'travel' : 'cockpit');
-  useEffect(() => jumping ? gameAudio.play('jump') : undefined, [jumping]);
   const [resetToken, setResetToken] = useState(0);
   const [zoomRequest, setZoomRequest] = useState<LocalZoomRequest>();
   const zoomSequence = useRef(0);
@@ -113,6 +138,10 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
   const [highlightLayer,setHighlightLayer]=useState(-1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sceneReady, setSceneReady] = useState(false);
+  const [entryWarpDone, setEntryWarpDone] = useState(false);
+  const [entryRevealed, setEntryRevealed] = useState(false);
+  useEffect(() => { if (entryWarpDone && sceneReady) setEntryRevealed(true); }, [entryWarpDone, sceneReady]);
+  const entering = !entryRevealed;
   const [sceneAttempt, setSceneAttempt] = useState(0);
   const [slowLoad, setSlowLoad] = useState(false);
   const { active: loadingAssets, progress: assetProgress, errors: assetErrors } = useProgress();
@@ -122,6 +151,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
     const timer = setTimeout(() => setSlowLoad(true), 12000);
     return () => clearTimeout(timer);
   }, [sceneReady, sceneAttempt]);
+  const [handoff, setHandoff] = useState<NearbyPilot | null>(null);
   const [telemetry, setTelemetry] = useState<FlightTelemetry>({
     speed: 0,
     nearestName: '—',
@@ -145,6 +175,15 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       /* ignore */
     }
   }, [settings, settingsProp]);
+
+  const matchLaunch = useRef(onMatchLaunch); matchLaunch.current = onMatchLaunch;
+  useEffect(() => {
+    if (challenge.kind !== 'launching') return;
+    if (matchLaunch.current) { matchLaunch.current(); return; }
+    const opp = challenge.opponent;
+    const id = setTimeout(() => setHandoff(opp), settings.reducedMotion ? 300 : LAUNCH_MS);
+    return () => clearTimeout(id);
+  }, [challenge, settings.reducedMotion]);
 
   useEffect(() => {
     if (selectedId && !lobby.nearby.some((p) => p.id === selectedId)) setSelectedId(null);
@@ -201,6 +240,20 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
     return () => clearTimeout(timer);
   }, [jumping, onWarpFinished, settings.reducedMotion]);
 
+  // Entering a mode closes panels, flies you back to the starting point near Earth, then plays the mode title.
+  const confirmMode = () => {
+    const next = pendingMode;
+    if (!next) return;
+    setPendingMode(null);
+    setNavOpen(false); setCreditsOpen(false); setLearn(null); setCutawayOpen(false); setInspectId(null);
+    setInput(EMPTY_INPUT); setZoomRequest(undefined);
+    setMode(next);
+    setWipe((n) => n + 1);
+    startJump('sol');
+    announce({ eyebrow: next === 'explore' ? 'Mode / peaceful explore' : 'Mode / multiplayer flight', lead: 'Entering', word: next === 'explore' ? 'Explore' : 'Flight',
+      detail: 'Back at the starting point near Earth', laser: true, holdMs: 2600 });
+  };
+
   const closeInspect = useCallback(() => {
     setCutawayOpen(false);
     setInspectId(null);
@@ -228,7 +281,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
 
   const busy = challenge.kind !== 'idle' && challenge.kind !== 'declined';
   const warp = jumping || challenge.kind === 'launching' ? 1 : 0;
-  const flightEnabled = sceneReady && !jumping && !navOpen && !creditsOpen && !learn && !inspectId && !busy;
+  const flightEnabled = sceneReady && !entering && !jumping && !navOpen && !creditsOpen && !learn && !inspectId && !handoff && !busy && !pendingMode;
   useEffect(() => { if (!flightEnabled) setInput(EMPTY_INPUT); }, [flightEnabled]);
   useEffect(() => {
     const clear = () => setInput(EMPTY_INPUT);
@@ -310,6 +363,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       data-quality={settings.quality}
       data-reduced-motion={settings.reducedMotion}
       data-ready={sceneReady}
+      data-entering={entering && !slowLoad}
       data-chrome="drive"
     >
       <ExploreBoundary key={`${sceneAttempt}-${sceneKey}`} fallback={
@@ -346,7 +400,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       <ExploreHud
         destination={destination}
         mode={mode}
-        onMode={setMode}
+        onMode={(next) => { if (next !== mode) setPendingMode(next); }}
         onBridge={() => onExit ? onExit() : window.location.assign('/')}
         onZoom={isLocalDestination(destination) ? requestZoom : undefined}
         ready={sceneReady}
@@ -415,16 +469,21 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
         onDecline={actions.decline}
         onCancel={actions.cancelChallenge}
         onDismiss={actions.dismiss}
-        onLaunch={onBattleLaunch ?? actions.launch}
+        onLaunch={onEngage ?? actions.launch}
       />
 
       <MissionBanner mission={mission} onDone={clearMission} />
+
+      <AnimatePresence>
+        {pendingMode && <ModeSwitchDialog key="mode-switch" mode={pendingMode} onEnter={confirmMode} onBack={() => setPendingMode(null)} />}
+      </AnimatePresence>
+      {wipe > 0 && <div key={wipe} className="gx-mode-wipe" aria-hidden />}
 
       <ExploreCopilot
         snapshot={snapshot}
         client={copilotClient}
         callsign={lobby.self.callsign}
-        hidden={!sceneReady || jumping || challenge.kind === "launching"}
+        hidden={!sceneReady || jumping || !!handoff}
         onAction={onLyraAction}
       />
 
@@ -453,6 +512,18 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
         <p>Expanding domain…</p>
       </div>
 
+      <AnimatePresence>
+        {entering && !slowLoad && <motion.div key="entry-warp" className="ex-entry-warp"
+          initial={{opacity:1}} exit={{opacity:0}} transition={{duration:settings.reducedMotion ? .2 : .65}}>
+          {settings.reducedMotion ? <EntryFade onFinished={() => setEntryWarpDone(true)} /> :
+            <ExploreBoundary fallback={<EntryFade onFinished={() => setEntryWarpDone(true)} />}>
+              <Suspense fallback={<div className="ob-warp"/>}>
+                <HyperspaceTunnel active caption="Entering flight…" durationMs={2200} onFinished={() => setEntryWarpDone(true)} />
+              </Suspense>
+            </ExploreBoundary>}
+        </motion.div>}
+      </AnimatePresence>
+
       {jumping && (
         <Suspense fallback={<div className="ob-warp" />}>
           <HyperspaceTunnel
@@ -464,12 +535,44 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
         </Suspense>
       )}
 
+      {handoff && (
+        <div className="sd-handoff" role="dialog" aria-modal="true" aria-labelledby="ex-handoff-title">
+          <div className="sd-challenge__card">
+            <p className="sd-eyebrow">Duel hand-off</p>
+            <h2 id="ex-handoff-title" className="sd-challenge__title">
+              Battle vs {handoff.callsign}
+            </h2>
+            <p className="sd-challenge__desc">Leave free flight for the camera duel.</p>
+            <div className="sd-challenge__actions">
+              <HoloButton variant="primary" onClick={() => (window.location.href = '/?pvp=1&from=explore')} autoFocus>
+                Enter camera duel
+              </HoloButton>
+              <HoloButton
+                onClick={() => {
+                  setHandoff(null);
+                  actions.dismiss();
+                }}
+              >
+                Stay flying
+              </HoloButton>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="sd-boot" data-done={sceneReady} aria-hidden={sceneReady}>
-        <p className="sd-eyebrow">Jedi Space Duels</p>
+        <p className="sd-eyebrow ko-wordmark">{BRAND_NAME}</p>
         <p className="sd-boot__line">{slowLoad ? 'Flight is taking longer to load' : 'Preparing your flight view…'}</p>
         {!sceneReady && <p>{loadingAssets ? `Loading artwork · ${Math.round(assetProgress)}%` : 'Starting 3D renderer'}</p>}
         {slowLoad && !sceneReady && <HoloButton onClick={retryScene}>Retry with simpler graphics</HoloButton>}
       </div>
     </div>
   );
+}
+
+/** Reduced motion keeps the same readiness gate, without accelerating stars. */
+function EntryFade({onFinished}: {onFinished: () => void}) {
+  const finish = useRef(onFinished); finish.current = onFinished;
+  useEffect(() => { const timer=window.setTimeout(()=>finish.current(),300); return ()=>clearTimeout(timer); }, []);
+  return <div className="ob-warp" aria-hidden="true"/>;
 }

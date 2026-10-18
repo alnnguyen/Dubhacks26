@@ -1,5 +1,5 @@
 /*
- * Space Battles brand applied to galaxy exploration (Alex's UI handoff, Oct 18 2026).
+ * KO.rbit brand applied to galaxy exploration (Alex's UI handoff, Oct 18 2026).
  * Everything is scoped under .galaxy-exploration; no global selectors change.
  * Values come from BRAND-GUIDELINES.md / the saber cinematic preview. Text is set at the
  * handoff's recommended gameplay sizes (12–16px), not the prototype's 6–9px microtype.
@@ -217,6 +217,16 @@
   background: linear-gradient(#71c5ff0a 1px, transparent 1px), linear-gradient(90deg, #71c5ff0a 1px, transparent 1px);
   background-size: 28px 28px;
 }
+.galaxy-exploration .gx-world__heading { margin:0; }
+.galaxy-exploration .gx-world__toggle { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; padding:0; margin:0; border:0; border-radius:0; background:none; color:var(--sb-hero); cursor:pointer; text-align:left; }
+.galaxy-exploration .gx-world__toggle > span { min-width:0; }
+.galaxy-exploration .gx-world__toggle .gx-eyebrow { display:block; }
+.galaxy-exploration .gx-world__toggle .gx-world__name { display:block; overflow-wrap:anywhere; }
+.galaxy-exploration .gx-world__chevron { flex:none; color:var(--sb-cyan); transition:transform .18s ease; }
+.galaxy-exploration .gx-world__toggle[aria-expanded=true] .gx-world__chevron { transform:rotate(180deg); }
+.galaxy-exploration .gx-world__details[hidden] { display:none; }
+.galaxy-exploration .gx-world__details { max-height:calc(100dvh - 280px); overflow-y:auto; overscroll-behavior:contain; }
+.galaxy-exploration .gx-world[data-expanded=false] { padding-bottom:14px; }
 .galaxy-exploration .gx-world__name {
   margin: 6px 0 8px;
   font: italic 800 clamp(22px, 2.2vw, 30px)/1.1 var(--display);
@@ -464,7 +474,6 @@
   color: var(--sb-hero);
   text-shadow: 0 2px 0 #174cbd;
 }
-.galaxy-exploration .gx-plate[data-long='true'] span { font-size: clamp(28px, 3.8vw, 58px); letter-spacing: -.03em; }
 .galaxy-exploration .gx-banner[data-tone='rival'] .gx-plate { background: linear-gradient(105deg, #8a1d33, #d23a52 72%, #ff727f); }
 .galaxy-exploration .gx-banner__detail {
   max-width: 46ch;
@@ -798,3 +807,52 @@
 .galaxy-exploration .ex-modes { flex-shrink: 0; }
 .galaxy-exploration .ex-modes button small { white-space: nowrap; }
 .galaxy-exploration .ex-topbar__actions .sd-btn { white-space: nowrap; }
+/* Mission plate: fit the keyword to the banner width (Orbitron caps ≈ .78em each) and give the italic slant room. */
+.galaxy-exploration .gx-plate span {
+  font-size: clamp(26px, min(6.1vw, calc(min(680px, 70vw) / (var(--gx-chars, 8) * .78))), 96px);
+  padding-right: .12em;
+}
+.galaxy-exploration .gx-plate { max-width: none; }
+@media (max-width: 700px) { .galaxy-exploration .gx-plate span { font-size: clamp(22px, calc(84vw / (var(--gx-chars, 8) * .78)), 64px); } }
+
+/* ---- Flight / Explore switch: explain → enter → wipe + reset to start ---- */
+.galaxy-exploration .gx-mode { position: absolute; inset: 0; z-index: 45; display: grid; place-items: center; padding: 16px; background: radial-gradient(ellipse at 50% 45%, #07183fb3, #020711e6 70%); backdrop-filter: blur(3px); }
+.galaxy-exploration .gx-mode__card { width: min(520px, 94vw); padding: 24px 26px 22px; background: linear-gradient(125deg, #0b1d33f5, #020812fa);
+  border-left: 1px solid #66bafc77; border-right: 1px solid #ff78882a; clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--sb-cut)), calc(100% - var(--sb-cut)) 100%, 0 100%); box-shadow: 0 24px 90px #000c; }
+.galaxy-exploration .gx-mode__card h2 { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 16px; font: italic 500 20px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--sb-hero); }
+.galaxy-exploration .gx-mode__card ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.galaxy-exploration .gx-mode__card li { position: relative; padding-left: 20px; font: 400 14px/1.55 var(--mono); color: var(--sb-body); }
+.galaxy-exploration .gx-mode__card li::before { content: ''; position: absolute; left: 2px; top: .55em; width: 7px; height: 7px; transform: rotate(45deg); border: 1px solid var(--sb-cyan); }
+.galaxy-exploration .gx-mode__card[data-mode='flight'] li::before { border-color: var(--sb-rival); }
+.galaxy-exploration .gx-mode__note { margin: 16px 0 0; padding: 8px 10px; font: 400 12px/1.5 var(--mono); color: var(--sb-label); background: #020711aa; border-left: 2px solid #2b4766; }
+.galaxy-exploration .gx-mode__actions { display: flex; gap: 10px; align-items: center; }
+.galaxy-exploration .gx-mode__actions .gx-primary { flex: 1; }
+.galaxy-exploration .gx-mode-wipe { position: absolute; inset: 0; z-index: 38; pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, #a1e5ff55, #175dff33 35%, #020711dd 75%); animation: gx-wipe .9s ease-out forwards; }
+@keyframes gx-wipe { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+.galaxy-exploration[data-reduced-motion='true'] .gx-mode-wipe { display: none; }
+@media (prefers-reduced-motion: reduce) { .galaxy-exploration .gx-mode-wipe { display: none; } }
+/* Map labels step back while a mission title is on screen. */
+.galaxy-exploration:has(.gx-banner) .ex-body-labels { opacity: .2; transition: opacity .2s; }
+
+/* Flight boot continues the seat fade exactly (same void gradient, same cyan line), so seat → flight reads as one shot. */
+.galaxy-exploration .sd-boot { background: radial-gradient(ellipse at 50% 42%, #0a1a3a 0%, #010205 62%); }
+.galaxy-exploration .sd-boot .sd-eyebrow { display: none; }
+.galaxy-exploration .sd-boot p { font: 400 12px var(--mono); letter-spacing: .24em; text-transform: uppercase; color: #87dcff; }
+.galaxy-exploration .sd-boot p + p { color: #5f819f; letter-spacing: .12em; font-size: 11px; }
+
+/* Compact name stays visible on phones; optional details are available when deliberately opened. */
+.galaxy-exploration .gx-mark strong.ko-wordmark { display:block; }
+@media(max-width:700px) {
+  /* Keep the destination disclosure clear of the separate zoom controls. */
+  .galaxy-exploration .ex-local-zoom { top:auto; bottom:calc(var(--gx-rail-h) + var(--safe-b) + 12px); }
+  .galaxy-exploration:has(.ex-local-zoom) .ex-lyra { bottom:calc(var(--gx-rail-h) + var(--safe-b) + 350px); }
+  .galaxy-exploration .ex-telemetry.gx-world[data-expanded=true] { width:calc(100vw - var(--safe-l) - var(--safe-r) - 32px); max-width:none; z-index:4; }
+  .galaxy-exploration .gx-world__details { max-height:calc(100dvh - 300px); }
+  .galaxy-exploration:has(.gx-world[data-expanded=true]) .ex-local-zoom,
+  .galaxy-exploration:has(.gx-world[data-expanded=true]) .ex-lyra { visibility:hidden; }
+  .galaxy-exploration .gx-mark strong.ko-wordmark { font-size:11px; letter-spacing:-.035em; }
+  .galaxy-exploration .gx-world[data-expanded=true] .gx-world__blurb { display:-webkit-box; -webkit-line-clamp:3; }
+  .galaxy-exploration .gx-world[data-expanded=true] .gx-world__data { display:grid; }
+  .galaxy-exploration .gx-world[data-expanded=true] .gx-world__source { display:block; font-size:10px; }
+}
