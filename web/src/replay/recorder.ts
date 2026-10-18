@@ -95,7 +95,7 @@ export function createReplayRecorder(onClip: (clip: RecordedReplay) => void, onS
               return;
             }
             onClip({ video: new Blob(chunks, { type: recorder.mimeType || mime }), duration: elapsed });
-            onStatus(`Replay saved locally (${Math.round(elapsed)}s). Upload is optional after the duel.`);
+            onStatus(`Replay ready (${Math.round(elapsed)}s). Press Play cinematic reel — the webcam follows when the arena plays.`);
           };
           recorder.start(TIMESLICE_MS);
           started = true;

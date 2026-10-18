@@ -35,6 +35,7 @@
 
 /* Approved cinematic avatar-square layout. Shared by live setup and its labelled preview. */
 .si-arena-viewport {position:absolute;inset:0;}
+.si-arena-viewport--finished {visibility:hidden;pointer-events:none;}
 .arena-duel[data-initiating=true] {--si-square:min(40vw,calc(100dvh - 210px),560px);background:#020711;}
 .arena-duel[data-initiating=true]:before {content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(164deg,transparent 47%,#78caff3b 47.1%,transparent 47.2%),linear-gradient(164deg,#030712 15%,#13203b 48%,#07162d 48.2%,#020711 90%);}
 .arena-duel[data-initiating=true] .si-arena-viewport {inset:auto;right:6vw;top:50%;width:var(--si-square);height:var(--si-square);transform:translateY(-50%);border:1px solid #6db4e280;box-shadow:0 0 65px #185bff15;overflow:hidden;}

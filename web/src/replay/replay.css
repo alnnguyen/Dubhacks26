@@ -30,7 +30,8 @@
 .cinematic-replay { margin:24px 0 32px; }
 .cinematic-replay,.cinematic-replay * { box-sizing:border-box; }
 .cinematic-heading { display:flex; justify-content:space-between; gap:12px; color:#9ef7df; font-size:10px; letter-spacing:.12em; line-height:1.7; }
-.cinematic-stage { position:relative; isolation:isolate; width:100%; height:clamp(260px,45vw,530px); overflow:hidden; border:1px solid #42687a; border-radius:12px; background:#100c10; }
+.cinematic-stage { position:relative; isolation:isolate; width:100%; height:clamp(220px,36vw,380px); overflow:hidden; border:1px solid #42687a; border-radius:12px; background:#100c10; }
+.bh-result-actions .replay-screen { max-height: min(42vh, 360px); }
 .cinematic-stage .arena-canvas { position:absolute!important; inset:0; }
 .cinematic-stage--finish { border-color:#edbe68; }
 .cinematic-letterbox { position:absolute; left:0; right:0; height:7%; background:#03080df5; pointer-events:none; z-index:2; }

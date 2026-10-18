@@ -98,16 +98,26 @@ export function ReplayPanel({ client, matchId, clip, status, onDiscard, arena, b
     }
   }
 
+  const panelStatus = busy
+    ? 'Perceptron is selecting moments and framing the player…'
+    : arena && board && mySlot
+      ? (clip
+        ? 'Press Play cinematic reel. The 3D arena is the director’s cut; the webcam below follows the same timeline.'
+        : 'Press Play cinematic reel to watch the recorded arena. Webcam capture was not available for this duel.')
+      : clip
+        ? 'Your webcam clip is ready below. Download it or allow Perceptron upload for AI highlights.'
+        : (status || 'Enable local replay recording during arena setup to save a clip.');
+
   return <section className="replay-panel" aria-label="Duel replay">
     <p className="flight-eyebrow">REPLAY / DIRECTOR</p>
     <h2>Your duel. The highlights.</h2>
-    <p role="status">{busy ? 'Perceptron is selecting moments and framing the player…' : status || 'Enable local replay recording during arena setup to save a clip.'}</p>
-    {arena && board && mySlot && <CinematicReplay recording={arena} moments={result?.moments ?? EMPTY_MOMENTS} board={board} mySlot={mySlot} destination={destination} onSync={syncWebcam} pauseSignal={cinematicPause} />}
+    <p role="status">{panelStatus}</p>
+    {arena && board && mySlot && <CinematicReplay recording={arena} moments={result?.moments ?? EMPTY_MOMENTS} board={board} mySlot={mySlot} destination={destination} onSync={syncWebcam} pauseSignal={cinematicPause} autoPlay={!reduced.current} />}
     {clip && url && <>
       {arena && <h3>Original webcam / model evidence</h3>}
       {webcamGap && <p className="flight-muted">Arena-only closing moment: the webcam capture ended before this part of the match. The finale comes from the server's recorded result.</p>}
       <div className={`replay-screen ${reel ? 'replay-screen--cinema' : ''}`}>
-        <video ref={video} src={url} playsInline controls preload="metadata" onTimeUpdate={tick} onEnded={stopReel}
+        <video ref={video} src={url} playsInline muted controls preload="auto" onTimeUpdate={tick} onEnded={stopReel}
           onError={() => setPlayError('This browser could not decode the local recording. Download it to inspect the file.')}
           style={{ transform: `translate(${tx * 100}%, ${ty * 100}%) scale(${zoom})` }} />
         {reel && moment && <div className="replay-caption" key={index}>

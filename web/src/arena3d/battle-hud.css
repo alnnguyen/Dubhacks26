@@ -255,12 +255,12 @@
 .bh-lyra p { margin: 0; font-size: 14px; color: #d7e7ff; animation: bh-type 0.35s ease-out; }
 @keyframes bh-type { from { opacity: 0; transform: translateY(4px); } }
 
-/* Finish: letterbox and dim, a K.O. plate, then the winner card. */
-.bh-finish { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; pointer-events: auto; background: rgba(6, 8, 14, 0.5); animation: bh-dim 0.4s ease-out; }
-.bh-finish::before, .bh-finish::after { content: ""; position: absolute; left: 0; right: 0; height: 8%; background: #000; animation: bh-letterbox 0.45s cubic-bezier(.18, .92, .24, 1); }
-.bh-finish::before { top: 0; transform-origin: top; }
-.bh-finish::after { bottom: 0; transform-origin: bottom; }
-.bh-finish[data-stage="winner"] { background: rgba(6, 8, 14, 0.72); }
+/* Finish: opaque scrollable result card so the live arena does not peek through as a frozen half-frame. */
+.bh-finish { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; pointer-events: auto; background: rgba(6, 8, 14, 0.5); animation: bh-dim 0.4s ease-out; padding: 0 16px calc(28px + env(safe-area-inset-bottom, 0px)); }
+.bh-finish::before, .bh-finish::after { content: ""; flex: none; width: 100%; height: min(8vh, 56px); background: #000; animation: bh-letterbox 0.45s cubic-bezier(.18, .92, .24, 1); pointer-events: none; }
+.bh-finish::before { position: sticky; top: 0; z-index: 2; transform-origin: top; }
+.bh-finish::after { display: none; }
+.bh-finish[data-stage="winner"] { background: rgba(4, 8, 16, 0.96); }
 @keyframes bh-dim { from { background: transparent; } }
 @keyframes bh-letterbox { from { transform: scaleY(0); } }
 .bh-ko { position: relative; }
@@ -279,7 +279,7 @@
 .bh-ko .bh-shard-burst { top: 50%; }
 @keyframes bh-slam { 0% { transform: scale(1.8); opacity: 0; } 60% { transform: scale(0.96); opacity: 1; } 80% { transform: scale(1.02) translateX(-4px); } }
 
-.bh-winner { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; animation: bh-type 0.45s ease-out; }
+.bh-winner { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; animation: bh-type 0.45s ease-out; width: min(920px, 100%); margin: 8px auto 0; }
 .bh-winner .bh-eyebrow { color: var(--bh-label); letter-spacing: 0.4em; font-size: 11px; }
 .bh-winner h3 { margin: 4px 0 0; font-family: var(--bh-display); font-weight: 600; font-size: clamp(26px, 2.6vw, 38px); letter-spacing: 0.06em; }
 .bh-winner-plate strong {
@@ -297,8 +297,9 @@
 .bh-stats { display: grid; grid-template-columns: repeat(4, minmax(90px, auto)); gap: 18px 48px; margin: 10px 0 0; }
 .bh-stats dt { font-size: 9px; letter-spacing: 0.3em; color: var(--bh-label); margin-bottom: 8px; }
 .bh-stats dd { margin: 0; font-size: 22px; font-weight: 500; }
-.bh-result-actions { margin-top: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 13px; color: var(--bh-label); }
+.bh-result-actions { margin-top: 18px; display: flex; flex-direction: column; align-items: stretch; gap: 10px; font-size: 13px; color: var(--bh-label); width: 100%; max-width: 920px; }
 .bh-result-actions p { margin: 0; }
+.bh-result-actions .replay-panel { text-align: left; }
 
 @media (max-width: 760px) {
   .battle-hud { --bh-bar-w: 34vw; }

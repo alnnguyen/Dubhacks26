@@ -14,11 +14,13 @@ class ReplayGraphicsBoundary extends Component<{ children: ReactNode; onBasic: (
   render() { return this.state.error ? <div className="cinematic-error" role="alert"><p>Replay graphics could not load. The webcam recording is still available.</p><button onClick={this.props.onBasic}>Retry with simple graphics</button></div> : this.props.children; }
 }
 
-export function CinematicReplay({ recording, moments = EMPTY, board, mySlot, destination = 'mars', fixture = false, onSync, pauseSignal = 0 }: {
+export function CinematicReplay({ recording, moments = EMPTY, board, mySlot, destination = 'mars', fixture = false, onSync, pauseSignal = 0, autoPlay = false }: {
   recording: ArenaRecording; moments?: ReplayMoment[]; board: Board; mySlot: PlayerSlot;
   destination?: DestinationId;
   fixture?: boolean;
   pauseSignal?: number;
+  /** Start the reel once when the result screen mounts (skipped for reduce-motion). */
+  autoPlay?: boolean;
   /** Source-video seconds share the local capture epoch. Never used to send commands. */
   onSync?: (seconds: number, rate: number, playing: boolean) => void;
 }) {
@@ -33,6 +35,7 @@ export function CinematicReplay({ recording, moments = EMPTY, board, mySlot, des
   const transport = useRef({ elapsed: 0 });
   const [elapsed, setElapsed] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const autoStarted = useRef(false);
   useEffect(() => { setPlaying(false); }, [pauseSignal]);
   const [angle, setAngle] = useState<CameraAngle | undefined>();
   const angleRef = useRef(angle); angleRef.current = angle;
@@ -40,7 +43,12 @@ export function CinematicReplay({ recording, moments = EMPTY, board, mySlot, des
   const flashRef = useRef<ImpactFlash | null>(null);
   const [simple, setSimple] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  useEffect(() => { transport.current.elapsed = 0; setElapsed(0); setPlaying(false); }, [shots, reduced]);
+  useEffect(() => { transport.current.elapsed = 0; setElapsed(0); setPlaying(false); autoStarted.current = false; }, [shots, reduced]);
+  useEffect(() => {
+    if (!autoPlay || reduced || autoStarted.current || !shots.length || duration <= 0) return;
+    autoStarted.current = true;
+    setPlaying(true);
+  }, [autoPlay, reduced, shots, duration]);
   const cursor = reelCursor(shots, elapsed, reduced);
   const selected = cursor ? shots[cursor.index] : null;
   const finish = finishingImpact(recording);

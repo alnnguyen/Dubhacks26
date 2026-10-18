@@ -501,8 +501,8 @@ export function ArenaDuel({
   }, [fighting, running, loading, replayEnabled, onReplaySource]);
 
   return (
-    <main className="arena-duel" data-initiating={!fighting && !finished}>
-      <div className="si-arena-viewport">
+    <main className="arena-duel" data-initiating={!fighting && !finished} data-finished={finished || undefined}>
+      <div className={`si-arena-viewport${finished ? " si-arena-viewport--finished" : ""}`} aria-hidden={finished || undefined}>
       <ArenaRenderBoundary key={renderAttempt} onLeave={onLeave} onBasic={() => { setBasicGraphics(true); setRenderAttempt((n) => n + 1); }}>
       <ArenaScene
         destination={destinationFromWorld(view.world.id)}
@@ -582,7 +582,7 @@ export function ArenaDuel({
       ) : null}
       <video
         ref={videoRef}
-        className={`arena-self ${running ? "" : "hidden"}`}
+        className={`arena-self ${running && !finished ? "" : "hidden"}`}
         playsInline
         muted
         autoPlay
