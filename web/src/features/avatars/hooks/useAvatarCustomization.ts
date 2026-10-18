@@ -151,6 +151,7 @@ export function useAvatarCustomization() {
     const ok = saveAvatarConfig(clean);
     setSaveState(ok ? 'saved' : 'error');
     if (ok) setDirty(false);
+    return ok;
   }, [config]);
 
   return { config, update, faceTexture, faceUrl, faceMissing, previewFace, commitFace, removeFace, save, saveState, dirty };

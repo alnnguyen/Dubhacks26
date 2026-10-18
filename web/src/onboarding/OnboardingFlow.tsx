@@ -2,10 +2,11 @@ import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties, type 
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ACCENTS, type AccentId, type PilotIdentity, sanitizeCallsign, sanitizeShipName, savePilotIdentity } from '../app/pilotIdentity';
 const HyperspaceTunnel = lazy(() => import('./HyperspaceTunnel').then(m => ({ default: m.HyperspaceTunnel }))); 
+const AvatarCreator = lazy(() => import('../features/avatars/components/AvatarCreator').then(m => ({ default: m.AvatarCreator })));
 import { KeywordBlock } from './KeywordBlock';
 import { LaserInput } from './LaserInput';
 import './onboarding.css';
-const steps = ['welcome', 'callsign', 'ship', 'bridge'] as const;
+const steps = ['welcome', 'callsign', 'ship', 'avatar', 'bridge'] as const;
 type Step = typeof steps[number] | 'closing' | 'hyperspace';
 export function OnboardingFlow({onComplete}:{onComplete:(identity:PilotIdentity)=>void}) {
  const reduce = useReducedMotion() ?? false;
@@ -17,10 +18,12 @@ export function OnboardingFlow({onComplete}:{onComplete:(identity:PilotIdentity)
  const index=steps.indexOf(step as typeof steps[number]);
  useEffect(()=>{if(step!=='closing')return;const id=setTimeout(()=>setStep('hyperspace'),700);return()=>clearTimeout(id)},[step]);
  const finish=()=>onComplete(savePilotIdentity(identity));
- function submit(e:FormEvent){e.preventDefault();if(step==='callsign'&&identity.callsign)setStep('ship');if(step==='ship'&&identity.shipName)setStep('bridge')}
+ function submit(e:FormEvent){e.preventDefault();if(step==='callsign'&&identity.callsign)setStep('ship');if(step==='ship'&&identity.shipName)setStep('avatar')}
+ // The astronaut creator is a full-screen step of its own; it saves to this device and continues to the bridge.
+ if(step==='avatar')return <Suspense fallback={<main className="obn-root"><div className="obn-atmosphere" aria-hidden/></main>}><AvatarCreator defaultName={identity.callsign} onBack={()=>setStep('ship')} onContinue={()=>setStep('bridge')}/></Suspense>;
  return <main className="obn-root" data-step={step}>
   <div className="obn-atmosphere" aria-hidden/><div className="obn-horizon" aria-hidden/>
-  {index>=0&&<><header className="obn-masthead"><div className="obn-brand"><b>✦</b><span>SPACE BATTLES</span><i>/</i><span className="obn-muted">PILOT UPLINK</span></div><span className="obn-counter">0{index+1}<small> / 04</small></span></header>
+  {index>=0&&<><header className="obn-masthead"><div className="obn-brand"><b>✦</b><span>SPACE BATTLES</span><i>/</i><span className="obn-muted">PILOT UPLINK</span></div><span className="obn-counter">0{index+1}<small> / 0{steps.length}</small></span></header>
   <div className="obn-stage"><AnimatePresence mode="wait"><motion.section key={step} className="obn-scene"
    initial={{opacity:0}} animate={{opacity:1}} exit={reduce?{opacity:0}:{opacity:0,x:'-110vw',rotate:3,scale:1.04}}
    transition={{duration:reduce?.15:.32}}>
@@ -36,7 +39,7 @@ export function OnboardingFlow({onComplete}:{onComplete:(identity:PilotIdentity)
     {step==='bridge'&&<><div className="obn-pilot"><strong>{identity.callsign}</strong><span>{identity.shipName} / {ACCENTS.find(a=>a.id===accent)?.label}</span></div><button className="obn-cta" onClick={()=>reduce?finish():setStep('closing')}>ENTER HYPERSPACE <span>↗</span></button></>}
    </div><span className="obn-laser-edge obn-laser-edge--bottom" aria-hidden/>
   </motion.section></AnimatePresence></div>
-  <footer className="obn-footer"><div className="obn-foot">EARTH / SECTOR 07 <span>FLIGHT PREPARATION</span></div><div className="obn-progress" aria-label={`Step ${index+1} of 4`}>{steps.map((s,i)=><span key={s} data-on={i<=index}/>)}</div>{index>0&&<button className="obn-back" onClick={()=>setStep(steps[index-1])}>← BACK</button>}</footer></>}
+  <footer className="obn-footer"><div className="obn-foot">EARTH / SECTOR 07 <span>FLIGHT PREPARATION</span></div><div className="obn-progress" aria-label={`Step ${index+1} of ${steps.length}`}>{steps.map((s,i)=><span key={s} data-on={i<=index}/>)}</div>{index>0&&<button className="obn-back" onClick={()=>setStep(steps[index-1])}>← BACK</button>}</footer></>}
   {!reduce&&index>=0&&<div key={`streak-${step}`} className="obn-streak" aria-hidden/>}
   {step==='closing'&&<div className="obn-close" aria-hidden><div className="obn-close__left"/><div className="obn-close__right"/><div className="obn-close__flash"/></div>}
   {step==='hyperspace'&&<Suspense fallback={<div className="ob-warp"/>}><HyperspaceTunnel active onFinished={finish}/></Suspense>}

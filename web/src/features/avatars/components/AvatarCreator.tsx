@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAvatarCustomization } from '../hooks/useAvatarCustomization';
-import { AVATAR_ACTIONS, NAME_MAX_LENGTH, type AvatarAction } from '../types/avatar';
+import { AVATAR_ACTIONS, DEFAULT_AVATAR, NAME_MAX_LENGTH, type AvatarAction } from '../types/avatar';
 import { sanitizeName } from '../utils/avatarConfig';
 import { AvatarControls, CreatorTabs, type CreatorTab } from './AvatarControls';
 import { AvatarPreview } from './AvatarPreview';
@@ -16,16 +16,32 @@ const ACTION_LABELS: Record<AvatarAction, string> = {
   defeat: 'Defeat',
 };
 
-/** Standalone astronaut creator at /avatar-creator. Everything is saved on this device only. */
-export function AvatarCreator() {
+export interface AvatarCreatorProps {
+  /** Onboarding mode: the creator is a step. Shows "Save & continue" and a Skip option. */
+  onContinue?: () => void;
+  /** Onboarding mode: go back to the previous step instead of linking to the bridge. */
+  onBack?: () => void;
+  /** Name a fresh avatar after the pilot (only while it still has the default name). */
+  defaultName?: string;
+}
+
+/** Astronaut creator: standalone at /avatar-creator, or a step in onboarding. Everything is saved on this device only. */
+export function AvatarCreator({ onContinue, onBack, defaultName }: AvatarCreatorProps = {}) {
   const avatar = useAvatarCustomization();
   const { config } = avatar;
+  const embedded = Boolean(onContinue);
   const [tab, setTab] = useState<CreatorTab>('face');
   const [action, setAction] = useState<AvatarAction>('idle');
   const [trigger, setTrigger] = useState(0);
   const [saberIgnited, setSaberIgnited] = useState(true);
   const [editing, setEditing] = useState<'camera' | File | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (defaultName && config.name === DEFAULT_AVATAR.name) avatar.update({ name: sanitizeName(defaultName) });
+    // Only on mount: later name edits are the pilot's own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const play = (next: AvatarAction) => {
     setAction(next);
@@ -86,12 +102,18 @@ export function AvatarCreator() {
     <div className="av-root">
       <header className="av-header">
         <div>
-          <p className="av-eyebrow">Jedi Space Duels // Fighter lab</p>
-          <h1>Astronaut creator</h1>
+          <p className="av-eyebrow">{embedded ? 'Pilot uplink // Fighter lab' : 'Jedi Space Duels // Fighter lab'}</p>
+          <h1>{embedded ? 'Create your astronaut' : 'Astronaut creator'}</h1>
         </div>
-        <a className="av-btn av-btn--ghost av-header__back" href="/">
-          Back to bridge
-        </a>
+        {onBack ? (
+          <button type="button" className="av-btn av-btn--ghost av-header__back" onClick={onBack}>
+            Back
+          </button>
+        ) : (
+          <a className="av-btn av-btn--ghost av-header__back" href="/">
+            Back to bridge
+          </a>
+        )}
       </header>
 
       <main className="av-layout">
@@ -138,15 +160,30 @@ export function AvatarCreator() {
             faceSection={faceSection}
           />
           <div className="av-save">
-            <button type="button" className="av-btn av-btn--primary av-btn--block" onClick={avatar.save} disabled={avatar.saveState === 'saving'}>
-              {saveLabel}
+            <button
+              type="button"
+              className="av-btn av-btn--primary av-btn--block"
+              onClick={() => {
+                const saved = avatar.save();
+                if (saved && embedded) onContinue?.();
+              }}
+              disabled={avatar.saveState === 'saving'}
+            >
+              {embedded ? 'Save & continue' : saveLabel}
             </button>
+            {embedded && (
+              <button type="button" className="av-btn av-btn--ghost av-btn--block" onClick={onContinue}>
+                Skip for now
+              </button>
+            )}
             <p className="av-save__note" role="status">
               {avatar.saveState === 'error'
                 ? 'Could not save: browser storage is blocked.'
                 : avatar.dirty
                   ? 'Unsaved changes'
-                  : 'Saved on this device. Reopen any time at /avatar-creator.'}
+                  : embedded
+                    ? 'You can change this later at /avatar-creator.'
+                    : 'Saved on this device. Reopen any time at /avatar-creator.'}
             </p>
           </div>
         </section>
