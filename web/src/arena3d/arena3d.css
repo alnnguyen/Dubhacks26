@@ -128,6 +128,25 @@
   color: #d6e3f7;
 }
 
+/* Mid-fight tracking gap: the arena stays up, this says why swings aren't landing. */
+.arena-tracking {
+  position: absolute;
+  left: 50%;
+  top: clamp(72px, 12vh, 120px);
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(6, 12, 24, 0.85);
+  border: 1px solid rgba(255, 211, 77, 0.55);
+  color: #ffd34d;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 7;
+}
+
 .arena-setup {
   position: absolute;
   left: 20px;

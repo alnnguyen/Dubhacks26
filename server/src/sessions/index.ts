@@ -182,6 +182,7 @@ export class Lobby {
         armed: pilot.match.match.saberCombatReady && view.you.saber.bodyReady && view.you.saber.saberReady && view.rival.saber.bodyReady && view.rival.saber.saberReady,
         startsInMs: pilot.match.match.saberStartsInMs,
         setup: pilot.match.match.setupProgress(pilot.match.slot),
+        result: view.result,
       },
     };
   }
