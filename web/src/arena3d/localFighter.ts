@@ -45,10 +45,17 @@ export function withLocalFighter(
   const me = frame.players.find((p) => p.slot === slot)
   if (!local || !me?.joints || !me.blade) return frame
 
-  // Stand the local body at your predicted spot (or where the server has your hips), facing down the lane.
+  // Stand the local body at your predicted spot (or where the server has your hips), facing the rival.
   const serverHips = mid(me.joints[LEFT_HIP], me.joints[RIGHT_HIP])
   const worldHips: Vec3 = root ? [root[0], serverHips[1], root[1]] : serverHips
-  const facing = me.facing
+  let facing = me.facing
+  const rival = frame.players.find((p) => p.slot !== slot)
+  if (root && rival) {
+    const target = rival.joints ? mid(rival.joints[LEFT_HIP], rival.joints[RIGHT_HIP]) : [rival.cell.q * 0.65, 0, rival.cell.r * 0.65]
+    const dx = target[0] - worldHips[0], dz = target[2] - worldHips[2]
+    const d = Math.hypot(dx, dz)
+    if (d > 1e-9) facing = [dx / d, dz / d]
+  }
   const bodyHips = mid(local.joints[LEFT_HIP], local.joints[RIGHT_HIP])
   const place = (j: Vec3): Vec3 => {
     const t = turn([j[0] - bodyHips[0], j[1] - bodyHips[1], j[2] - bodyHips[2]], facing)

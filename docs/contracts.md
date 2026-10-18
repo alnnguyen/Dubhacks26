@@ -96,3 +96,10 @@ This is a frontend callback boundary, not a new multiplayer event or shared wire
 ## Shared Live endpoint — Alex, October 18
 
 `gameEndpoint.ts` centralizes the public `VITE_GAME_SERVER_URL` default for game and saber clients. Explicit GameClient URLs still override it. `VITE_SABER_CONTROLLER_URL` chooses the HTTPS frontend used for arena QR links, separately from the laptop page origin. Local defaults remain same-origin; Demo never creates the client. No wire or server contract changed. See `docs/shared-live-server.md` for current ignored local settings, actual shared-server proof and the missing remote copilot handlers.
+
+
+## Opponent-relative orbital movement — October 18, user-authorized B/frontend update
+
+Supersedes the lane-grid movement decision above. Existing `step` commands and authorization/buffering remain. `GridCell {q,r}` retains its wire shape but now contains fractional arena coordinates in `board.cellSize` units. Left/right rotate around the rival's latest accepted destination by min(0.65 m / distance, 15 degrees), preserving destination separation; forward/back change separation by 0.65 m within 1.3–3.9 m. Facing points toward the rival's current gliding root. `engaged` uses current hip separation ≤ sqrt(5) × 0.65 m; swept collisions still decide outcomes.
+
+`stepped` adds optional `orbitCenter: [worldX, worldZ]` for left/right arcs. Server and laptop prediction share arc interpolation; radial steps omit the field. `board.rows` stays for wire compatibility, with no row ownership. Both server and web need this update for the new rules and matching local prediction. A/C-facing handoff: round foot markers replace the square lane; existing camera/body/phone inputs and calibration are unchanged. This document and task board are the repository handoff; no external message or deployment was sent.

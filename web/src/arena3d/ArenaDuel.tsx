@@ -216,6 +216,7 @@ export function ArenaDuel({
         cellSize,
         stepMs,
         performance.now(),
+        event.orbitCenter,
       );
     });
     const offPhone = client.onPhoneAim((aim) => {
@@ -571,7 +572,7 @@ export function ArenaDuel({
       {wizard.step === "done" ? (
         <p className="arena-controls">
           Swipe on your phone with your thumb to move: ↑ in · ↓ out · ← →
-          sidestep · or WASD
+          circle · or WASD
         </p>
       ) : null}
       <video

@@ -259,5 +259,5 @@ export const INSTRUCTIONS: Record<SetupStep, string> = {
   up: "Raise your saber straight up above your head.",
   right: "Point your saber out to your right side, level.",
   reach: "Thrust your saber at the screen, arm out in front of you.",
-  done: "Setup complete. Swipe on your phone with your thumb to move: ↑ toward your rival, ↓ away, ← → to sidestep.",
+  done: "Setup complete. Swipe on your phone with your thumb to move: ↑ toward your rival, ↓ away, ← → to circle.",
 }

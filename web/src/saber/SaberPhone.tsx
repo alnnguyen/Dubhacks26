@@ -212,7 +212,7 @@ export function SaberPhone({ code }: { code: string }) {
         </section>
       )}
       {enabled ? (
-        // Thumb swipes move you: up toward your rival, down away, left/right to sidestep.
+        // Thumb swipes move you: up toward your rival, down away, left/right to circle.
         <div ref={padRef} className="saber-pad" aria-label="Swipe to move">
           <span className="up">↑</span>
           <span className="down">↓</span>

@@ -112,3 +112,12 @@ Alex: configured the merged frontend to Justin’s public Cloudflare multiplayer
 
 - User requested reverting timing increases: normal activation restored to 700 ms; original eight roulette stops total 1600 ms (65–475 ms each), for a 3.6-second normal intro. Preserved preloading/readiness, rendered-frame clock, highlight/reticle fixes and all-eight-stop reduced-motion content.
 - Owned paths: sequence, timing tests and board. No contracts, backend or environment changes. Five cinematic tests passed; production build/typecheck passed. Device visual playback remains unverified.
+
+
+## Opponent-relative orbital movement — October 18
+
+- Goal: replace the square lane with unlimited left/right circling, as requested by Justin. Owned scope: server movement/range/facing, shared stepped-event metadata, arena prediction/presentation and movement help; excludes camera inference, setup, providers, manifests and deployment.
+- Left/right steps follow true arcs around the rival's accepted position. Forward/back change separation within 1.3–3.9 m. Fighters and shoulder camera turn toward the opponent. Engagement follows current separation; round foot markers replace the chessboard. One buffered step and the existing authorized/deduplicated command path remain.
+- Interface handoff to A/C: fractional q/r coordinates; optional world-space orbitCenter on stepped; board.rows retained only for compatibility. See docs/contracts.md. Server and web must update together. No new environment variables.
+- Validation: all 92 server tests passed, including socket integration, repeated circles, simultaneous commands, radial limits and held-blade movement. Frontend production build/typecheck passed; 173 frontend tests passed, one opt-in live test skipped. Actual two-laptop/iPhone camera/orbit visual checks and deployment remain open, so status is Integration, not Done.
+- Git: clean starting checkout was saber-duel. Creating the required codex/orbital-duel-movement branch was blocked by sandbox Git-ref permissions and the escalation was declined; changes remain uncommitted on the existing branch. No external messages or deployment performed.

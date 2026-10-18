@@ -63,7 +63,7 @@ describe("withLocalFighter", () => {
     close(turn([1, 0, 0], [1, 0]), [0, 0, -1])
   })
 
-  it("stands at the predicted spot from a step glide, still facing down the lane", () => {
+  it("stands at the predicted spot from a step glide, facing the rival", () => {
     const frame = serverFrame(1, [0, 1, 0])
     frame.players.push({ slot: 2, cell: { q: 0, r: 1 }, facing: [0, -1], joints: null, blade: null, swinging: false })
     // Predicted one column to the right of the server's (lagging) spot.
@@ -71,7 +71,7 @@ describe("withLocalFighter", () => {
     const me = f.players[0]
     // Hips land on the predicted spot.
     close([(me.joints![23][0] + me.joints![24][0]) / 2, (me.joints![23][2] + me.joints![24][2]) / 2], [0.65, 0])
-    close(me.facing, [0, 1])
+    close(me.facing, [-Math.SQRT1_2, Math.SQRT1_2])
     // The blade points the same way when the phone points "forward".
     const blade = me.blade!
     const bl = Math.hypot(blade.tip[0] - blade.hilt[0], blade.tip[2] - blade.hilt[2])

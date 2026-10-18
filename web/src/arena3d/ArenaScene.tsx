@@ -259,7 +259,7 @@ function ShoulderCamera({ frameRef, mySlot, groundY }: {
   const target = useRef(new THREE.Vector3())
   useFrame(({ camera }, delta) => {
     const player = frameRef.current?.players.find((p) => p.slot === mySlot)
-    // Always behind you, looking down the lane toward your rival's side.
+    // Follow the fighter as they turn toward their rival.
     const [fx, fz] = player?.facing ?? [0, mySlot === 1 ? 1 : -1]
     const forward = toThree([fx, 0, fz])
     const right = toThree([fz, 0, -fx])
@@ -295,89 +295,46 @@ function MarsFighters(props: FightersProps) {
   return <Fighters {...props} groundY={sampler.heightAt(0, 0)} />
 }
 
-const GRID_LINE = new THREE.Color("#ffd7a0")
-// Columns drawn either side of you. The lane has no end: the drawing follows
-// you a whole column at a time, so it looks the same wherever you are.
-const DRAWN_COLUMNS = 20
-
-/**
- * The lane board on the ground: faint cell outlines on each side of the center
- * line, your cell blue, your rival's red; while you're engaged both glow and a
- * link joins them.
- */
-function LaneBoard({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFrame | null>; mySlot: PlayerSlot; board: Board }) {
-  const { cellSize, rows } = board
-  const outline = useMemo(() => {
-    const points: number[] = []
-    const xEdge = (DRAWN_COLUMNS + 0.5) * cellSize
-    // Each side spans z from half a cell off the center line to its back row's far edge (three's z flips).
-    for (const side of [-1, 1]) {
-      const near = side * 0.5 * cellSize
-      const far = side * (rows + 0.5) * cellSize
-      for (let i = 0; i <= rows; i++) {
-        const z = near + side * i * cellSize
-        points.push(-xEdge, 0.02, -z, xEdge, 0.02, -z)
-      }
-      for (let q = -DRAWN_COLUMNS; q <= DRAWN_COLUMNS + 1; q++) {
-        const x = (q - 0.5) * cellSize
-        points.push(x, 0.02, -near, x, 0.02, -far)
-      }
-    }
-    const g = new THREE.BufferGeometry()
-    g.setAttribute("position", new THREE.Float32BufferAttribute(points, 3))
-    return g
-  }, [cellSize, rows])
-  const fill = useMemo(() => new THREE.PlaneGeometry(cellSize * 0.92, cellSize * 0.92), [cellSize])
-  const grid = useRef<THREE.Group>(null)
+/** Round foot markers replace the square board; the link indicates saber reach. */
+function DuelMarkers({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFrame | null>; mySlot: PlayerSlot; board: Board }) {
   const mine = useRef<THREE.Mesh>(null)
   const theirs = useRef<THREE.Mesh>(null)
   const link = useRef<THREE.Mesh>(null)
-  const mineMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: COLORS.you, transparent: true, opacity: 0.25, depthWrite: false }), [])
-  const theirsMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: COLORS.rival, transparent: true, opacity: 0.25, depthWrite: false }), [])
-
   useFrame(() => {
     const frame = frameRef.current
     const place = (mesh: THREE.Mesh | null, slot: PlayerSlot) => {
-      const cell = frame?.players.find((p) => p.slot === slot)?.cell
+      const player = frame?.players.find((p) => p.slot === slot)
       if (!mesh) return null
-      mesh.visible = Boolean(cell)
-      if (!cell) return null
-      const [x, z] = cellToWorld(cell, cellSize)
+      mesh.visible = Boolean(player)
+      if (!player) return null
+      const hips = player.joints
+      const [x, z] = hips
+        ? [(hips[23][0] + hips[24][0]) / 2, (hips[23][2] + hips[24][2]) / 2]
+        : cellToWorld(player.cell, board.cellSize)
       mesh.position.set(x, 0.015, -z)
       return mesh.position
     }
     const a = place(mine.current, mySlot)
     const b = place(theirs.current, mySlot === 1 ? 2 : 1)
-    if (grid.current && a) grid.current.position.x = a.x
-    const engaged = Boolean(frame?.engaged)
-    mineMaterial.opacity = engaged ? 0.55 : 0.25
-    theirsMaterial.opacity = engaged ? 0.55 : 0.25
     if (link.current) {
-      link.current.visible = engaged && a !== null && b !== null
+      link.current.visible = Boolean(frame?.engaged && a && b)
       if (link.current.visible) placeBetween(link.current, a!.clone().setY(0.03), b!.clone().setY(0.03))
     }
   })
-
-  return (
-    <group>
-      <group ref={grid}>
-        <lineSegments geometry={outline}>
-          <lineBasicMaterial color={GRID_LINE} transparent opacity={0.35} />
-        </lineSegments>
-        {/* The center line between the two sides. */}
-        <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[(DRAWN_COLUMNS * 2 + 1) * cellSize, 0.05]} />
-          <meshBasicMaterial color={GRID_LINE} transparent opacity={0.6} />
-        </mesh>
-      </group>
-      <mesh ref={mine} geometry={fill} material={mineMaterial} rotation={[-Math.PI / 2, 0, 0]} />
-      <mesh ref={theirs} geometry={fill} material={theirsMaterial} rotation={[-Math.PI / 2, 0, 0]} />
-      <mesh ref={link}>
-        <cylinderGeometry args={[0.02, 0.02, 1, 8]} />
-        <meshBasicMaterial color={new THREE.Color(3, 1.2, 0.8)} toneMapped={false} />
-      </mesh>
-    </group>
-  )
+  return <group>
+    <mesh ref={mine} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.25, 0.30, 64]} />
+      <meshBasicMaterial color={COLORS.you} transparent opacity={0.6} depthWrite={false} />
+    </mesh>
+    <mesh ref={theirs} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.25, 0.30, 64]} />
+      <meshBasicMaterial color={COLORS.rival} transparent opacity={0.6} depthWrite={false} />
+    </mesh>
+    <mesh ref={link}>
+      <cylinderGeometry args={[0.02, 0.02, 1, 8]} />
+      <meshBasicMaterial color={new THREE.Color(3, 1.2, 0.8)} toneMapped={false} />
+    </mesh>
+  </group>
 }
 
 function Fighters({ frameRef, flashRef, mySlot, board, groundY }: FightersProps & { groundY: number }) {
@@ -390,7 +347,7 @@ function Fighters({ frameRef, flashRef, mySlot, board, groundY }: FightersProps 
       <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} />
       <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} />
       <Impact flashRef={flashRef} />
-      <LaneBoard frameRef={frameRef} mySlot={mySlot} board={board} />
+      <DuelMarkers frameRef={frameRef} mySlot={mySlot} board={board} />
     </group>
   )
 }
@@ -424,7 +381,7 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
       {basicGraphics ? <>
         <color attach="background" args={["#1b0f0b"]} />
         <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
-        <gridHelper args={[10, 20, "#a8643c", "#4a2a1a"]} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>
         <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} />
       </> : <Suspense
         fallback={
@@ -432,7 +389,7 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
           <>
             <color attach="background" args={["#1b0f0b"]} />
             <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
-            <gridHelper args={[10, 20, "#a8643c", "#4a2a1a"]} />
+            <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>
             <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} />
           </>
         }

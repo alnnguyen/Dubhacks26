@@ -1,3 +1,4 @@
+import { interpolateStep } from "../../../server/src/game/grid"
 import type { GridCell } from "../../../server/src/contracts"
 import { cellToWorld } from "./gridBoard"
 
@@ -9,6 +10,7 @@ import { cellToWorld } from "./gridBoard"
  * missed event) win.
  */
 export type OwnGlide = {
+  orbitCenter?: [number, number]
   cell: GridCell
   from: [number, number]
   startedAtMs: number
@@ -24,13 +26,13 @@ export function glideRoot(glide: OwnGlide, cellSize: number, stepMs: number, now
   const t = Math.max(0, Math.min(1, (nowMs - glide.startedAtMs) / stepMs))
   // Same ease-out cubic as the server: most of the step happens in the first few frames.
   const eased = 1 - (1 - t) ** 3
-  return [glide.from[0] + (to[0] - glide.from[0]) * eased, glide.from[1] + (to[1] - glide.from[1]) * eased]
+  return interpolateStep(glide.from, to, eased, glide.orbitCenter)
 }
 
 /** An accepted step of yours: glide from wherever you're drawn now. */
-export function onOwnStep(glide: OwnGlide | null, cell: GridCell, cellSize: number, stepMs: number, nowMs: number): OwnGlide {
+export function onOwnStep(glide: OwnGlide | null, cell: GridCell, cellSize: number, stepMs: number, nowMs: number, orbitCenter?: [number, number]): OwnGlide {
   const from = glide ? glideRoot(glide, cellSize, stepMs, nowMs) : cellToWorld(cell, cellSize)
-  return { cell, from, startedAtMs: nowMs, lastStepMs: nowMs }
+  return { cell, from, orbitCenter, startedAtMs: nowMs, lastStepMs: nowMs }
 }
 
 /** What the server's frames say your cell is: adopt it at first, or when they've disagreed past a step's worth of lag. */

@@ -39,7 +39,7 @@ import {
   worldToDirection,
   type Facing,
 } from "./saber3d.js";
-import { CELL_SIZE, cellToWorld, inReach, ownRow, ROWS_PER_SIDE, type Cell } from "./grid.js";
+import { CELL_SIZE, cellToWorld, inReach, orbitStep, interpolateStep, ROWS_PER_SIDE, type Cell } from "./grid.js";
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -76,7 +76,7 @@ interface Saber {
   lastBodyTip: Vec3 | null;
   // The cell the player stands in (or is stepping to), and the glide there from the last one.
   cell: Cell;
-  glide: { from: [number, number]; startedAt: number };
+  glide: { from: [number, number]; startedAt: number; orbitCenter?: [number, number] };
   // No new step until this time: the glide plus a short pause.
   stepReadyAt: number;
   // One step asked for mid-glide, taken the moment the current one lands.
@@ -101,7 +101,7 @@ export interface MatchEvents {
   projectileLanded: (event: ProjectileLanded) => void;
   saberResolved: (event: SaberResolved) => void;
   // A step was accepted: sent at once, ahead of the next arena frame.
-  stepped: (event: { slot: PlayerSlot; cell: Cell }) => void;
+  stepped: (event: { slot: PlayerSlot; cell: Cell; orbitCenter?: [number, number] }) => void;
   // Both players in the arena, every tick.
   arenaFrame: (frame: ArenaFrame) => void;
   finished: (result: MatchResult) => void;
@@ -259,8 +259,7 @@ export class Match {
     return null;
   }
 
-  // One step to a neighboring cell, relative to the player's facing: forward is
-  // toward the rival's side, left/right sidestep along the lane without limit.
+  // Opponent-relative movement: forward/back change distance, left/right orbit.
   // Allowed from the briefing on so players can practise during setup.
   step(slot: PlayerSlot, direction: unknown): RejectReason | null {
     if (this.phase === "finished") return "match_not_active";
@@ -285,30 +284,24 @@ export class Match {
   private stepTo(player: Player, direction: StepDirection, now: number): RejectReason | null {
     if (now < player.saber.stepReadyAt) return "busy";
 
-    // Slot 1 faces +z with +x on their right; slot 2 is turned around.
-    const ahead = player.slot === 1 ? 1 : -1;
-    const [dq, dr]: [number, number] = {
-      forward: [0, ahead],
-      back: [0, -ahead],
-      right: [ahead, 0],
-      left: [-ahead, 0],
-    }[direction] as [number, number];
-    const { q, r } = player.saber.cell;
-    const target = { q: q + dq, r: r + dr };
-    // Columns never run out; rows stop at the center line and the back of your side.
-    if (!ownRow(player.slot, target.r)) return "blocked";
+    const rival = this.players.get(player.slot === 1 ? 2 : 1)!;
+    const target = orbitStep(player.saber.cell, rival.saber.cell, direction);
+    if (!target) return "blocked";
 
-    player.saber.glide = { from: this.rootXZ(player, now), startedAt: now };
+    const orbitCenter = direction === "left" || direction === "right" ? cellToWorld(rival.saber.cell) : undefined;
+    player.saber.glide = { from: this.rootXZ(player, now), startedAt: now, orbitCenter };
     player.saber.cell = target;
     player.saber.stepReadyAt = now + SABER.stepMs + SABER.stepCooldownMs;
     // Laptops start your glide on this instead of waiting for the next tick and smooth playback.
-    this.events.stepped({ slot: player.slot, cell: target });
+    this.events.stepped({ slot: player.slot, cell: target, ...(orbitCenter ? { orbitCenter } : {}) });
     return null;
   }
 
-  // Both at the front line within a column of each other: the only time swings count.
+  // Engagement uses current gliding positions, rather than destination coordinates.
   get engaged(): boolean {
-    return inReach(this.players.get(1)!.saber.cell, this.players.get(2)!.saber.cell);
+    const now = Date.now();
+    const a = this.rootXZ(this.players.get(1)!, now), b = this.rootXZ(this.players.get(2)!, now);
+    return inReach({ q: a[0] / CELL_SIZE, r: a[1] / CELL_SIZE }, { q: b[0] / CELL_SIZE, r: b[1] / CELL_SIZE });
   }
 
   // The player's current setup step, for their phone.
@@ -572,11 +565,11 @@ export class Match {
   // Where the player's hips are over the board (x, z), gliding from the last cell into the current one.
   private rootXZ(p: Player, now: number): [number, number] {
     const to = cellToWorld(p.saber.cell);
-    const { from, startedAt } = p.saber.glide;
+    const { from, startedAt, orbitCenter } = p.saber.glide;
     const t = Math.max(0, Math.min(1, (now - startedAt) / SABER.stepMs));
     // Ease-out cubic: most of the move happens in the first few frames, so a step feels instant.
     const eased = 1 - (1 - t) ** 3;
-    return [from[0] + (to[0] - from[0]) * eased, from[1] + (to[1] - from[1]) * eased];
+    return interpolateStep(from, to, eased, orbitCenter);
   }
 
   private root(p: Player, now: number): Vec3 {
@@ -588,9 +581,13 @@ export class Match {
     return worldToDirection(sub(blade.tip, this.root(p, now)), this.facing(p, now));
   }
 
-  // Straight down the lane, so left and right on the screen stay left and right on the board.
-  private facing(p: Player, _now: number): Facing {
-    return FACING[p.slot];
+  // Both bodies and blades turn to face the rival at the current glide position.
+  private facing(p: Player, now: number): Facing {
+    const rival = this.players.get(p.slot === 1 ? 2 : 1)!;
+    const a = this.rootXZ(p, now), b = this.rootXZ(rival, now);
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const distance = Math.hypot(dx, dz);
+    return distance > 1e-9 ? [dx / distance, dz / distance] : FACING[p.slot];
   }
 
   private worldJoints(p: Player, now: number): Vec3[] | null {
