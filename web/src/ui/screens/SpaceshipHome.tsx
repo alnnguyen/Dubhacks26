@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AnchorRegistry } from '../components/spaceship/anchors';
 import { ProfileChip, ProfilePanel } from '../components/hud/PlayerProfile';
 import { BlipLabels, NearbyPlayersPanel } from '../components/hud/NearbyPlayers';
@@ -6,6 +6,8 @@ import { CommandConsole, CockpitShortcuts } from '../components/hud/CommandConso
 import { ChallengeModal } from '../components/hud/ChallengeModal';
 import { SettingsPanel } from '../components/hud/SettingsPanel';
 import { HoloButton } from '../components/hud/primitives';
+import { HologramCopilot } from '../../voice/HologramCopilot';
+import type { GameClient } from '../../networking';
 import { useMockLobby } from '../state/useMockLobby';
 import type { LobbyView, LobbyViewModel, NearbyPilot, SceneSettings } from '../state/lobbyTypes';
 import '../styles/spaceship.css';
@@ -23,6 +25,10 @@ export interface SpaceshipHomeProps {
   onEnterBattle?: (opponent: NearbyPilot) => void;
   /** Optional GLB cockpit to replace the procedural prototype. */
   cockpitModelUrl?: string;
+  /** Optional compact controls in the existing Radar / Console dock. */
+  cockpitControls?: ReactNode;
+  /** Read-only Grok access through this live player connection; omitted in Demo. */
+  copilotClient?: GameClient;
 }
 
 const LAUNCH_MS = 1700;
@@ -38,7 +44,7 @@ function initialSettings(): SceneSettings {
   return { quality: 'high', reducedMotion: !!reduced, parallax: true, ...saved };
 }
 
-export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl }: SpaceshipHomeProps) {
+export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl, cockpitControls, copilotClient }: SpaceshipHomeProps) {
   const mock = useMockLobby({ enabled: !external });
   const lobby = external ?? mock.lobby;
   const { challenge, actions } = lobby;
@@ -154,6 +160,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
           hidden={!lobbyView}
           onRadar={() => setView('radar')}
           onConsole={() => setView('console')}
+          controls={cockpitControls}
         />
         <CommandConsole hidden={view !== 'console'} onNavigate={navigate} />
         {view === 'radar' && <BlipLabels anchors={anchors} pilots={lobby.nearby} selectedId={selectedId} onSelect={setSelectedId} />}
@@ -190,6 +197,8 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
           onClose={closePanel}
           dev={external ? undefined : mock.dev}
         />
+
+        <HologramCopilot lobby={lobby} client={copilotClient} hidden={!lobbyView} onNavigate={navigate} onSelectPilot={select} />
 
         <ChallengeModal
           phase={challenge}

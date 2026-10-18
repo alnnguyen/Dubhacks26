@@ -5,7 +5,7 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 ## Doing
 
 - C (Alan): live duel gestures — rock palm→fist→fling; gun fist-hold then index+middle fire. Still on `createGameClient`. Phone QA in `docs/qa-checklist.md`. Saber / lobby / Photon deferred.
-- D (Alex): Grok Bot bonus session (template in `docs/sponsor-evidence.md`). Live Photon/Voice on real challenges **blocked on B**.
+- D (Alex): Grok Bot planning bonus **claimed** (`docs/sponsor-evidence.md`). Remaining: Photon live-challenge binding + physical-phone LYRA mic QA.
 - A (Ally): **pull `alex-dev`** — Alan’s latest camera is merged; cockpit default + turn-to-look remain on ally paths. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
 
 ## Ready — unblock first
@@ -59,3 +59,23 @@ Full text: `server/src/integrations/HANDOFF.md`.
 - A/C/D composition on alex-dev: cockpit → world/Voice briefing → **duel HUD** camera → result → cockpit. Duel mode hides lab chrome; `/?camera=1` remains full MediaPipe harness.
 - Provider proofs (Photon fixtures, Grok TTS/S2S/narration) recorded in `docs/sponsor-evidence.md`.
 - B blocker unchanged until `createGamePort` exists.
+
+## Cockpit Demo / Live switch — local integration verified
+
+- Alex: added explicit Demo / Live controls after onboarding on `alex-dev`; default Live, persisted selection, separate simulated pilots, no live connection while in Demo. Live invites/matches lock switching.
+- Owned changes: `web/src/ui/screens/BridgeApp.tsx`, new `bridge-mode.css`, optional composition props in `web/src/app/FlightApp.tsx`; no vision/server changes.
+- Checked: production typecheck/build; two isolated browser players discover each other in Live, Demo shows four mock pilots and disappears from the other real roster, a real invitation reaches the defender and locks both switches, cancellation unlocks, Demo persists across reload. Phone viewport 390×844 visually checked.
+- Not claimed: fresh full camera battle or provider acceptance in this task. Existing battle/provider integration gaps remain.
+- Next: commit/merge to Ally's running checkout before her ngrok link exposes the switch. Her entry must render `BridgeApp`. Same link/server required on both demo devices.
+
+- Compact dock follow-up: moved mode/reset into the original Radar/Console dock (the separate overlay had covered those buttons). Removed duplicate pilot/ship strip. Verified Radar opens all four demo pilots, Console navigation, Demo/Live changes, and every control fits 320px and 390px viewports. Production build/typecheck pass. Additional UI files: `SpaceshipHome.tsx` and `CommandConsole.tsx`; server/vision unchanged.
+
+
+## LYRA cockpit copilot — local implementation verified
+
+Alex: animated hologram UI, typed questions, Grok Voice, and read-only live lobby/match context are implemented on alex-dev. Demo uses a clearly labeled local guide. Browser proof changed from no rival to recommending LYNX after that test player joined; Demo Radar navigation did not send an invite. Frontend 110 pass / 1 opt-in skip, server 59 pass, production build pass. Human microphone and physical two-phone checks remain. Photon live challenge binding and official Grok Bot planning remain separate. Changes are local/uncommitted; merge/restart in Ally's checkout is needed for her tunnel. Handoff: `docs/hologram-copilot.md`.
+
+
+## LYRA selected-artwork animation — local
+
+Alex: replaced the SVG with the supplied hologram image, added audio-volume-driven mouth/jaw movement plus idle/listening/thinking projection effects. Connected to the existing Grok playback; no server/command contract changes. Added development-only `/lyra-preview.html` with a labeled simulated talking envelope. Build/typecheck and 110 frontend tests pass (one opt-in skipped); real Grok output and 390px cockpit layout visually checked. Human phone performance remains a check. Local/uncommitted. See `docs/hologram-copilot.md`.

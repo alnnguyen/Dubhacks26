@@ -238,3 +238,23 @@ describe("commands", () => {
     expect(REPLY_TIMEOUT_MS).toBe(3000)
   })
 })
+
+
+describe("read-only copilot transport", () => {
+  it("never queues provider access while offline", async () => {
+    setup();
+    expect(await client.copilotSession()).toEqual({ok: false, reason: "offline"});
+    expect(await client.copilotContext()).toEqual({ok: false, reason: "offline"});
+    expect(socket.sent).toHaveLength(0);
+  });
+  it("requests state without accepting a caller-supplied identity and handles missing replies", async () => {
+    setup(); joinOnline(null);
+    const context = client.copilotContext();
+    expect(socket.last("copilot:context").payload).toEqual({});
+    socket.last("copilot:context").ack(null, {ok: true, context: {source: "live", lobby: lobbyView(), match: null}});
+    expect(await context).toMatchObject({ok: true, context: {source: "live"}});
+    const session = client.copilotSession();
+    socket.last("copilot:session").ack(new Error("timeout"), undefined);
+    expect(await session).toEqual({ok: false, reason: "no_response"});
+  });
+});

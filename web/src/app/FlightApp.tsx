@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { SpaceshipHome } from '../ui/screens/SpaceshipHome';
 import { CameraDebugPage } from '../camera/CameraDebugPage';
 import { useServerLobby } from '../lobby/useServerLobby';
-import { getGameClient, useGameView, type ClientReply, type PlayerView } from '../networking';
+import { getGameClient, useGameView, type ClientReply, type GameClient, type PlayerView } from '../networking';
 import type { BattleCommand } from '../vision/types';
 import './flight.css';
 
 // Every match number below comes from the game server's view; this screen only displays it.
-export function FlightApp() {
-  const client = getGameClient();
+export function FlightApp({client: providedClient, cockpitControls}: {client?: GameClient; cockpitControls?: ReactNode} = {}) {
+  const client = providedClient ?? getGameClient();
   const lobby = useServerLobby(client);
   const view = useGameView(client);
   // The match this phone engaged into. A reload lands back in the cockpit with the match ready to re-engage.
@@ -75,7 +75,7 @@ export function FlightApp() {
     }
   }
 
-  if (!view || entered !== view.matchId) return <SpaceshipHome lobby={lobby} onEnterBattle={beginBriefing} />;
+  if (!view || entered !== view.matchId) return <SpaceshipHome lobby={lobby} onEnterBattle={beginBriefing} cockpitControls={cockpitControls} copilotClient={client} />;
 
   const { world, you, rival } = view;
   const flightSeconds = world.rockFlightMs / 1000;

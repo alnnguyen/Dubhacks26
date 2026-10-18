@@ -175,6 +175,13 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
+  'copilot:session': (request: Record<string, never>, reply: (result: CopilotSessionReply) => void) => void;
+  'copilot:context': (request: Record<string, never>, reply: (result: CopilotContextReply) => void) => void;
   join: (request: JoinRequest, reply: (result: JoinReply) => void) => void;
   command: (command: Command, reply: (result: CommandReply) => void) => void;
 }
+
+// Read-only ship copilot. Permanent provider keys never cross this boundary.
+export type CopilotFailure = { ok: false; reason: 'not_joined' | 'invalid_request' | 'offline' | 'no_response' | 'unavailable' | 'rate_limited' | 'provider_error' };
+export type CopilotSessionReply = CopilotFailure | { ok: true; clientSecret: string; expiresAt?: number; session: Record<string, unknown> };
+export type CopilotContextReply = CopilotFailure | { ok: true; context: { source: 'live'; lobby: LobbyView; match: PlayerView | null } };
