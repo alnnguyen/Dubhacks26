@@ -147,7 +147,9 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
   const cinematicActive = cinematic.phase !== 'idle';
   const pose = mood === 'launch' ? CAMERA_POSES.launch : CAMERA_POSES[view];
   const marsTarget = useRef<THREE.Group>(null);
-  const maxDpr = cinematicActive ? 1.2 : high ? Math.min(window.devicePixelRatio || 1, 1.75) : 1.25;
+  // Constant through the cinematic: resizing the canvas or dropping post-processing mid-scene
+  // reallocates buffers and recompiles every material, which stalls the roulette.
+  const maxDpr = high ? Math.min(window.devicePixelRatio || 1, 1.75) : 1.25;
   const dpr: [number, number] = [1, maxDpr];
   const screenFps = settings.reducedMotion ? 1 : high ? 6 : 2;
 
@@ -157,7 +159,7 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
       shadows={high ? 'soft' : 'percentage'}
       className="sd-canvas"
       dpr={dpr}
-      gl={{ antialias: !high && !cinematicActive, powerPreference: 'high-performance', alpha: false, stencil: false }}
+      gl={{ antialias: !high, powerPreference: 'high-performance', alpha: false, stencil: false }}
       camera={{ fov: 70, near: 0.05, far: 3200, position: CAMERA_POSES.lobby.position }}
       onCreated={({ gl }) => {
         gl.setClearColor('#010205');
@@ -211,19 +213,18 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
         onActivate={() => props.onNavigate('radar')}
         onSelect={props.onSelectPilot}
       />
-      {cinematic.phase !== 'idle' && cinematic.phase !== 'video' && (
-        <PlanetaryRoulette
-          phase={cinematic.phase}
-          selectedPlanet={cinematic.selectedPlanet}
-          marsTarget={marsTarget}
-          reducedMotion={settings.reducedMotion}
-        />
-      )}
+      {/* Mounted from the start (hidden while idle) so it preloads and warms up in the lobby. */}
+      <PlanetaryRoulette
+        phase={cinematic.phase}
+        selectedPlanet={cinematic.selectedPlanet}
+        marsTarget={marsTarget}
+        reducedMotion={settings.reducedMotion}
+      />
       <ConsoleHotspot interactive={view === 'lobby' && mood !== 'launch'} onActivate={() => props.onNavigate('console')} />
       <AnchorProjector registry={anchors} />
       <PerfGuard onLow={high && !cinematicActive ? props.onLowPerformance : undefined} />
       <FirstFrame onReady={props.onReady} />
-      {high && !cinematicActive && (
+      {high && (
         <EffectComposer multisampling={0} enableNormalPass={false}>
           {/* Threshold above 1: only HDR emissives (holograms, indicator lights, strips) bloom. */}
           <Bloom mipmapBlur intensity={0.55} luminanceThreshold={1.0} luminanceSmoothing={0.25} radius={0.6} levels={6} />

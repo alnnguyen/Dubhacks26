@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import type { CinematicPhase, PlanetId } from './sequence';
 
 interface PlanetDefinition {
@@ -37,7 +37,9 @@ const PLANET_TEXTURE_URLS: Partial<Record<PlanetId, string>> = {
 };
 const SUN_TEXTURE_URL = '/textures/planets/2k_sun.jpg';
 
+const INACTIVE_PHASES = new Set<CinematicPhase>(['idle', 'video']);
 const PHASES_THAT_FREEZE_ORBITS = new Set<CinematicPhase>(['locked', 'zooming', 'flash', 'video']);
+const SYSTEM_POSITION = new THREE.Vector3(0, 1.74, -2.3);
 const PLANET_WHITE = new THREE.Color('#ffffff');
 const PLANET_DIM = new THREE.Color('#46515a');
 const MARKER_CYAN = new THREE.Color('#5edcff');
@@ -134,6 +136,26 @@ function prepareColorTexture(texture: THREE.Texture) {
   return texture;
 }
 
+// One decode per image for the page's lifetime, so the roulette can preload in the lobby
+// and a later mount (second match, quality change) reuses the decoded images.
+const textureCache = new Map<string, Promise<THREE.Texture>>();
+function loadColorTexture(url: string) {
+  let pending = textureCache.get(url);
+  if (!pending) {
+    pending = new THREE.TextureLoader().loadAsync(url).then(prepareColorTexture);
+    pending.catch((error) => {
+      console.error(`Unable to load planetary texture ${url}.`, error);
+      textureCache.delete(url);
+    });
+    textureCache.set(url, pending);
+  }
+  return pending;
+}
+
+const EARTH_NIGHT_URL = '/textures/earth/earth_night_2k.jpg';
+const EARTH_CLOUDS_URL = '/textures/earth/earth_clouds_2k.jpg';
+const ALL_TEXTURE_URLS = [...Object.values(PLANET_TEXTURE_URLS), SUN_TEXTURE_URL, EARTH_NIGHT_URL, EARTH_CLOUDS_URL];
+
 function Sun() {
   const material = useMemo(
     () =>
@@ -146,24 +168,13 @@ function Sun() {
 
   useEffect(() => {
     let cancelled = false;
-    let loadedTexture: THREE.Texture | null = null;
-    new THREE.TextureLoader().load(
-      SUN_TEXTURE_URL,
-      (loaded) => {
-        if (cancelled) {
-          loaded.dispose();
-          return;
-        }
-        loadedTexture = prepareColorTexture(loaded);
-        material.map = loadedTexture;
-        material.needsUpdate = true;
-      },
-      undefined,
-      (error) => console.error(`Unable to load Sun texture ${SUN_TEXTURE_URL}.`, error),
-    );
+    loadColorTexture(SUN_TEXTURE_URL).then((loaded) => {
+      if (cancelled) return;
+      material.map = loaded;
+      material.needsUpdate = true;
+    }, () => {});
     return () => {
       cancelled = true;
-      loadedTexture?.dispose();
       material.dispose();
     };
   }, [material]);
@@ -181,31 +192,16 @@ function EarthLayers({ geometry, sunDirection }: { geometry: THREE.SphereGeometr
 
   useEffect(() => {
     let cancelled = false;
-    const loaded = new Set<THREE.Texture>();
-    const loader = new THREE.TextureLoader();
     const load = (url: string, apply: (texture: THREE.Texture) => void) => {
-      loader.load(
-        url,
-        (texture) => {
-          if (cancelled) {
-            texture.dispose();
-            return;
-          }
-          prepareColorTexture(texture);
-          loaded.add(texture);
-          apply(texture);
-        },
-        undefined,
-        (error) => console.error(`Unable to load Earth layer ${url}.`, error),
-      );
+      loadColorTexture(url).then((texture) => {
+        if (!cancelled) apply(texture);
+      }, () => {});
     };
 
-    load('/textures/earth/earth_night_2k.jpg', setNightMap);
-    load('/textures/earth/earth_clouds_2k.jpg', setCloudMap);
+    load(EARTH_NIGHT_URL, setNightMap);
+    load(EARTH_CLOUDS_URL, setCloudMap);
     return () => {
       cancelled = true;
-      loaded.forEach((texture) => texture.dispose());
-      loaded.clear();
     };
   }, []);
 
@@ -437,26 +433,15 @@ function Planet({
   useEffect(() => {
     if (!textureUrl) return;
     let cancelled = false;
-    let loadedTexture: THREE.Texture | null = null;
-    new THREE.TextureLoader().load(
-      textureUrl,
-      (loaded) => {
-        if (cancelled) {
-          loaded.dispose();
-          return;
-        }
-        loadedTexture = prepareColorTexture(loaded);
-        material.map = loadedTexture;
-        material.needsUpdate = true;
-      },
-      undefined,
-      (error) => console.error(`Unable to load ${definition.id} texture ${textureUrl}.`, error),
-    );
+    loadColorTexture(textureUrl).then((loaded) => {
+      if (cancelled) return;
+      material.map = loaded;
+      material.needsUpdate = true;
+    }, () => {});
     return () => {
       cancelled = true;
-      loadedTexture?.dispose();
     };
-  }, [definition.id, material, textureUrl]);
+  }, [material, textureUrl]);
 
   useEffect(
     () => () => {
@@ -468,8 +453,13 @@ function Planet({
   );
 
   useFrame((_, dtRaw) => {
+    if (INACTIVE_PHASES.has(phase)) return;
     const dt = Math.min(dtRaw, 0.05);
     if (priorPhase.current !== phase) {
+      if (phase === 'activating') {
+        focus.current = 0;
+        zoom.current = 0;
+      }
       if (phase === 'locked') focus.current = 0;
       if (phase === 'zooming') zoom.current = 0;
       priorPhase.current = phase;
@@ -544,7 +534,7 @@ function OrbitPath({
 }) {
   const path = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
-    if (!path.current || reducedMotion) return;
+    if (!path.current || reducedMotion || INACTIVE_PHASES.has(phase)) return;
     const speed = phase === 'roulette' ? 2.2 : phase === 'activating' ? 1.4 : 0.14;
     path.current.rotation.z += dt * speed;
   });
@@ -590,6 +580,12 @@ export function PlanetaryRoulette({
   const reticle = useRef<THREE.Group>(null);
   const sunLight = useRef<THREE.PointLight>(null);
   const systemScale = useRef(0.04);
+  const priorPhase = useRef<CinematicPhase>('idle');
+  // Frames left to draw the hidden system while idle, so textures upload and shaders
+  // compile in the lobby instead of stalling the first frames of the cinematic.
+  const warmFrames = useRef(0);
+  const warmOffset = useMemo(() => new THREE.Vector3(), []);
+  const camera = useThree((state) => state.camera);
   const planetRefs = useRef(new Map<PlanetId, THREE.Group>());
   const geometry = useMemo(() => new THREE.SphereGeometry(1, 48, 32), []);
   const stars = useMemo(() => {
@@ -611,6 +607,17 @@ export function PlanetaryRoulette({
     },
     [geometry, stars],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.allSettled(ALL_TEXTURE_URLS.map(loadColorTexture)).then(() => {
+      // A few frames: materials pick up their maps a microtask after the images resolve.
+      if (!cancelled) warmFrames.current = 4;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const orbitMaterial = useMemo(
     () =>
@@ -664,6 +671,29 @@ export function PlanetaryRoulette({
   );
 
   useFrame((_, dtRaw) => {
+    const active = !INACTIVE_PHASES.has(phase);
+    if (sunLight.current) sunLight.current.intensity = 0;
+    if (!active) {
+      priorPhase.current = phase;
+      if (!system.current) return;
+      const warming = warmFrames.current > 0;
+      system.current.visible = warming;
+      if (reticle.current) reticle.current.visible = warming;
+      if (warming) {
+        // Sub-pixel, just in front of the camera: drawn (so compiled) but never seen.
+        warmFrames.current -= 1;
+        camera.getWorldDirection(warmOffset);
+        system.current.position.copy(camera.position).addScaledVector(warmOffset, 0.5);
+        system.current.scale.setScalar(1e-5);
+      }
+      return;
+    }
+    if (priorPhase.current !== phase && INACTIVE_PHASES.has(priorPhase.current) && system.current) {
+      systemScale.current = 0.04;
+      system.current.position.copy(SYSTEM_POSITION);
+      system.current.visible = true;
+    }
+    priorPhase.current = phase;
     const dt = Math.min(dtRaw, 0.05);
     systemScale.current = reducedMotion ? 1.12 : THREE.MathUtils.damp(systemScale.current, 1.12, phase === 'activating' ? 7 : 3.2, dt);
     if (system.current) system.current.scale.setScalar(systemScale.current);
@@ -686,9 +716,11 @@ export function PlanetaryRoulette({
   });
 
   return (
-    <group ref={system} position={[0, 1.74, -2.3]}>
+    <>
+    {/* Always in the scene (dark while idle): adding a light later would recompile every lit cockpit material. */}
+    <pointLight ref={sunLight} position={SYSTEM_POSITION} color="#fff1d2" intensity={0} distance={2.4} decay={2} />
+    <group ref={system} position={SYSTEM_POSITION} visible={false}>
       <ambientLight color="#9aaabd" intensity={0.14} />
-      <pointLight ref={sunLight} color="#fff1d2" intensity={2.8} distance={2.4} decay={2} />
       <NavigationStars geometry={stars} />
       <Sun />
       {PLANETS.map((planet) => (
@@ -735,5 +767,6 @@ export function PlanetaryRoulette({
         <meshBasicMaterial color="#ff9b55" transparent opacity={phase === 'locked' ? 0.58 : 0.18} depthWrite={false} toneMapped={false} />
       </mesh>
     </group>
+    </>
   );
 }

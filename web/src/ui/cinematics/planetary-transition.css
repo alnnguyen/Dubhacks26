@@ -166,7 +166,6 @@
   text-transform: uppercase;
   cursor: pointer;
   touch-action: manipulation;
-  backdrop-filter: blur(8px);
 }
 
 .planetary-transition__skip:focus-visible {
@@ -190,7 +189,6 @@
   text-transform: uppercase;
   cursor: pointer;
   touch-action: manipulation;
-  backdrop-filter: blur(8px);
 }
 
 .planetary-transition__sound:focus-visible {
