@@ -71,3 +71,20 @@ const DESTINATION_INDEX = new Map(DESTINATIONS.map(d => [d.id,d]));
 export function destinationById(id: string): ExploreDestination {
   return DESTINATION_INDEX.get(id === 'deep-field' ? 'nearby-stars' : id) ?? DESTINATIONS[0];
 }
+
+/** The flyable destination for a body/object ID, if one exists (no fallback to Earth). */
+export function destinationForBody(bodyId: string): ExploreDestination | undefined {
+  return DESTINATION_INDEX.get(`visit-${bodyId}`) ?? DESTINATION_INDEX.get(bodyId) ?? DESTINATIONS.find((d) => d.bodyId === bodyId);
+}
+
+/** Best destination whose name appears in free text, e.g. "take me to Saturn". Longest name wins. */
+export function destinationInText(text: string): ExploreDestination | undefined {
+  const q = ` ${text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ')} `;
+  let best: ExploreDestination | undefined;
+  for (const d of DESTINATIONS) {
+    const name = d.label.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    if (name.length < 3 || !q.includes(` ${name} `)) continue;
+    if (!best || name.length > best.label.length) best = d;
+  }
+  return best;
+}

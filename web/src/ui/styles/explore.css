@@ -723,3 +723,61 @@
 .ex-root:has(.ex-planet-backdrop) .ex-exit { visibility:hidden; }
 
 .sd-pilot-hint{position:absolute;left:50%;bottom:calc(var(--safe-b) + 18px);transform:translateX(-50%);margin:0;padding:8px 14px;max-width:min(420px,calc(100vw - 32px));text-align:center;font:11px var(--mono);color:var(--muted);background:#030d16a6;border:1px solid var(--holo-faint);pointer-events:none}
+
+/* Pilot contacts actions + rival ship labels (multiplayer exploration) */
+.ex-contacts__actions { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.ex-contacts[open] { z-index: 31; }
+.ex-rival-wrap { pointer-events: none; }
+.ex-rival-label {
+  pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 3px 8px 4px; transform: translateY(-14px); white-space: nowrap; cursor: pointer;
+  font: 600 12px var(--display, sans-serif); letter-spacing: .08em; color: #ffd8cc;
+  background: #2a0c08cc; border: 1px solid #ff6b4a99; box-shadow: 0 0 12px #ff3b1f44;
+}
+.ex-rival-label:hover { background: #4a150dee; }
+.ex-rival-label small { font: 9px var(--mono, monospace); letter-spacing: .06em; color: #ffb39e; }
+.ex-rival-label__mark { margin-right: 4px; }
+.ex-rival-label[data-duel='true'] { color: #c9c9c9; border-color: #8889; background: #1a1a1acc; box-shadow: none; }
+.ex-rival-label[hidden] { display: none; }
+.ex-rival-prompt { z-index: 60; background: #02060cb3; backdrop-filter: blur(2px); }
+.ex-rival-label[data-behind='true'] { opacity: .4; }
+
+/* ---- Laptop HUD v2: bridge emphasis, Flight / Explore tabs, decluttered panels ---- */
+.ex-root[data-chrome='drive'] .ex-topbar { padding-right: 8px; }
+.ex-topbar { align-items: center; }
+.ex-topbar__left { display: flex; align-items: center; gap: 12px; pointer-events: auto; }
+.ex-bridge {
+  display: flex; align-items: center; gap: 10px; padding: 8px 16px 8px 12px; cursor: pointer;
+  color: #04131c; background: linear-gradient(135deg, #ffd27a, #f0b429); border: 0;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  box-shadow: 0 0 22px #f0b42955; font-family: var(--display);
+}
+.ex-bridge:hover { background: linear-gradient(135deg, #ffe0a0, #ffc54a); }
+.ex-bridge:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.ex-bridge__arrow { font-size: 26px; line-height: 1; font-weight: 700; }
+.ex-bridge__text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+.ex-bridge__text strong { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; }
+.ex-bridge__text small { font: 9px var(--mono); letter-spacing: .08em; opacity: .75; }
+.ex-modes { display: flex; pointer-events: auto; border: 1px solid var(--holo-line); background: #03101bcc; }
+.ex-modes button {
+  display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 150px; padding: 7px 18px;
+  border: 0; background: transparent; color: var(--muted); cursor: pointer; font-family: var(--display);
+}
+.ex-modes button strong { font-size: 14px; letter-spacing: .18em; text-transform: uppercase; }
+.ex-modes button small { font: 9px var(--mono); letter-spacing: .04em; }
+.ex-modes button[aria-selected='true'] { color: #04131c; background: linear-gradient(135deg, #8ff3ff, #3de0ff); }
+.ex-modes button + button { border-left: 1px solid var(--holo-line); }
+.ex-telemetry { top: calc(var(--safe-t) + 74px); }
+.ex-flight-status { top: calc(var(--safe-t) + 68px); gap: 2px; }
+.ex-local-zoom { top: calc(var(--safe-t) + 74px); }
+.ex-contacts { left: auto; right: var(--safe-r); bottom: calc(var(--safe-b) + 92px); }
+@media (max-width: 900px) {
+  .ex-modes button { min-width: 0; padding: 6px 10px; }
+  .ex-modes button small, .ex-bridge__text small { display: none; }
+}
+@media (max-width: 700px) {
+  .ex-topbar { flex-wrap: wrap; }
+  .ex-modes { order: 3; width: 100%; }
+  .ex-modes button { flex: 1; }
+  .ex-telemetry { top: calc(var(--safe-t) + 120px); }
+}

@@ -189,7 +189,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
   };
 
   if (phase === 'drive') return <Suspense fallback={<p className="sd-boot__line">Engaging drive…</p>}>
-    <ExploreApp lobby={lobby} settings={settings} onSettingsChange={setSettings} onExit={exitDrive} onBattleLaunch={launch} />
+    <ExploreApp lobby={lobby} settings={settings} onSettingsChange={setSettings} onExit={exitDrive} onBattleLaunch={launch} copilotClient={copilotClient} />
   </Suspense>;
 
   return (

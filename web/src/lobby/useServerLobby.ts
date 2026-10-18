@@ -50,6 +50,7 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
         saveArenaJourney(journey);
         setLaunchingJourney(journey);
       },
+      setLocation: (location) => void client.setLocation(location),
       setCallsign: (callsign) => {
         const saved = savePilotCallsign(callsign);
         if (saved) void client.setCallsign(saved);
@@ -107,5 +108,6 @@ function toNearby(pilot: Pilot, index: number): NearbyPilot {
     distanceM: 4 + index * 5,
     bearingDeg: hash % 360,
     signal: 1,
+    ...(pilot.location ? { location: pilot.location } : {}),
   };
 }

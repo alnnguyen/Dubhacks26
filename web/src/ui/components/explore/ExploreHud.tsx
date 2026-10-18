@@ -8,8 +8,15 @@ import type { NearbyPilot } from '../../state/lobbyTypes';
 import { scienceForBodyId, type BodyScience } from './bodiesScience';
 import { HoloButton } from '../hud/primitives';
 
+/** Flight: multiplayer-visible free flight. Explore: peaceful sightseeing with the scale/zoom controls. */
+export type ExploreMode = 'flight' | 'explore';
+
 export interface ExploreHudProps {
   destination: ExploreDestination;
+  mode: ExploreMode;
+  onMode: (mode: ExploreMode) => void;
+  /** Leave free flight for the cockpit. */
+  onBridge: () => void;
   onZoom?: (command: LocalZoomCommand) => void;
   ready: boolean;
   loadingAssets: boolean;
@@ -29,6 +36,8 @@ export interface ExploreHudProps {
   onInput: (patch: Partial<FlightInput>) => void;
   onSelectPilot: (id: string) => void;
   onChallenge: (id: string) => void;
+  /** Jump to where a pilot reported they are flying. Omitted when that place has no destination. */
+  onFlyToPilot?: (id: string) => void;
   onOpenNav: () => void;
   onCloseNav: () => void;
   onJump: (id: string) => void;
@@ -85,7 +94,7 @@ function Stick({
 }
 
 export function ExploreHud({
-  destination, onZoom, ready, loadingAssets, assetProgress, assetErrors, flightEnabled, onLearnBody,
+  destination, mode, onMode, onBridge, onZoom, ready, loadingAssets, assetProgress, assetErrors, flightEnabled, onLearnBody,
   telemetry,
   pilots,
   selectedId,
@@ -98,6 +107,7 @@ export function ExploreHud({
   onInput,
   onSelectPilot,
   onChallenge,
+  onFlyToPilot,
   onOpenNav,
   onCloseNav,
   onJump,
@@ -127,10 +137,20 @@ export function ExploreHud({
   return (
     <div className="ex-hud">
       <header className="ex-topbar">
-        <p className="sd-brand">
-          <span>Jedi Space Duels</span>
-          <span className="sd-brand__sub">Drive // Free flight</span>
-        </p>
+        <div className="ex-topbar__left">
+          <button type="button" className="ex-bridge" onClick={onBridge}>
+            <span className="ex-bridge__arrow" aria-hidden>‹</span>
+            <span className="ex-bridge__text"><strong>Return to bridge</strong><small>Cockpit · lobby · duels</small></span>
+          </button>
+        </div>
+        <div className="ex-modes" role="tablist" aria-label="Flight mode">
+          <button type="button" role="tab" aria-selected={mode === 'flight'} onClick={() => onMode('flight')}>
+            <strong>Flight</strong><small>Pilots can find you</small>
+          </button>
+          <button type="button" role="tab" aria-selected={mode === 'explore'} onClick={() => onMode('explore')}>
+            <strong>Explore</strong><small>Peaceful · zoom &amp; views</small>
+          </button>
+        </div>
         <div className="ex-topbar__actions">
           <HoloButton size="sm" onClick={onToggleCredits}>
             Data
@@ -148,29 +168,26 @@ export function ExploreHud({
           {telemetry.nearestDistance.toFixed(0)} u · {telemetry.speed.toFixed(0)} u/s
           {telemetry.boosting ? ' · BOOST' : ''}
         </p>
-        <p className="ex-telemetry__dest">{destination.label}</p>
-        <p className="ex-telemetry__meta" data-testid="flight-position">Position {telemetry.position.map(n => n.toFixed(1)).join(' / ')}</p>
+        <p className="ex-telemetry__dest">{destination.label} · {telemetry.scaleLabel}</p>
         {nearestScience?.gravityMps2 != null && (
           <p className="ex-telemetry__science">g {nearestScience.gravityMps2} m/s² · NASA Fact Sheet</p>
         )}
       </button>
 
-      <div className="ex-scale" data-band={telemetry.scaleBand} aria-live="polite">
-        <p className="ex-scale__eyebrow">{onZoom ? 'Continuous local zoom' : 'Scale (gameplay)'}</p>
-        <p className="ex-scale__label">{telemetry.scaleLabel}</p>
-        <p className="ex-scale__hint">
-          {onZoom ? 'Solar layout + catalog stars · visual compression' : destination.environment === 'stars' ? 'HYG positions + NASA host stars' : destination.environment === 'galaxies' ? 'Published coordinates / estimated distances' : destination.environment === 'exoplanets' ? 'NASA parameters · illustrative orbits' : telemetry.showMilkyWay ? 'Artistic galaxy model' : 'Solar neighborhood'}
-        </p>
-      </div>
 
       <div className="ex-flight-status" role="status">
-        <strong>{ready ? 'Universe ready' : 'Starting universe…'}</strong>
-        <span>{loadingAssets ? `Artwork loading ${Math.round(assetProgress)}%` : assetErrors ? 'Some artwork unavailable · basic shapes active' : 'Artwork loaded'}</span>
-        <span className="ex-catalog-status">{CATALOG_STARS.length.toLocaleString()} stars · {CATALOG_PLANETS.length.toLocaleString()} planets · {CATALOG_GALAXIES.length.toLocaleString()} galaxies</span>
+        {!ready || loadingAssets || assetErrors ? <strong>{!ready ? 'Starting universe…' : loadingAssets ? `Artwork loading ${Math.round(assetProgress)}%` : 'Some artwork unavailable · basic shapes active'}</strong> : null}
         <span>{!flightEnabled ? 'Flight paused' : telemetry.localNavigation?.inTransit ? `Approaching ${telemetry.localNavigation.focus}` : telemetry.localNavigation?.zooming ? 'Zooming smoothly' : telemetry.speed > 0.1 ? 'Flying' : 'Stopped · press W or Cruise'}</span>
       </div>
-      {onZoom && <section className="ex-local-zoom" aria-label="Local zoom controls">
-        <p className="sd-eyebrow">Earth → system → stars</p>
+      {mode === 'explore' && !onZoom && (
+        <section className="ex-local-zoom" aria-label="Explore mode">
+          <p className="sd-eyebrow">Peaceful explore</p>
+          <p>Zoom and system views work in the solar system and nearby stars. {CATALOG_STARS.length.toLocaleString()} stars · {CATALOG_PLANETS.length.toLocaleString()} planets · {CATALOG_GALAXIES.length.toLocaleString()} galaxies in Destinations.</p>
+          <HoloButton size="sm" onClick={() => onJump('sol')}>Back to the solar system</HoloButton>
+        </section>
+      )}
+      {mode === 'explore' && onZoom && <section className="ex-local-zoom" aria-label="Local zoom controls">
+        <p className="sd-eyebrow">Peaceful explore · Earth → system → stars</p>
         <div className="ex-local-zoom__buttons">
           <HoloButton size="sm" disabled={!flightEnabled} onClick={() => onZoom('in')}>Zoom in +</HoloButton>
           <HoloButton size="sm" disabled={!flightEnabled} onClick={() => onZoom('out')}>Zoom out −</HoloButton>
@@ -189,7 +206,7 @@ export function ExploreHud({
         <HoloButton onClick={() => onJump('sol')}>Return to Earth</HoloButton>
       </div>
 
-      <details className="ex-contacts" aria-label="Nearby pilots">
+      {mode === 'flight' && <details className="ex-contacts" aria-label="Nearby pilots">
         <summary className="sd-eyebrow">Pilot contacts</summary>
         <ul className="ex-contacts__list">
           {available.length === 0 && <li className="ex-contacts__empty">No connected pilots</li>}
@@ -201,17 +218,24 @@ export function ExploreHud({
                 onClick={() => onSelectPilot(p.id)}
               >
                 <span>{p.callsign}</span>
-                <span className="ex-contact__dist">{p.distanceM} m</span>
+                <span className="ex-contact__dist">{p.location ? `near ${p.location.label}` : `${p.distanceM} m`}</span>
               </button>
             </li>
           ))}
         </ul>
         {selected && (
-          <HoloButton variant="primary" data-ui-sound="commit" disabled={challengeBusy} onClick={() => onChallenge(selected.id)}>
-            Challenge {selected.callsign}
-          </HoloButton>
+          <div className="ex-contacts__actions">
+            <HoloButton variant="primary" data-ui-sound="commit" disabled={challengeBusy} onClick={() => onChallenge(selected.id)}>
+              Challenge {selected.callsign}
+            </HoloButton>
+            {selected.location && onFlyToPilot && (
+              <HoloButton disabled={challengeBusy} onClick={() => onFlyToPilot(selected.id)}>
+                Fly to {selected.location.label}
+              </HoloButton>
+            )}
+          </div>
         )}
-      </details>
+      </details>}
 
       {destination.environment === 'mars-surface' && onOpenArena && (
         <div className="ex-arena-link">
