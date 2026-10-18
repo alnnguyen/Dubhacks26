@@ -66,14 +66,14 @@ export function SaberInitiation(p: SaberInitiationProps) {
 
   return <section className="si-overlay" aria-label="Saber initiation" data-step={p.step}>
     <div className="si-shade" aria-hidden="true" />
+    <header key={`${p.running}-${p.step}-${recovering}`} className="si-prompt si-slide">
+      <p className="si-eyebrow">{recovering ? "LIVE LINK / RECOVERY" : !p.running ? "FLIGHT DECK / PRE-COMBAT" : p.step === "done" ? "INITIATION COMPLETE" : `${String(index + 1).padStart(2, "0")} / ${copy.label.toUpperCase()}`}</p>
+      <h1 className="si-title" data-long={title.lead.length + title.word.length > 20}><span>{title.lead}</span><strong>{title.word}</strong></h1>
+      <p className="si-description">{description}</p>
+    </header>
     <div className="si-content">
       <div className="si-meta"><span>MARS / SABER INITIATION</span><span>{String(Math.min(index + 1, 6)).padStart(2, "0")} / 06</span></div>
       <ol className="si-rail" aria-label="Setup progress">{STEPS.map((s, i) => <li key={s} data-done={i < index} aria-current={s === p.step ? "step" : undefined}><i /> <span>{COPY[s].label}</span></li>)}</ol>
-      <div key={`${p.running}-${p.step}-${recovering}`} className="si-slide">
-        <p className="si-eyebrow">{recovering ? "LIVE LINK / RECOVERY" : !p.running ? "FLIGHT DECK / PRE-COMBAT" : p.step === "done" ? "INITIATION COMPLETE" : `${String(index + 1).padStart(2, "0")} / ${copy.label.toUpperCase()}`}</p>
-        <h1 className="si-title"><span>{title.lead}</span><strong data-long={title.word.length > 9}>{title.word}</strong></h1>
-        <p className="si-description">{description}</p>
-      </div>
       <div className="si-feedback" role="status" aria-live="polite">
         {confirmed ? <span className="si-confirmed" key={confirmed}>✓ {confirmed}</span> : <span>{!p.running ? "AWAITING CAMERA" : p.loading ? "STARTING TRACKING" : !p.serverFresh ? "CONNECTING ARENA LINK" : p.step === "done" ? p.youReady ? "YOUR SYSTEMS READY" : "CONFIRMING SYSTEMS" : holding ? "POSE DETECTED · HOLD STEADY" : p.step === "phone" ? "WAITING FOR IGNITION" : !p.bodySeen ? "BRING YOUR UPPER BODY INTO VIEW" : "TRACKING LIVE · FOLLOW THE PROMPT"}</span>}
       </div>

@@ -2,7 +2,7 @@
 
 ## Goal, ownership, and exclusions
 
-Replace the long setup checklist with one task at a time, using the cinematic initiation design over the existing live Mars arena. Keep the avatar visible to the right and the mirrored self-camera in its existing bottom-right corner. Every slide follows measured setup progress, then both pilots share a server-controlled 3–2–1 before swings count.
+Replace the long setup checklist with one task at a time, using the cinematic initiation design over the existing live Mars arena. Show each task as one level horizontal heading across the top center. Keep device/progress feedback to the left, the avatar visible to the right, and the mirrored self-camera in its existing bottom-right corner. Every slide follows measured setup progress, then both pilots share a server-controlled 3–2–1 before swings count.
 
 Owned paths: ArenaDuel, ArenaScene setup camera framing, new SaberInitiation component/CSS and development preview, arena-buffer metadata, setup-start rules/tests and optional wire fields, phone startup status, routing and handoff docs. No new dependencies, provider keys, endpoints, attacks, calibration thresholds, planets, or deployment. Concurrent sound/LYRA edits remain separate.
 
@@ -19,7 +19,7 @@ Normal Live challenge → accepted match → existing Mars travel/briefing → R
 
 The existing calibration algorithm, holds, notes/assumption fallbacks, camera permission request, and touch/phone controls remain. Each step shows real hold progress and independent camera/paired-phone/motion indicators. A short success message accompanies measured advancement. The frontend progress update compares against the last painted value, fixing a bar that could remain frozen when individual frame increments were less than 5%.
 
-Mars and both live avatars continue rendering beneath the translucent instruction layer. During setup, the same renderer uses a wider camera framing with the fighters shifted to the right; combat returns smoothly to the existing shoulder camera. No duplicate WebGL scene, remote CV, or video upload.
+Task headings are a centered horizontal line (for example RAISE YOUR SABER), with a straight blue keyword highlight and supporting instruction directly below. Mars and both live avatars continue rendering beneath the translucent instruction layer. During setup, the same renderer uses a wider camera framing with the fighters shifted to the right; combat returns smoothly to the existing shoulder camera. No duplicate WebGL scene, remote CV, or video upload.
 
 Setup complete shows both pilots' readiness. When both are connected and have fresh calibrated body/phone input, the server sets one three-second deadline. Damage from setup swings cannot occur during that period. Tracking loss before GO cancels the deadline and a fresh three seconds starts when both recover. After the first GO, later tracking loss pauses swings through existing freshness rules; it does not repeat the countdown. Restart setup explicitly invalidates the previous calibration until measurements complete again.
 

@@ -146,3 +146,7 @@ Adjusted only the standalone `web/duel-result-preview.html`: removed VS rotation
 ## Live Mars initiation overlay + shared countdown
 
 Implemented on alex-dev: translucent one-task slides follow the existing real setup wizard, live hold/sensor feedback, wider right-side avatar framing, existing bottom-right self-camera, per-step confirmations, waiting/readiness and recovery states. Server publishes and enforces shared 3–2–1; phone status follows the same gate. Backend 95 passed, frontend targeted 32 passed, production build passed. Labelled synthetic UI review verified over Mars; physical two-player camera/phone QA pending (Alex will test). Host must run the updated backend as well as frontend. No deployment/push. Handoff: `docs/saber-initiation-overlay.md`.
+
+## Saber initiation heading refinement
+
+User-requested presentation adjustment: task wording moved to one straight horizontal heading at the top center, with the supporting sentence beneath it. Feedback remains left; avatars and bottom-right camera remain visible. Owned paths: SaberInitiation component/CSS and handoff notes. No calibration, countdown, combat, or interface changes. Production build passed; browser review confirmed the straight centered heading and visible avatar/camera areas in the labelled synthetic preview.
