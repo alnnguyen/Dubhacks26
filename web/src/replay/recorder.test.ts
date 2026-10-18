@@ -10,7 +10,7 @@ class FakeCanvas {
   getContext() { return { fillRect() {}, drawImage() {}, fillStyle: '' }; }
 }
 class FakeRecorder {
-  static latest: FakeRecorder;
+  static latest: FakeRecorder | undefined;
   static isTypeSupported(type: string) { return type.includes('webm'); }
   state = 'inactive'; mimeType = 'video/webm';
   onstop?: () => void;
@@ -20,9 +20,23 @@ class FakeRecorder {
   start() { this.state = 'recording'; }
   stop() { this.state = 'inactive'; this.ondataavailable?.({ data: new Blob(['final chunk']) }); this.onstop?.(); }
 }
-const video = { readyState: 4, videoWidth: 640, videoHeight: 360 } as HTMLVideoElement;
+function makeVideo(readyState = 4) {
+  const listeners = new Map<string, Set<() => void>>();
+  return {
+    readyState,
+    videoWidth: 640,
+    videoHeight: 360,
+    addEventListener(type: string, fn: () => void) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+    },
+    removeEventListener(type: string, fn: () => void) { listeners.get(type)?.delete(fn); },
+    emit(type: string) { listeners.get(type)?.forEach(fn => fn()); },
+  };
+}
+let video = makeVideo();
 beforeEach(() => {
-  now = 0; stopTrack.mockClear(); vi.useFakeTimers();
+  now = 0; stopTrack.mockClear(); FakeRecorder.latest = undefined; video = makeVideo(); vi.useFakeTimers();
   vi.spyOn(performance, 'now').mockImplementation(() => now);
   vi.stubGlobal('HTMLCanvasElement', FakeCanvas);
   vi.stubGlobal('MediaRecorder', FakeRecorder);
@@ -34,9 +48,9 @@ afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(
 
 it('caps recording at 45 seconds and releases capture tracks exactly once', () => {
   const clip = vi.fn(); const recorder = createReplayRecorder(clip, vi.fn());
-  recorder.start(video);
+  recorder.start(video as unknown as HTMLVideoElement);
   const first = FakeRecorder.latest;
-  recorder.start(video);
+  recorder.start(video as unknown as HTMLVideoElement);
   expect(FakeRecorder.latest).toBe(first);
   now = 45_000; vi.advanceTimersByTime(45_000);
   expect(clip).toHaveBeenCalledTimes(1);
@@ -48,16 +62,38 @@ it('caps recording at 45 seconds and releases capture tracks exactly once', () =
 });
 it('disposal stops recording and prevents an old match publishing a clip', () => {
   const clip = vi.fn(); const recorder = createReplayRecorder(clip, vi.fn());
-  recorder.start(video); now = 2000; recorder.dispose();
-  expect(FakeRecorder.latest.state).toBe('inactive');
+  recorder.start(video as unknown as HTMLVideoElement); now = 2000; recorder.dispose();
+  expect(FakeRecorder.latest!.state).toBe('inactive');
   expect(stopTrack).toHaveBeenCalledTimes(1);
   expect(clip).not.toHaveBeenCalled();
 });
 it('oversized recordings are discarded locally before upload', () => {
   const clip = vi.fn(), status = vi.fn(); const recorder = createReplayRecorder(clip, status);
-  recorder.start(video); now = 2000;
-  FakeRecorder.latest.ondataavailable?.({data: new Blob([new Uint8Array(8 * 1024 * 1024 + 1)])});
+  recorder.start(video as unknown as HTMLVideoElement); now = 2000;
+  FakeRecorder.latest!.ondataavailable?.({data: new Blob([new Uint8Array(8 * 1024 * 1024 + 1)])});
   expect(clip).not.toHaveBeenCalled();
   expect(status).toHaveBeenLastCalledWith('Replay exceeded the local size limit and was discarded.');
   expect(stopTrack).toHaveBeenCalledTimes(1);
+});
+it('waits for camera frames before starting when the video is not ready yet', () => {
+  video = makeVideo(0);
+  const clip = vi.fn(), status = vi.fn();
+  const recorder = createReplayRecorder(clip, status);
+  const halt = recorder.start(video as unknown as HTMLVideoElement);
+  expect(status).toHaveBeenLastCalledWith('Waiting for camera for replay…');
+  expect(FakeRecorder.latest).toBeUndefined();
+  video.readyState = 4;
+  video.emit('loadeddata');
+  expect(status).toHaveBeenLastCalledWith('Recording locally · first 45 seconds · no audio');
+  expect(FakeRecorder.latest).toBeDefined();
+  now = 2000;
+  halt();
+  expect(clip).toHaveBeenCalledTimes(1);
+});
+it('reports when the camera never becomes ready for replay', () => {
+  video = makeVideo(0);
+  const status = vi.fn();
+  createReplayRecorder(vi.fn(), status).start(video as unknown as HTMLVideoElement);
+  vi.advanceTimersByTime(3000);
+  expect(status).toHaveBeenLastCalledWith('Replay recording could not start; the camera feed never became ready.');
 });

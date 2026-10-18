@@ -535,7 +535,7 @@ export function ArenaDuel({
         bodySeen={bodySeen} phonePaired={you.saber.paired} phoneLive={you.saber.phoneLive}
         youReady={youArmed} rivalReady={rivalArmed} yourName={you.callsign} rivalName={rival.callsign}
         start={saberStart} serverFresh={serverFresh} qr={qr} saberUrl={saberUrl}
-        extraOptions={onReplayEnabled && <label className="arena-replay-optin"><input type="checkbox" checked={replayEnabled} onChange={e => onReplayEnabled(e.target.checked)} /> Record a local replay. Everyone visible must agree. Upload is a separate choice after the duel.</label>}
+        replayEnabled={replayEnabled} onReplayEnabled={onReplayEnabled}
         notes={wizard.notes} error={error} onStart={() => setRunning(true)} onRedo={redoSetup}
       />}
       <SaberCountdown start={saberStart} remaining={countdown} fresh={!finished && serverFresh && wizard.step === "done" && youArmed && rivalArmed} />
