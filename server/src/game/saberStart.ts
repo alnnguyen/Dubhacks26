@@ -1,6 +1,8 @@
 import type { SaberStart } from "../contracts.js";
 
-export const SABER_COUNTDOWN_MS = 3000;
+import { RULES } from "./rules.js";
+
+export const SABER_COUNTDOWN_MS = RULES.countdownMs;
 
 /** Once combat opens, temporary tracking loss pauses swings without replaying the intro. */
 export function advanceSaberStart(state: SaberStart, bothReady: boolean, nowMs: number): SaberStart {

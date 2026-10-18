@@ -4,6 +4,7 @@ import {
   loadPilotIdentity,
   sanitizeCallsign,
   sanitizeShipName,
+  savePilotCallsign,
   savePilotIdentity,
 } from './pilotIdentity';
 
@@ -45,5 +46,13 @@ describe('pilotIdentity', () => {
 
   it('returns null when empty', () => {
     expect(loadPilotIdentity()).toBeNull();
+  });
+
+  it('keeps a callsign changed after onboarding across reloads', () => {
+    savePilotIdentity({ callsign: 'nova', shipName: 'Quiet Lance', accent: 'violet' });
+    expect(savePilotCallsign(' red five ')).toBe('REDFIVE');
+    expect(loadPilotIdentity()).toEqual({ callsign: 'REDFIVE', shipName: 'Quiet Lance', accent: 'violet' });
+    expect(savePilotCallsign('!!')).toBeNull();
+    expect(loadPilotIdentity()?.callsign).toBe('REDFIVE');
   });
 });

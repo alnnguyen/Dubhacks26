@@ -46,6 +46,16 @@ body {
   color: #a8ffd0;
 }
 
+/* Round countdown, matching the laptop: 3, 2, 1, FIGHT. */
+.saber-health .saber-countdown {
+  text-align: center;
+  font-size: 72px;
+  font-weight: 900;
+  line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 0 22px rgba(255, 106, 74, 0.9);
+}
+
 .saber-primary {
   margin-top: auto;
   min-height: 40dvh;

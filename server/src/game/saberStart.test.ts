@@ -41,7 +41,7 @@ beforeEach(()=>{
   mock.timers.enable({apis:["setTimeout","setInterval","Date"],now:100000});
   frames=[];resolved=[];seq=0;
   match=new Match("countdown","mars",{1:{pilotId:"one",callsign:"ONE"},2:{pilotId:"two",callsign:"TWO"}}, {
-    changed:()=>{},projectileLanded:()=>{},saberResolved:e=>resolved.push(e),stepped:()=>{},arenaFrame:f=>frames.push(f),finished:()=>{},
+    changed:()=>{},saberResolved:e=>resolved.push(e),stepped:()=>{},arenaFrame:f=>frames.push(f),finished:()=>{},
   });
   match.handleCommand(1,{commandId:"ready-one",type:"ready"});
   match.handleCommand(2,{commandId:"ready-two",type:"ready"});
@@ -57,7 +57,6 @@ test("setup swings cannot hit during 3-2-1, then normal combat opens",()=>{
   assert.ok(deadline>Date.now());
   assert.equal(match.saberCombatReady,false);
   assert.equal(match.step(1,"right"),"match_not_active");
-  assert.equal(match.handleCommand(1,{commandId:"early-shot",type:"throwRock"}).status,"rejected");
   while(Date.now()+SABER.tickMs<deadline) for(const angle of [60,35,10,-15]) {
     if(Date.now()+SABER.tickMs>=deadline) break;
     tick(angle);
@@ -78,4 +77,22 @@ test("a lost phone cancels startup and returning starts a fresh shared countdown
   mock.timers.tick(1000);match.setSaberPaired(2,true);tick();
   assert.ok(frames.at(-1)!.saberStart!.startsAtMs!>before);
   assert.equal(match.saberCombatReady,false);
+});
+
+test("rematch resets the shared gate and stale inputs cannot unlock it",()=>{
+  tick();
+  while(!match.saberCombatReady) tick();
+  match.handleCommand(1,{commandId:"forfeit",type:"forfeit"});
+  match.handleCommand(1,{commandId:"rematch-one",type:"rematch"});
+  match.handleCommand(2,{commandId:"rematch-two",type:"rematch"});
+  assert.equal(match.saberCombatReady,false);
+  tick();
+  assert.equal(match.toView(1).startsInMs,SABER_COUNTDOWN_MS);
+  mock.timers.tick(SABER_COUNTDOWN_MS+SABER.tickMs);
+  assert.equal(match.saberCombatReady,false,"expired streams cancel the rematch countdown");
+  assert.equal(match.toView(1).startsInMs,null);
+  tick();
+  assert.equal(match.toView(1).startsInMs,SABER_COUNTDOWN_MS,"recovery starts a full fresh countdown");
+  while(!match.saberCombatReady) tick();
+  assert.equal(frames.at(-1)!.saberStart!.unlocked,true);
 });

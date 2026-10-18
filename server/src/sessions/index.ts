@@ -7,7 +7,6 @@ import type {
   Pilot,
   PlayerSlot,
   PlayerView,
-  ProjectileLanded,
   RejectReason,
   ArenaFrame,
   GridCell,
@@ -57,7 +56,6 @@ interface ChallengeRecord {
 export interface LobbyEvents {
   // Any lobby or match change; the server re-sends views to connected players.
   changed: () => void;
-  projectileLanded: (playerIds: string[], event: ProjectileLanded) => void;
   saberResolved: (playerIds: string[], event: SaberResolved) => void;
   // Both players in the arena, every server tick, to both laptops.
   arenaFrame: (playerIds: string[], frame: ArenaFrame) => void;
@@ -341,7 +339,6 @@ export class Lobby {
       },
       {
         changed: () => this.events.changed(),
-        projectileLanded: (event) => this.events.projectileLanded([challenger.playerId, defender.playerId], event),
         saberResolved: (event) => this.events.saberResolved([challenger.playerId, defender.playerId], event),
         arenaFrame: (frame) => this.events.arenaFrame([challenger.playerId, defender.playerId], frame),
         stepped: (event) => this.events.stepped([challenger.playerId, defender.playerId], event),

@@ -19,26 +19,13 @@
   height: 100%;
 }
 
+/* Letterbox at the video's own aspect ratio; the blurred backdrop fills the bars. */
 .planetary-transition__video {
   z-index: 1;
-  top: 50%;
-  right: auto;
-  bottom: auto;
-  left: 50%;
-  width: min(100vw, calc(100vh * 464 / 688));
-  height: min(100vh, calc(100vw * 688 / 464));
-  transform: translate(-50%, -50%);
-  object-fit: cover;
+  object-fit: contain;
   opacity: 0;
   background: transparent;
   transition: opacity 250ms ease-out;
-}
-
-@supports (height: 100dvh) {
-  .planetary-transition__video {
-    width: min(100vw, calc(100dvh * 464 / 688));
-    height: min(100dvh, calc(100vw * 688 / 464));
-  }
 }
 
 .planetary-transition[data-phase='video'] .planetary-transition__video {

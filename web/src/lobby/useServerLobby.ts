@@ -10,6 +10,7 @@ import {
   type Pilot,
   type PlayerView,
 } from '../networking';
+import { savePilotCallsign } from '../app/pilotIdentity';
 import type { ChallengePhase, LobbyViewModel, NearbyPilot, PilotProfile } from '../ui/state/lobbyTypes';
 
 /**
@@ -50,8 +51,8 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
         setLaunchingJourney(journey);
       },
       setCallsign: (callsign) => {
-        const trimmed = callsign.trim().toUpperCase().slice(0, 14);
-        if (trimmed) void client.setCallsign(trimmed);
+        const saved = savePilotCallsign(callsign);
+        if (saved) void client.setCallsign(saved);
       },
     }),
     [client, challengeId],

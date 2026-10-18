@@ -86,7 +86,7 @@ const STEP_KEYS: Record<string, StepDirection> = {
   d: "right",
   arrowright: "right",
 };
-const BLOCKED_TOAST_MS = 900;
+const TOAST_MS = 900;
 
 /**
  * The lightsaber duel on a laptop: the laptop camera tracks your body, your
@@ -101,6 +101,8 @@ export function ArenaDuel({
   pairCode,
   note,
   onLeave,
+  onForfeit,
+  onRematch,
 }: {
   client: GameClient;
   view: PlayerView;
@@ -108,6 +110,10 @@ export function ArenaDuel({
   note: string;
   /** Back to the cockpit; before the end this forfeits. */
   onLeave: () => void;
+  /** Give the round to the rival and go to the result screen. */
+  onForfeit: () => void;
+  /** On the result screen: play again, keeping the camera and saber setup. */
+  onRematch: () => void;
 }) {
   const [basicGraphics, setBasicGraphics] = useState(false);
   const [renderAttempt, setRenderAttempt] = useState(0);
@@ -160,23 +166,32 @@ export function ArenaDuel({
     return () => window.clearInterval(id);
   }, []);
 
+  // Stamina changes every tick, so its bar is sized directly rather than re-rendering the arena.
+  const staminaFillRef = useRef<HTMLDivElement>(null);
+  const [winded, setWinded] = useState(false);
+  const [rivalWinded, setRivalWinded] = useState(false);
+
+  const showToast = useCallback((text: string) => {
+    setToast(text);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), TOAST_MS);
+  }, []);
+
   // Flicks and keys both go through the server's validated step command.
   const step = useCallback(
     (direction: StepDirection) => {
       if (!mayStep.current) return;
       void client.step(direction).then((reply) => {
-        if (reply.status !== "rejected" || reply.reason !== "blocked") return;
-        setToast(
-          direction === "forward" ? "Your rival is there" : "Edge of the arena",
-        );
-        window.clearTimeout(toastTimer.current);
-        toastTimer.current = window.setTimeout(
-          () => setToast(null),
-          BLOCKED_TOAST_MS,
-        );
+        if (reply.status !== "rejected") return;
+        if (reply.reason === "exhausted") showToast("Out of stamina");
+        else if (reply.reason === "stunned") showToast("Stunned");
+        else if (reply.reason === "blocked")
+          showToast(
+            direction === "forward" ? "Your rival is there" : "Edge of the arena",
+          );
       });
     },
-    [client],
+    [client, showToast],
   );
   const stepRef = useRef(step);
   stepRef.current = step;
@@ -220,6 +235,15 @@ export function ArenaDuel({
       const start = frame.saberStart ?? null;
       setSaberStart(old => old?.startsAtMs === start?.startsAtMs && old?.unlocked === start?.unlocked ? old : start);
       setEngaged(frame.engaged);
+      for (const p of frame.players) {
+        if (p.slot !== slotRef.current) {
+          setRivalWinded(p.winded);
+          continue;
+        }
+        setWinded(p.winded);
+        if (staminaFillRef.current)
+          staminaFillRef.current.style.width = `${p.stamina}%`;
+      }
       bufferRef.current = pushFrame(
         bufferRef.current,
         frame,
@@ -250,8 +274,14 @@ export function ArenaDuel({
       const players = frameRef.current?.players ?? [];
       const attacker = players.find((p) => p.slot === event.attackerSlot);
       const defender = players.find((p) => p.slot !== event.attackerSlot);
+      if (event.outcome === "guardBreak")
+        showToast(
+          event.attackerSlot === slotRef.current
+            ? "Guard broken! Free hit"
+            : "Guard broken — stunned!",
+        );
       let at: Vec3 | null = null;
-      if (event.outcome === "blocked" && attacker?.blade && defender?.blade) {
+      if (event.outcome !== "hit" && attacker?.blade && defender?.blade) {
         at = midpoint(
           midpoint(attacker.blade.hilt, attacker.blade.tip),
           midpoint(defender.blade.hilt, defender.blade.tip),
@@ -272,7 +302,7 @@ export function ArenaDuel({
       offPhone();
       offResolved();
     };
-  }, [client]);
+  }, [client, showToast]);
 
   useEffect(() => {
     if (!running) return;
@@ -472,14 +502,17 @@ export function ArenaDuel({
   const rivalArmed = rival.saber.bodyReady && rival.saber.saberReady;
   const fighting = view.phase === "active" && wizard.step === "done" && youArmed && rivalArmed && Boolean(saberStart?.unlocked) && serverFresh;
   mayStep.current = fighting;
+  const finished = view.phase === "finished";
+  // Rematches reuse this component, but must wait for the new round's server gate.
+  useEffect(() => { if (finished) setSaberStart(null); }, [finished]);
 
   return (
-    <main className="arena-duel" data-initiating={!fighting}>
+    <main className="arena-duel" data-initiating={!fighting && !finished}>
       <div className="si-arena-viewport">
       <ArenaRenderBoundary key={renderAttempt} onLeave={onLeave} onBasic={() => { setBasicGraphics(true); setRenderAttempt((n) => n + 1); }}>
       <ArenaScene
         basicGraphics={basicGraphics}
-        initiation={!fighting}
+        initiation={!fighting && !finished}
         getFrame={getFrame}
         flashRef={flashRef}
         mySlot={you.slot}
@@ -492,13 +525,23 @@ export function ArenaDuel({
         <div className="arena-bars">
           <Bar label="You" value={you.health} side="you" />
           <Bar label={rival.callsign} value={rival.health} side="rival" />
+          <div className={`arena-stamina ${winded ? "winded" : ""}`}>
+            <span>{winded ? "Winded" : "Stamina"}</span>
+            <div className="arena-stamina-track">
+              <div ref={staminaFillRef} className="arena-stamina-fill" />
+            </div>
+          </div>
+          {rivalWinded ? (
+            <span className="arena-rival-winded">{rival.callsign} is winded</span>
+          ) : null}
         </div>
-        <button type="button" className="arena-leave" onClick={onLeave}>
-          Forfeit & return
+        <button type="button" className="arena-leave" onClick={finished ? onLeave : onForfeit}>
+          {finished ? "Back to bridge" : "Forfeit"}
         </button>
         <p className="arena-note" role="status">
           {fighting
             ? note
+            : finished ? "Duel over."
             : view.phase === "waiting"
               ? `Waiting for ${rival.callsign} to arrive in the arena…`
               : wizard.step === "done"
@@ -514,9 +557,36 @@ export function ArenaDuel({
         start={saberStart} serverFresh={serverFresh} qr={qr} saberUrl={saberUrl}
         notes={wizard.notes} error={error} onStart={() => setRunning(true)} onRedo={redoSetup}
       />}
-      <SaberCountdown start={saberStart} remaining={countdown} fresh={serverFresh && wizard.step === "done" && youArmed && rivalArmed} />
-      {running && !fighting && <span className="si-self-label">YOUR CAMERA / LIVE FEEDBACK</span>}
+      <SaberCountdown start={saberStart} remaining={countdown} fresh={!finished && serverFresh && wizard.step === "done" && youArmed && rivalArmed} />
+      {running && !fighting && !finished && <span className="si-self-label">YOUR CAMERA / LIVE FEEDBACK</span>}
 
+      {finished ? (
+        <section className="arena-result" aria-label="Result">
+          <p className="arena-result-eyebrow">DUEL COMPLETE</p>
+          <h2>{resultTitle(view)}</h2>
+          <p>
+            You {you.health} · {rival.callsign} {rival.health}
+          </p>
+          <p className="arena-result-status" role="status">
+            {!rival.connected
+              ? `${rival.callsign} returned to the cockpit.`
+              : you.rematch
+                ? `Waiting for ${rival.callsign} to accept the rematch…`
+                : rival.rematch
+                  ? `${rival.callsign} wants a rematch!`
+                  : "Rematch keeps your camera and saber setup."}
+          </p>
+          {note ? <p className="arena-warning">{note}</p> : null}
+          <div className="arena-setup-actions">
+            <button type="button" disabled={you.rematch || !rival.connected} onClick={onRematch}>
+              {you.rematch ? "Rematch requested" : rival.rematch ? "Accept rematch" : "Rematch"}
+            </button>{" "}
+            <button type="button" className="secondary" onClick={onLeave}>
+              Back to bridge
+            </button>
+          </div>
+        </section>
+      ) : null}
       {engaged && fighting ? (
         <div className="arena-engaged">ENGAGED</div>
       ) : null}
@@ -540,6 +610,13 @@ export function ArenaDuel({
       />
     </main>
   );
+}
+
+function resultTitle({ result, you, rival }: PlayerView): string {
+  if (!result) return "Duel over";
+  const how = result.reason === "forfeit" ? " by forfeit" : "";
+  if (result.winner === null) return "Draw";
+  return result.winner === you.slot ? `You win${how}` : `${rival.callsign} wins${how}`;
 }
 
 function midpoint(a: Vec3, b: Vec3): Vec3 {

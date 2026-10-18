@@ -4,8 +4,9 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 
 ## Doing
 
+- B (Justin): saber setup reworked October 18 (scan → stand → upright → right → thrust; see contracts.md); needs real laptop/iPhone timing QA.
 - B (Justin): **laptop + iPhone lightsaber duel in a shared 3D arena** merged via `main`/`saber-duel` into `alex-dev`. Server 3D collision/pairing, laptop arena (`web/src/arena3d`), phone saber (`web/src/saber`, `/?saber=CODE`). Scripted socket proof done; real laptop/iPhone QA still open — check `/?dev=arena` first.
-- C (Alan): rock/gun CV still on harness (`/?camera=1`); FlightApp live duel path is now saber arena. Phone QA in `docs/qa-checklist.md`.
+- C (Alan): rock/gun CV, `/?camera=1`, `/?dev=mars` and `/?pvp=1` were removed October 18 (lightsaber-only; see below). Saber arena phone QA in `docs/qa-checklist.md`.
 - D (Alex): Grok Bot planning bonus **claimed** (`docs/sponsor-evidence.md`). Remaining: Photon live-challenge binding + physical-phone LYRA mic QA.
 - A (Ally): **pull `alex-dev`** — Alan’s latest camera is merged; cockpit default + turn-to-look remain on ally paths. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
 
@@ -185,3 +186,18 @@ Alex reported the avatar appearing only near the end of training. The old local 
 ## Intermittent travel reset + immediate setup saber
 
 Alex reports occasional return to cockpit during travel and wants the saber with the initial avatar. Owned paths: FlightApp, per-tab arena journey helper/tests, useServerLobby, only the travel-lifecycle hunk in SpaceshipHome (preserve concurrent sound edits), localFighter/ArenaDuel/setup label and tests, handoff notes. Latch travel until arrival instead of resetting it on lobby snapshots; restore launch/arrival across frontend remounts using the authoritative match and both pilot IDs; show finished matches rather than auto-leaving them unseen. A display-only upright saber follows the initial tracked wrist, then measured phone aim; combat still requires real calibration and server GO. No server/contracts/provider changes. Production build/typecheck and 72 focused tests passed, including journey restoration/identity/reset/storage cases and early saber direction/hand/authority regressions. The exact intermittent failure has not yet been reproduced on Alex's devices; fresh two-player travel testing remains pending. No push/deployment.
+
+## Rock/gun path removal — October 18
+
+- Goal: lightsaber-only combat, as requested by Justin. Removed rock/gun server commands, state, events and rules; matching web client API; the old phone-camera duel (LiveDuel, CameraDebugPage, DevMars, vision, overlay, gun model) and its routes. See docs/contracts.md. Excludes D's Grok briefing fixtures, shared manifests/dependencies and deployment.
+- Validation: server build plus 70 game/session/socket tests passed; web typecheck, 94 tests (one opt-in live test skipped) and production build passed. No device check yet.
+- Status: Integration; staged on saber-duel for Justin to commit. No new environment variables, external messages or deployment.
+
+
+## saber-duel merged into alex-dev — October 18
+
+Source: origin/saber-duel at 7e8d387. Preserves the current cockpit/exploration, direct travel-to-setup flow, persisted journey, early camera avatar/display-only saber, compact LYRA slides, prominent QR and in-square swipe help. Integrates stamina, guard breaks/stun, rematch/forfeit, saved callsign, and the bundled travel-video fix. Removed legacy rock/gun commands and unused old camera-duel routes per Justin's lightsaber-only branch.
+
+Calibration now uses five measured tasks: phone → stand → upright → right → reach, then done. Both phone and laptop follow that same order. One authoritative startup gate drives ArenaFrame.saberStart and view/phone startsInMs; pre-GO tracking loss cancels and restarts three seconds, local timer expiry cannot enable combat. Rematch resets the gate while keeping camera and measured calibration mounted. The phone clears a cancelled countdown and waits for actual server readiness before FIGHT.
+
+Validation: 98/98 server tests passed (including sockets, rematch, stale-input countdown cancellation and recovery); 149 frontend tests passed, one opt-in live test skipped; frontend typecheck/production build passed. Existing large exploration chunk warning remains. Physical two-player camera/phone/travel and rematch QA remains necessary. No new dependencies, environment variables, provider calls, deployment or push. Uncommitted audio/LYRA work in the main checkout is preserved separately.

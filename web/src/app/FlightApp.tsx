@@ -76,12 +76,20 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
 
   useEffect(() => client.onSaberResolved(event => {
     const mine = event.attackerSlot === client.view()?.you.slot;
-    if (event.outcome === 'blocked') setNote(mine ? 'Clash! Your swing hit their blade.' : 'You blocked their swing.');
+    if (event.outcome === 'guardBreak') setNote(mine ? 'Guard broken! Strike now.' : "Your guard was broken — you're stunned.");
+    else if (event.outcome === 'blocked') setNote(mine ? 'Clash! Your swing hit their blade.' : 'You blocked their swing.');
     else setNote(mine ? `Hit! −${event.damage} rival health.` : `You were hit: −${event.damage} health.`);
   }), [client]);
 
-  // A finished match is shown explicitly, including a forfeit during travel.
-  // Never auto-leave it and silently replace the travel screen with the cockpit.
+  const phase = view?.phase;
+  useEffect(() => { if (phase === 'finished') setNote(''); }, [phase]);
+  function forfeit() {
+    void client.forfeit().then(reply => reply.status === 'rejected' && setNote(rejectionNote(reply)));
+  }
+  function rematch() {
+    setNote('');
+    void client.rematch().then(reply => reply.status === 'rejected' && setNote(rejectionNote(reply)));
+  }
   function leave() {
     readyAttempt.current = null;
     setEntering(false); setEntryError(''); setNote(''); setJourney(null); clearArenaJourney();
@@ -102,39 +110,23 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     );
   }
 
-  const { you, rival } = view;
-  if (view.phase !== 'finished') return <>
-    <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} />
+  // One mounted arena preserves the camera and calibration through the result and rematch.
+  return <>
+    <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} onForfeit={forfeit} onRematch={rematch} />
     {entryError && <aside className="flight-entry-error" role="alert"><p>{entryError}</p><button type="button" disabled={entering} onClick={() => readyForArrival(view.matchId)}>{entering ? 'Connecting…' : 'Retry arena entry'}</button></aside>}
   </>;
-
-  return <main className="flight-flow">
-    <header className="flight-header"><span>FLIGHT SYSTEMS / RESULT</span><button onClick={leave}>Return to cockpit</button></header>
-    <section className="flight-panel">
-      <p className="flight-eyebrow">DUEL COMPLETE</p>
-      <h1>{resultTitle(view)}</h1>
-      <p>You {you.health} · {rival.callsign} {rival.health}</p>
-      <p>Camera stopped. Return to the cockpit to challenge again.</p>
-      <button className="flight-primary" onClick={leave}>Back to bridge</button>
-    </section>
-  </main>;
 }
 
 function duelNote(view: PlayerView, note: string): string {
   const { rival } = view;
+  if (view.phase === "finished") return note;
   if (view.phase === 'waiting') return `Waiting for ${rival.callsign} to arrive in the arena…`;
   if (!rival.connected) return `${rival.callsign} lost connection — they forfeit unless they return shortly.`;
   return note || 'Swing fast through your rival. Block with your blade.';
 }
 
-function resultTitle({ result, you, rival }: PlayerView): string {
-  if (!result) return 'Duel over';
-  const how = result.reason === 'forfeit' ? ' by forfeit' : '';
-  if (result.winner === null) return 'Draw';
-  return result.winner === you.slot ? `You win${how}` : `${rival.callsign} wins${how}`;
-}
-
 const REJECTION_NOTES: Record<string, string> = {
+  pilot_unavailable: 'Your rival has left — no rematch.',
   match_not_active: 'The round has not started.',
   offline: 'Offline — command not sent.',
   no_response: 'Server did not answer in time.',

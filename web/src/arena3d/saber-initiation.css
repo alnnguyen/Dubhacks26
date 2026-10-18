@@ -94,7 +94,7 @@
 /* Top calibration segments + silent LYRA guidance; no paid voice requests. */
 .si-top-progress {position:absolute;top:80px;left:5vw;right:5vw;pointer-events:none;}
 .si-top-progress .si-meta {padding:0;border:0;font-size:7px;letter-spacing:.15em;}
-.si-top-progress .si-rail {display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;margin:11px 0 0;padding:0;}
+.si-top-progress .si-rail {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin:11px 0 0;padding:0;}
 .si-top-progress .si-rail li {min-width:0;list-style:none;}
 .si-top-progress .si-rail i {display:block;height:8px;margin:0;background:#102039;border:1px solid #315170;overflow:hidden;}
 .si-top-progress .si-rail i>b {display:block;height:100%;background:linear-gradient(90deg,#2266ee,#c0f3ff);transition:width .1s linear;}

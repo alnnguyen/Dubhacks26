@@ -99,7 +99,7 @@ export function withSetupBody(
   const scale = .9 / (Math.hypot(...dir) || 1);
   const previewBlade = hilt ? { hilt, tip: [hilt[0] + dir[0] * scale, hilt[1] + dir[1] * scale, hilt[2] + dir[2] * scale] as Vec3 } : null;
   const player = {
-    ...(me ?? { slot, cell: { q: 0, r: 0 }, facing }),
+    ...(me ?? { slot, cell: { q: 0, r: 0 }, facing, stamina: 100, winded: false, stunned: false }),
     joints,
     blade: joints ? me?.blade ?? previewBlade : null,
     swinging: false,

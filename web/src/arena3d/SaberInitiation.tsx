@@ -8,8 +8,7 @@ const STEPS = STEP_ORDER.filter(s => s !== "done");
 const COPY: Record<SetupStep, { lead: string; word: string; label: string; confirmed: string }> = {
   stand: { lead: "FIND YOUR", word: "POSITION", label: "Body lock", confirmed: "Position confirmed" },
   phone: { lead: "LINK YOUR", word: "SABER", label: "Phone link", confirmed: "Saber linked" },
-  forward: { lead: "POINT", word: "FORWARD", label: "Heading", confirmed: "Heading aligned" },
-  up: { lead: "RAISE YOUR", word: "SABER", label: "Saber hand", confirmed: "Saber hand found" },
+  upright: { lead: "HOLD YOUR", word: "SABER UPRIGHT", label: "Saber hand", confirmed: "Saber hand found" },
   right: { lead: "POINT TO YOUR", word: "RIGHT", label: "Direction", confirmed: "Direction confirmed" },
   reach: { lead: "REACH", word: "FORWARD", label: "Reach", confirmed: "Reach confirmed" },
   done: { lead: "BATTLE", word: "READY", label: "Ready", confirmed: "Initiation complete" },
@@ -19,8 +18,7 @@ const COPY: Record<SetupStep, { lead: string; word: string; label: string; confi
 export const INITIATION_CUES: Record<SetupStep, string> = {
   stand: "Find your position. Face your laptop and hold still.",
   phone: "Link your saber. Scan the code, then tap Ignite.",
-  forward: "Point your saber forward. Hold it steady.",
-  up: "Raise your saber. Hold it above your head.",
+  upright: "Hold your saber upright in front of you.",
   right: "Point your saber to your right. Keep it level.",
   reach: "Reach forward. Extend your saber toward the screen.",
   done: "All systems aligned. Stay ready, pilot.",
@@ -92,7 +90,7 @@ export function SaberInitiation(p: SaberInitiationProps) {
     <div className="si-shade" aria-hidden="true" />
     <div className="si-brand">✦ SPACE BATTLES <span>/ SABER INITIATION</span></div>
     <nav className="si-top-progress" aria-label="Initiation progress">
-      <div className="si-meta"><span>SABER INITIATION</span><span>{!p.running ? "READY TO BEGIN" : p.step === "done" ? "06 / 06 COMPLETE" : `${String(index + 1).padStart(2, "0")} / 06`}</span></div>
+      <div className="si-meta"><span>SABER INITIATION</span><span>{!p.running ? "READY TO BEGIN" : p.step === "done" ? `${String(STEPS.length).padStart(2, "0")} / ${String(STEPS.length).padStart(2, "0")} COMPLETE` : `${String(index + 1).padStart(2, "0")} / ${String(STEPS.length).padStart(2, "0")}`}</span></div>
       <ol className="si-rail" aria-label="Setup progress">{STEPS.map((s, i) => <li key={s} data-done={i < index} aria-current={s === p.step ? "step" : undefined}><i role={i === index ? "progressbar" : undefined} aria-label={i === index ? `Current task hold: ${COPY[s].label}` : undefined} aria-valuemin={i === index ? 0 : undefined} aria-valuemax={i === index ? 100 : undefined} aria-valuenow={i === index ? Math.round(progress * 100) : undefined}><b style={{width:`${i < index ? 100 : i === index ? Math.round(progress * 100) : 0}%`}} /></i><span className="si-sr-only">{COPY[s].label}</span></li>)}</ol>
     </nav>
     <div className="si-content">

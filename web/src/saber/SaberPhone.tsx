@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { SetupStep, StepDirection, Vec3 } from "../../../server/src/contracts"
 import { INSTRUCTIONS } from "../arena3d/setupWizard"
+import { useCountdown } from "../arena3d/useCountdown"
 import { angularSpeed, smoothDirection, topEdgeDirection, type DirectionFilter } from "./aimMath"
 import { createSaberAudio } from "./saberAudio"
 import { createSaberClient, type SaberClient } from "./saberClient"
@@ -51,7 +52,7 @@ export function SaberPhone({ code }: { code: string }) {
       rerender((n) => n + 1)
     })
     const offResolved = client.onResolved((event) => {
-      if (event.outcome === "blocked") audio.clash()
+      if (event.outcome !== "hit") audio.clash()
       else if (event.attackerSlot === client.status()?.match?.slot) audio.hit()
       else audio.hurt()
     })
@@ -109,7 +110,7 @@ export function SaberPhone({ code }: { code: string }) {
         audio.whoosh()
         setSwipeFlash({ direction, blocked: false, key })
         void client.step(direction).then((reply) => {
-          if (reply.status !== "rejected" || reply.reason !== "blocked") return
+          if (reply.status !== "rejected" || (reply.reason !== "blocked" && reply.reason !== "exhausted")) return
           audio.thud()
           setSwipeFlash((current) => (current?.key === key ? { ...current, blocked: true } : current))
         })
@@ -156,6 +157,15 @@ export function SaberPhone({ code }: { code: string }) {
   const connectionError = client?.error() ?? null
   const match = status?.match ?? null
   const setup = match?.setup ?? null
+  const countdown = useCountdown(match?.startsInMs ?? null, match?.phase === "active" && match.armed)
+  const countdownLabel =
+    countdown === null || match?.phase !== "active" ? null : countdown > 0 ? String(Math.ceil(countdown / 1000)) : "FIGHT"
+  // A chime on each number and on FIGHT, so the player can keep their eyes on the arena.
+  const lastLabelRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (countdownLabel && countdownLabel !== lastLabelRef.current) audio.chime()
+    lastLabelRef.current = countdownLabel
+  }, [countdownLabel, audio])
 
   return (
     <main className="saber-phone">
@@ -184,7 +194,20 @@ export function SaberPhone({ code }: { code: string }) {
         <section className="saber-health">
           <span>You {match.health}</span>
           <span>Rival {match.rivalHealth}</span>
-          <p>{match.phase === "finished" ? "Duel over" : match.armed ? "Armed — swing!" : match.startsInMs != null ? `Get ready · ${Math.max(1, Math.ceil(match.startsInMs / 1000))}` : setup?.step === "done" ? "Waiting for both pilots…" : "Setting up"}</p>
+          <p>
+            {match.phase === "finished"
+              ? "Duel over"
+              : countdown !== null && countdown > 0
+                ? "Get ready…"
+                : match.armed
+                  ? "Armed — swing!"
+                  : "Setting up"}
+          </p>
+          {countdownLabel ? (
+            <p className="saber-countdown" aria-live="assertive">
+              {countdownLabel}
+            </p>
+          ) : null}
         </section>
       ) : connection === "paired" ? (
         <p className="saber-note">Linked. Challenge someone from your laptop.</p>

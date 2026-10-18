@@ -5,22 +5,6 @@
 
 export type PlayerSlot = 1 | 2;
 
-// "attacking" covers a weapon's wind-up after firing (rock only, for now).
-export type PlayerAction = "idle" | "attacking" | "blocking";
-
-export interface BlockState {
-  active: boolean;
-  endsInMs: number | null;
-  cooldownEndsInMs: number | null;
-}
-
-export type Weapon = "rock" | "gun";
-
-export interface ProjectileInFlight {
-  weapon: Weapon;
-  landsInMs: number;
-}
-
 // Saber duel in a shared 3D arena, in meters. World frame: x to slot 1's
 // right, y up, z from slot 1 toward slot 2. A game space: each player is in
 // front of their own laptop, wherever that is.
@@ -52,10 +36,9 @@ export interface GridCell {
 }
 
 export type SetupStep =
-  | "stand"
   | "phone"
-  | "forward"
-  | "up"
+  | "stand"
+  | "upright"
   | "right"
   | "reach"
   | "done";
@@ -116,6 +99,12 @@ export interface ArenaPlayer {
   joints: Vec3[] | null;
   blade: ArenaBlade | null;
   swinging: boolean;
+  // Movement stamina, 0..100. Steps cost some; it refills after a short pause.
+  stamina: number;
+  // Ran dry: no steps until stamina recovers.
+  winded: boolean;
+  // Guard broken: no swings, steps or guard for a moment.
+  stunned: boolean;
 }
 
 /** Shared pre-combat countdown. A deadline alone never authorizes a hit. */
@@ -138,7 +127,8 @@ export interface ArenaFrame {
 
 export interface SaberResolved {
   attackerSlot: PlayerSlot;
-  outcome: "blocked" | "hit";
+  // "guardBreak": the attack swung along the defender's held guard, which broke; the defender is stunned.
+  outcome: "blocked" | "hit" | "guardBreak";
   damage: number;
 }
 
@@ -152,8 +142,8 @@ export interface SaberStatus {
     health: number;
     rivalHealth: number;
     armed: boolean;
-    // Remaining time on the same server countdown shown on the laptop.
-    startsInMs?: number | null;
+    // The round's countdown, as on the laptop's view.
+    startsInMs: number | null;
     // The laptop's current setup step, so the phone can show it too.
     setup: SetupProgress | null;
   } | null;
@@ -169,8 +159,6 @@ export interface World {
   name: string;
   // Rounded NASA Planetary Fact Sheet surface gravity.
   gravityMps2: number;
-  // Gameplay mapping 0.8 × √(9.8 / gravity) s, not projectile physics.
-  rockFlightMs: number;
 }
 
 export interface PlayerState {
@@ -183,14 +171,9 @@ export interface PlayerState {
   reconnectEndsInMs: number | null;
   // Pressed Ready after the briefing. The match starts when both are ready.
   ready: boolean;
+  // Asked for a rematch on the result screen. A new round starts once both have.
+  rematch: boolean;
   health: number;
-  action: PlayerAction;
-  // The active weapon; only it can fire. Switching is instant.
-  weapon: Weapon;
-  cooldowns: Record<Weapon, number | null>;
-  block: BlockState;
-  // This player's own shot, flying toward the opponent. At most one at a time.
-  projectile: ProjectileInFlight | null;
   saber: SaberState;
 }
 
@@ -206,6 +189,9 @@ export interface MatchResult {
 export interface MatchSnapshot {
   matchId: string;
   phase: MatchPhase;
+  // Counts down once both players are set up, before each round (the first and each rematch);
+  // swings and steps don't count until it ends. null before both are set up, and after.
+  startsInMs: number | null;
   world: World;
   players: PlayerState[];
   result: MatchResult | null;
@@ -215,19 +201,13 @@ export interface MatchSnapshot {
 export interface PlayerView {
   matchId: string;
   phase: MatchPhase;
+  startsInMs: number | null;
   world: World;
   result: MatchResult | null;
   // Coordinate scale and glide duration. rows is retained for older clients (no row ownership).
   board: { cellSize: number; rows: number; stepMs: number };
   you: PlayerState;
   rival: PlayerState;
-}
-
-export interface ProjectileLanded {
-  attackerSlot: PlayerSlot;
-  weapon: Weapon;
-  blocked: boolean;
-  damage: number;
 }
 
 // "in-duel" pilots are in a match and can't be challenged.
@@ -264,15 +244,9 @@ export interface LobbyView {
 
 // Every command carries a unique ID so the server can recognise a retry and
 // return the original reply instead of applying it again.
-export type MatchCommandType =
-  | "ready"
-  | "leaveMatch"
-  | "rockActive"
-  | "gunActive"
-  | "throwRock"
-  | "fireGun"
-  | "startBlock"
-  | "endBlock";
+// "rematch" is only accepted once the match has finished, with both players still there.
+// "forfeit" ends the round but keeps you in the match (for a rematch); "leaveMatch" also detaches you.
+export type MatchCommandType = "ready" | "forfeit" | "rematch" | "leaveMatch";
 
 export type Command =
   | { commandId: string; type: MatchCommandType }
@@ -291,13 +265,13 @@ export type RejectReason =
   | "not_in_match"
   | "in_match"
   | "busy"
-  | "on_cooldown"
-  | "weapon_not_active"
-  | "projectile_in_flight"
-  | "not_blocking"
   | "pilot_unavailable"
   // A step past the center line or the back of your side.
   | "blocked"
+  // Not enough stamina for that step, or winded.
+  | "exhausted"
+  // Guard broken a moment ago.
+  | "stunned"
   | "challenge_unavailable";
 
 export type CommandReply =
@@ -320,7 +294,6 @@ export interface ServerToClientEvents {
   lobby: (lobby: LobbyView) => void;
   // null while the player is not in a match.
   view: (view: PlayerView | null) => void;
-  projectileLanded: (event: ProjectileLanded) => void;
   arena: (frame: ArenaFrame) => void;
   saberResolved: (event: SaberResolved) => void;
   // To a paired phone.
