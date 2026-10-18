@@ -5,10 +5,23 @@ import {
   calibrationOf,
   CAMERA_GIVE_UP_MS,
   createWizard,
+  shouldResendCalibration,
   tickWizard,
   type WizardInput,
   type WizardState,
 } from "./setupWizard"
+
+describe("shouldResendCalibration", () => {
+  it("retries a rejection that can succeed later, but only for the latest send", () => {
+    expect(shouldResendCalibration({ status: "rejected", reason: "no_response" }, true)).toBe(true)
+    expect(shouldResendCalibration({ status: "rejected", reason: "offline" }, true)).toBe(true)
+    expect(shouldResendCalibration({ status: "rejected", reason: "offline" }, false)).toBe(false)
+  })
+  it("never loops against a finished match or re-sends an accepted calibration", () => {
+    expect(shouldResendCalibration({ status: "rejected", reason: "match_not_active" }, true)).toBe(false)
+    expect(shouldResendCalibration({ status: "accepted" }, true)).toBe(false)
+  })
+})
 
 // A standing body (body frame), arms down; overrides move joints.
 function body(overrides: Record<number, Vec3> = {}): Vec3[] {

@@ -19,6 +19,24 @@ export function readArenaJourney(storage = browserStorage()): ArenaJourney | nul
 export function saveArenaJourney(journey: ArenaJourney, storage = browserStorage()): void {
   try { storage?.setItem(KEY, JSON.stringify(journey)); } catch { /* In-memory flow still works. */ }
 }
+/**
+ * What to tell a pilot whose match finished before they entered the arena (the rival stood
+ * down, dropped out or forfeited during travel). The result is the server's; this only words it.
+ */
+export function endedBeforeArrivalNote(view: {
+  result: PlayerView["result"];
+  you: Pick<PlayerView["you"], "slot">;
+  rival: Pick<PlayerView["rival"], "callsign">;
+}): string {
+  const rival = view.rival.callsign;
+  const winner = view.result?.winner ?? null;
+  const outcome = winner === view.you.slot
+    ? `${rival} left before the duel started, so the win is yours.`
+    : winner === null ? `The match with ${rival} ended before the duel started.`
+    : `The match with ${rival} ended before you arrived.`;
+  return `${outcome} You're back in the cockpit; challenge again when you're ready.`;
+}
+
 export function clearArenaJourney(storage = browserStorage()): void {
   try { storage?.removeItem(KEY); } catch { /* In-memory flow still works. */ }
 }

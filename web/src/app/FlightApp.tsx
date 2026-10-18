@@ -5,7 +5,7 @@ import { ArenaDuel } from '../arena3d/ArenaDuel';
 import { useServerLobby } from '../lobby/useServerLobby';
 import { getGameClient, useGameLobby, useGameView, type ClientReply, type GameClient, type PlayerView } from '../networking';
 import './flight.css';
-import { clearArenaJourney, journeyFor, matchesJourney, readArenaJourney, saveArenaJourney } from './arenaJourney';
+import { clearArenaJourney, endedBeforeArrivalNote, journeyFor, matchesJourney, readArenaJourney, saveArenaJourney } from './arenaJourney';
 import { useAudioScene } from '../audio/useAudioScene';
 import { useReplay } from '../replay/useReplay';
 import { ReplayPanel } from '../replay/ReplayPanel';
@@ -39,9 +39,9 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
 
   useEffect(() => {
     if (!travelDestination || !view) return;
+    // Ended during travel: the arrival effect below words it and returns the pilot to the cockpit.
     if (view.phase === 'finished') {
       setTravelDestination(null);
-      setNote('The match ended before arrival. Return to the cockpit to challenge again.');
       return;
     }
     if (view.world.id !== travelDestination) {
@@ -73,6 +73,22 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     });
   }, [client]);
 
+  // A match that finished before this pilot entered the arena (the rival stood down, dropped out or
+  // forfeited during travel) has no result screen to show: say what happened and leave it on the
+  // server, once per match, so the pilot is free to be challenged again.
+  const endedBeforeArrival = view && view.phase === 'finished' && !entered ? view.matchId : null;
+  const endedHandled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!endedBeforeArrival || endedHandled.current === endedBeforeArrival) return;
+    endedHandled.current = endedBeforeArrival;
+    const ended = client.view();
+    if (ended) setNote(endedBeforeArrivalNote(ended));
+    readyAttempt.current = null;
+    setEntering(false); setEntryError(''); setTravelDestination(null);
+    clearArenaJourney();
+    void client.leaveMatch();
+  }, [endedBeforeArrival, client]);
+
   const arrivedMatch = view && entered ? view.matchId : null;
   const needsReady = view?.phase === 'waiting' && !view.you.ready;
   useEffect(() => {
@@ -88,8 +104,9 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     else setNote(mine ? `Hit! −${event.damage} rival health.` : `You were hit: −${event.damage} health.`);
   }), [client]);
 
-  const phase = view?.phase;
-  useEffect(() => { if (phase === 'finished') setNote(''); }, [phase]);
+  // The result screen replaces the fight notes; a match that ended before arrival keeps its note in the cockpit.
+  const resultShown = view?.phase === 'finished' && entered;
+  useEffect(() => { if (resultShown) setNote(''); }, [resultShown]);
   // Ends the round but stays in the match, so both pilots can still rematch.
   function forfeit() {
     void client.forfeit().then(reply => reply.status === 'rejected' && setNote(rejectionNote(reply)));
@@ -105,7 +122,8 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     void client.leaveMatch();
   }
 
-  if (!view || (!entered && view.phase !== 'finished')) {
+  // Only a pilot who entered the arena sees it, including its result screen; everyone else is in the cockpit.
+  if (!view || !entered) {
     return (
       <>
         <SpaceshipHome

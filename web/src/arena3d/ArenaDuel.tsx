@@ -28,6 +28,7 @@ import {
   createWizard,
   mirrorIndex,
   phoneInBody,
+  shouldResendCalibration,
   tickWizard,
   type WizardState,
 } from "./setupWizard";
@@ -145,6 +146,9 @@ export function ArenaDuel({
   }>({ joints: null, bodyAtMs: 0, top: null, topAtMs: 0 });
   const slotRef = useRef(view.you.slot);
   slotRef.current = view.you.slot;
+  // The camera loop reads this so it never sends calibration to a finished match (which only rejects it).
+  const phaseRef = useRef(view.phase);
+  phaseRef.current = view.phase;
   const flashRef = useRef<ImpactFlash | null>(null);
   const wizardRef = useRef<WizardState>(createWizard(performance.now()));
   const phoneRef = useRef<{ aim: SaberAim; atMs: number } | null>(null);
@@ -377,12 +381,13 @@ export function ArenaDuel({
         }
 
         // Each time setup measures something new, store it on the server so the blade follows it.
+        // A finished match rejects every calibration, so wait for the rematch instead of retrying each frame.
         const calibration = calibrationOf(wizard);
         const key = JSON.stringify(calibration);
-        if (calibration && key !== sentCalibrationRef.current) {
+        if (calibration && key !== sentCalibrationRef.current && phaseRef.current !== "finished") {
           sentCalibrationRef.current = key;
           void client.calibrateSaber(calibration).then((reply) => {
-            if (reply.status === "rejected") sentCalibrationRef.current = "";
+            if (shouldResendCalibration(reply, sentCalibrationRef.current === key)) sentCalibrationRef.current = "";
           });
         }
 
@@ -531,6 +536,10 @@ export function ArenaDuel({
   });
   // Rematches reuse this component, but must wait for the new round's server gate.
   useEffect(() => { if (finished) setSaberStart(null); }, [finished]);
+  // A new round keeps the server's calibration, but anything measured on the result screen was never
+  // sent; clearing the key makes the loop send the current calibration once more.
+  const round = view.round ?? 1;
+  useEffect(() => { sentCalibrationRef.current = ""; }, [round]);
   useEffect(() => {
     if (finished && view.result?.reason === "knockout") gameAudio.play("saberKo");
   }, [finished, view.result?.reason, view.matchId, view.round]);

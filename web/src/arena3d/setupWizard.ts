@@ -95,6 +95,15 @@ export function calibrationOf(state: WizardState): SaberCalibration | null {
   return { forward: state.forward, hand: state.hand ?? "right", mirror: state.mirrorAim, done: state.step === "done" }
 }
 
+/**
+ * Whether a calibration reply means the duel screen should send again. Only the most recent
+ * send counts, and a finished match (`match_not_active`) is waited out rather than retried,
+ * since it rejects every calibration until the rematch.
+ */
+export function shouldResendCalibration(reply: { status: string; reason?: string }, latest: boolean): boolean {
+  return latest && reply.status === "rejected" && reply.reason !== "match_not_active"
+}
+
 /** Same as the server's: the phone's top edge in the body frame for a heading. */
 export function phoneInBody(top: Vec3, forward: [number, number], mirror: boolean): Vec3 {
   const [fx, fy] = forward
