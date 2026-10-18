@@ -50,6 +50,8 @@ export interface ExploreHudProps {
   onLearnNearest: () => void;
   onLearnClose: () => void;
   onOpenArena?: () => void;
+  /** Reopen the controls lesson from the flight rail. */
+  onOpenControls?: () => void;
 }
 
 function Stick({
@@ -120,6 +122,7 @@ export function ExploreHud({
   onLearnNearest,
   onLearnClose,
   onOpenArena,
+  onOpenControls,
 }: ExploreHudProps) {
   const [worldOpen, setWorldOpen] = useState(false);
   const worldDetails = useId();
@@ -226,6 +229,7 @@ export function ExploreHud({
           <span className="ex-bridge__text"><strong>Return to bridge</strong><small>Cockpit · lobby · duels</small></span>
         </button>
         <div className="ex-flight-actions">
+          {onOpenControls && <button type="button" className="ko-controls-chip" onClick={onOpenControls}>Controls</button>}
           <HoloButton disabled={!flightEnabled} variant={input.cruise ? 'accent' : 'ghost'} aria-pressed={!!input.cruise}
             onClick={() => onInput({ cruise: !input.cruise, brake: false })}>{input.cruise ? 'Cruise on' : 'Cruise'}</HoloButton>
           <HoloButton disabled={!ready} onClick={() => onInput({ thrust: 0, strafe: 0, pitch: 0, yaw: 0, cruise: false, brake: true })}>Stop</HoloButton>
