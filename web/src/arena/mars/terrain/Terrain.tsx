@@ -35,14 +35,14 @@ export function usePbrSet(name: string): PbrSet {
  */
 function buildTerrainGeometry(sampler: TerrainSampler, radius: number, rings: number, segments: number) {
   const k = 2.6
-  const positions: number[] = [0, sampler.heightAt(0, 0), 0]
+  const positions: number[] = [0, sampler.groundAt(0, 0), 0]
   for (let i = 1; i <= rings; i++) {
     const r = radius * Math.pow(i / rings, k)
     for (let j = 0; j < segments; j++) {
       const a = (j / segments) * Math.PI * 2
       const x = Math.cos(a) * r
       const z = Math.sin(a) * r
-      positions.push(x, sampler.heightAt(x, z), z)
+      positions.push(x, sampler.groundAt(x, z), z)
     }
   }
   const index: number[] = []
