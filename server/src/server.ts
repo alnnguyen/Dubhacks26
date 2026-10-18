@@ -147,11 +147,17 @@ export async function startServer(config: Config, options: LobbyOptions & { copi
     socket.on('lyra:narrate', async (request, reply) => {
       if (typeof reply !== 'function') return;
       if (playerId === null || socketsByPlayerId.get(playerId) !== socket) return reply({ ok: false, reason: 'not_joined' });
-      if (!request || typeof request !== 'object' || Array.isArray(request) || typeof (request as { cue?: unknown }).cue !== 'string') {
+      if (!request || typeof request !== 'object' || Array.isArray(request)) {
         return reply({ ok: false, reason: 'invalid_request' });
       }
+      const body = request as { cue?: unknown; line?: unknown };
+      const hasCue = typeof body.cue === 'string';
+      const hasLine = typeof body.line === 'string';
+      if (hasCue === hasLine) return reply({ ok: false, reason: 'invalid_request' });
       const actor = playerId;
-      const result = await lyraNarration.speak(actor, (request as { cue: string }).cue);
+      const result = hasCue
+        ? await lyraNarration.speak(actor, body.cue)
+        : await lyraNarration.speakLine(actor, body.line);
       reply(socketsByPlayerId.get(actor) === socket && playerId === actor ? result : { ok: false, reason: 'not_joined' });
     });
 

@@ -321,8 +321,11 @@ export interface ClientToServerEvents {
   'replay:ticket': (request: { matchId: string }, reply: (result: ReplayTicketReply) => void) => void;
   'copilot:session': (request: Record<string, never>, reply: (result: CopilotSessionReply) => void) => void;
   'copilot:context': (request: Record<string, never>, reply: (result: CopilotContextReply) => void) => void;
-  /** Allowlisted LYRA arena lines via server Grok TTS. Cue id only — no free text. */
-  'lyra:narrate': (request: { cue: string }, reply: (result: LyraNarrateReply) => void) => void;
+  /**
+   * LYRA Grok TTS. Combat uses `{ cue }` (allowlisted id). Explore thoughts use `{ line }`
+   * (short fact string, max 320 chars). Exactly one field; never both.
+   */
+  'lyra:narrate': (request: { cue: string } | { line: string }, reply: (result: LyraNarrateReply) => void) => void;
   join: (request: JoinRequest, reply: (result: JoinReply) => void) => void;
   command: (command: Command, reply: (result: CommandReply) => void) => void;
   bodyPose: (pose: BodyPose) => void;

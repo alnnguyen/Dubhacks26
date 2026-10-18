@@ -88,6 +88,8 @@ export interface GameClient {
   copilotContext(): Promise<CopilotContextReply>
   /** Allowlisted LYRA arena lines via server Grok TTS (cue id only). */
   lyraNarrate(cue: string): Promise<LyraNarrateReply>
+  /** Short explore thought line via the same Grok TTS path (max 320 chars). */
+  lyraSpeakLine(line: string): Promise<LyraNarrateReply>
   status(): ConnectionStatus
   /** Why the last join failed, e.g. "invalid_request". Null while joined or still trying. */
   joinError(): string | null
@@ -247,6 +249,13 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
       if (status !== 'online' || !socket.connected) return Promise.resolve({ ok: false, reason: 'offline' })
       return new Promise(resolve => {
         socket.timeout(22000).emit('lyra:narrate', { cue }, (err, reply: LyraNarrateReply) =>
+          resolve(err ? { ok: false, reason: 'no_response' } : reply))
+      })
+    },
+    lyraSpeakLine: (line) => {
+      if (status !== 'online' || !socket.connected) return Promise.resolve({ ok: false, reason: 'offline' })
+      return new Promise(resolve => {
+        socket.timeout(22000).emit('lyra:narrate', { line }, (err, reply: LyraNarrateReply) =>
           resolve(err ? { ok: false, reason: 'no_response' } : reply))
       })
     },

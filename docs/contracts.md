@@ -69,7 +69,7 @@ Added joined-socket RPCs `copilot:session({})` and `copilot:context({})`, typed 
 
 ## LYRA arena narration (Grok TTS) — Alex, October 18
 
-Joined-socket RPC `lyra:narrate({ cue })` returns allowlisted MP3 audio from server-only xAI TTS (`voice_id: iris`). Clients may send only a fixed cue id (`setup_*`, `fight_go`, `result_win` / `result_lose` / `result_draw`); free-text speech is rejected. Audio is cached per cue in-process; per-actor rate limiting applies. Permanent `XAI_API_KEY` stays on the server (same `server/.env.grok.local` load path as Voice). ArenaDuel speaks setup steps, fight unlock, and match result; muted master audio skips playback. No combat rules changed.
+Joined-socket RPC `lyra:narrate` returns MP3 audio from server-only xAI TTS (`voice_id: iris`). Combat uses `{ cue }` with allowlisted ids (`setup_*`, `fight_go`, `result_*`). Explore thoughts use `{ line }` — a short fact string (max 320 chars) chosen from local NASA catalog text, not an open chat prompt. Exactly one of `cue` / `line`; both or neither is rejected. Audio is cached per cue id or line hash; per-actor rate limiting applies. Permanent `XAI_API_KEY` stays on the server (same `server/.env.grok.local` load path as Voice). ArenaDuel speaks setup / GO / result; ExploreCopilot speaks arrive / inspect thoughts the same way when Voice is on and Live is connected. Muted master audio skips playback. Demo/offline falls back to browser `speechSynthesis`. No combat rules changed.
 
 ## Planetary travel hand-off — A, October 17, 2026
 
