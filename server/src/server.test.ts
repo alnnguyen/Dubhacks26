@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { io as connect, type Socket } from "socket.io-client";
-import type { ClientToServerEvents, JoinReply, MatchSnapshot, ServerToClientEvents } from "./contracts.js";
+import type { ClientToServerEvents, JoinReply, PlayerView, ServerToClientEvents } from "./contracts.js";
 import { startServer, type RunningServer } from "./server.js";
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -28,36 +28,40 @@ function join(client: Client, playerId: string): Promise<JoinReply> {
   return new Promise((resolve) => client.emit("join", { playerId }, resolve));
 }
 
-function nextSnapshot(client: Client, matches: (s: MatchSnapshot) => boolean): Promise<MatchSnapshot> {
+function nextView(client: Client, matches: (v: PlayerView) => boolean): Promise<PlayerView> {
   return new Promise((resolve) => {
-    const listener = (snapshot: MatchSnapshot) => {
-      if (!matches(snapshot)) return;
-      client.off("snapshot", listener);
-      resolve(snapshot);
+    const listener = (view: PlayerView) => {
+      if (!matches(view)) return;
+      client.off("view", listener);
+      resolve(view);
     };
-    client.on("snapshot", listener);
+    client.on("view", listener);
   });
 }
 
 // Tests share one server and run in order: they build on the same demo match.
 
-test("two players join and receive the same snapshot", async () => {
+test("two players join and each receives their own view", async () => {
   const alice = open();
   const bob = open();
-  const isReady = (s: MatchSnapshot) => s.phase === "active";
-  const aliceSees = nextSnapshot(alice, isReady);
+  const aliceSeesBob = nextView(alice, (v) => v.phase === "active");
 
   const aliceJoin = await join(alice, "player-alice");
-  assert.equal(aliceJoin.ok && aliceJoin.slot, 1);
-  assert.equal(aliceJoin.ok && aliceJoin.snapshot.phase, "waiting");
+  assert.ok(aliceJoin.ok);
+  assert.equal(aliceJoin.slot, 1);
+  assert.equal(aliceJoin.view.phase, "waiting");
+  assert.equal(aliceJoin.view.you.slot, 1);
+  assert.equal(aliceJoin.view.rival, null);
 
-  const bobSees = nextSnapshot(bob, isReady);
   const bobJoin = await join(bob, "player-bob");
-  assert.equal(bobJoin.ok && bobJoin.slot, 2);
+  assert.ok(bobJoin.ok);
+  assert.equal(bobJoin.view.phase, "active");
+  assert.deepEqual([bobJoin.view.you.slot, bobJoin.view.rival?.slot], [2, 1]);
 
-  const [a, b] = await Promise.all([aliceSees, bobSees]);
-  assert.deepEqual(a, b);
-  assert.deepEqual(a.players.map((p) => [p.slot, p.health]), [[1, 100], [2, 100]]);
+  const a = await aliceSeesBob;
+  assert.deepEqual([a.you.slot, a.rival?.slot], [1, 2]);
+  assert.deepEqual(a.you, bobJoin.view.rival);
+  assert.deepEqual(a.rival, bobJoin.view.you);
 });
 
 test("a third player is rejected", async () => {
@@ -86,11 +90,11 @@ test("a socket that has not joined cannot send commands", async () => {
 
 test("a player who disconnects reclaims their slot with the same playerId", async () => {
   const [alice, bob] = clients;
-  const bobSeesAliceLeave = nextSnapshot(bob, (s) => s.players[0].connected === false);
+  const bobSeesAliceLeave = nextView(bob, (v) => v.rival?.connected === false);
   alice.disconnect();
   await bobSeesAliceLeave;
 
-  const bobSeesAliceReturn = nextSnapshot(bob, (s) => s.players[0].connected === true);
+  const bobSeesAliceReturn = nextView(bob, (v) => v.rival?.connected === true);
   const rejoin = await join(open(), "player-alice");
   assert.equal(rejoin.ok && rejoin.slot, 1);
   await bobSeesAliceReturn;

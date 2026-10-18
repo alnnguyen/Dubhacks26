@@ -6,10 +6,12 @@ import type {
   MatchSnapshot,
   PlayerSlot,
   PlayerState,
+  PlayerView,
+  ProjectileLanded,
   RejectReason,
-  RockLanded,
+  Weapon,
 } from "../contracts.js";
-import { MARS_GRAVITY, RULES, rockFlightMs } from "./rules.js";
+import { RULES, WEAPONS } from "./rules.js";
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -19,22 +21,30 @@ interface Player {
   slot: PlayerSlot;
   connected: boolean;
   health: number;
+  weapon: Weapon;
   windupEndsAt: number | null;
-  throwCooldownEndsAt: number | null;
+  cooldownEndsAt: Record<Weapon, number | null>;
   blockEndsAt: number | null;
   blockCooldownEndsAt: number | null;
-  rockLandsAt: number | null;
+  projectile: { weapon: Weapon; landsAt: number } | null;
   reconnectEndsAt: number | null;
-  timers: { windup?: Timer; block?: Timer; rock?: Timer; reconnect?: Timer };
+  timers: { windup?: Timer; block?: Timer; projectile?: Timer; reconnect?: Timer };
 }
 
 export interface MatchEvents {
   changed: () => void;
-  rockLanded: (event: RockLanded) => void;
+  projectileLanded: (event: ProjectileLanded) => void;
 }
 
 const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
-const COMMAND_TYPES: readonly CommandType[] = ["throwRock", "startBlock", "endBlock"];
+const COMMAND_TYPES: readonly CommandType[] = [
+  "rockActive",
+  "gunActive",
+  "throwRock",
+  "fireGun",
+  "startBlock",
+  "endBlock",
+];
 
 export class Match {
   private players = new Map<PlayerSlot, Player>();
@@ -54,11 +64,12 @@ export class Match {
       slot,
       connected: true,
       health: RULES.startingHealth,
+      weapon: RULES.startingWeapon,
       windupEndsAt: null,
-      throwCooldownEndsAt: null,
+      cooldownEndsAt: { rock: null, gun: null },
       blockEndsAt: null,
       blockCooldownEndsAt: null,
-      rockLandsAt: null,
+      projectile: null,
       reconnectEndsAt: null,
       timers: {},
     });
@@ -81,8 +92,8 @@ export class Match {
   disconnect(slot: PlayerSlot): void {
     const player = this.players.get(slot)!;
     player.connected = false;
-    // The player's own rock and block are tied to them and end with them.
-    this.cancelRock(player);
+    // The player's own shot and block are tied to them and end with them.
+    this.cancelProjectile(player);
     this.clearBlock(player);
 
     if (this.phase === "active") this.startGrace(player);
@@ -121,17 +132,31 @@ export class Match {
         connected: p.connected,
         reconnectEndsInMs: remaining(p.reconnectEndsAt),
         health: p.health,
-        action: p.blockEndsAt !== null ? "blocking" : p.windupEndsAt !== null ? "throwing" : "idle",
-        weapon: "rock",
-        throwCooldownEndsInMs: remaining(p.throwCooldownEndsAt),
+        action: p.blockEndsAt !== null ? "blocking" : p.windupEndsAt !== null ? "attacking" : "idle",
+        weapon: p.weapon,
+        cooldowns: { rock: remaining(p.cooldownEndsAt.rock), gun: remaining(p.cooldownEndsAt.gun) },
         block: {
           active: p.blockEndsAt !== null,
           endsInMs: remaining(p.blockEndsAt),
           cooldownEndsInMs: remaining(p.blockCooldownEndsAt),
         },
-        rock: p.rockLandsAt === null ? null : { landsInMs: Math.max(0, p.rockLandsAt - now) },
+        projectile:
+          p.projectile === null
+            ? null
+            : { weapon: p.projectile.weapon, landsInMs: Math.max(0, p.projectile.landsAt - now) },
       }));
     return { matchId: this.matchId, phase: this.phase, players, result: this.result };
+  }
+
+  toView(slot: PlayerSlot): PlayerView {
+    const snapshot = this.toSnapshot();
+    return {
+      matchId: snapshot.matchId,
+      phase: snapshot.phase,
+      result: snapshot.result,
+      you: snapshot.players.find((p) => p.slot === slot)!,
+      rival: snapshot.players.find((p) => p.slot !== slot) ?? null,
+    };
   }
 
   // Stops every pending timer, e.g. when the server shuts down.
@@ -146,22 +171,16 @@ export class Match {
     const now = Date.now();
 
     switch (type) {
-      case "throwRock": {
-        if (player.windupEndsAt !== null || player.blockEndsAt !== null) return "busy";
-        if (player.rockLandsAt !== null) return "rock_in_flight";
-        if (player.throwCooldownEndsAt !== null && now < player.throwCooldownEndsAt) return "on_cooldown";
-
-        const flightMs = rockFlightMs(MARS_GRAVITY);
-        player.windupEndsAt = now + RULES.throwWindupMs;
-        player.throwCooldownEndsAt = now + RULES.throwCooldownMs;
-        player.rockLandsAt = now + flightMs;
-        player.timers.windup = setTimeout(() => {
-          player.windupEndsAt = null;
-          this.events.changed();
-        }, RULES.throwWindupMs);
-        player.timers.rock = setTimeout(() => this.landRock(player), flightMs);
+      // Switching is instant and allowed even mid-block.
+      case "rockActive":
+      case "gunActive":
+        player.weapon = type === "rockActive" ? "rock" : "gun";
         return null;
-      }
+
+      case "throwRock":
+        return this.fire(player, "rock", now);
+      case "fireGun":
+        return this.fire(player, "gun", now);
 
       case "startBlock": {
         if (player.windupEndsAt !== null || player.blockEndsAt !== null) return "busy";
@@ -183,14 +202,37 @@ export class Match {
     }
   }
 
-  private landRock(attacker: Player): void {
-    attacker.rockLandsAt = null;
+  private fire(player: Player, weapon: Weapon, now: number): RejectReason | null {
+    if (player.weapon !== weapon) return "weapon_not_active";
+    if (player.windupEndsAt !== null || player.blockEndsAt !== null) return "busy";
+    if (player.projectile !== null) return "projectile_in_flight";
+    const cooldownEndsAt = player.cooldownEndsAt[weapon];
+    if (cooldownEndsAt !== null && now < cooldownEndsAt) return "on_cooldown";
+
+    const rules = WEAPONS[weapon];
+    player.cooldownEndsAt[weapon] = now + rules.cooldownMs;
+    player.projectile = { weapon, landsAt: now + rules.flightMs };
+    player.timers.projectile = setTimeout(() => this.land(player), rules.flightMs);
+    if (rules.windupMs > 0) {
+      player.windupEndsAt = now + rules.windupMs;
+      player.timers.windup = setTimeout(() => {
+        player.windupEndsAt = null;
+        this.events.changed();
+      }, rules.windupMs);
+    }
+    return null;
+  }
+
+  // Shots auto-lock onto the opponent; only a block active on arrival stops them.
+  private land(attacker: Player): void {
+    const weapon = attacker.projectile!.weapon;
+    attacker.projectile = null;
     const defender = this.players.get(attacker.slot === 1 ? 2 : 1)!;
     const blocked = defender.blockEndsAt !== null;
-    const damage = blocked ? 0 : Math.min(RULES.rockDamage, defender.health);
+    const damage = blocked ? 0 : Math.min(WEAPONS[weapon].damage, defender.health);
     defender.health -= damage;
 
-    this.events.rockLanded({ attackerSlot: attacker.slot, blocked, damage });
+    this.events.projectileLanded({ attackerSlot: attacker.slot, weapon, blocked, damage });
     if (defender.health === 0) {
       this.finish({ winner: attacker.slot, reason: "knockout" });
     }
@@ -213,7 +255,7 @@ export class Match {
     this.phase = "finished";
     this.result = result;
     for (const player of this.players.values()) {
-      this.cancelRock(player);
+      this.cancelProjectile(player);
       this.clearBlock(player);
       clearTimeout(player.timers.windup);
       clearTimeout(player.timers.reconnect);
@@ -222,9 +264,9 @@ export class Match {
     }
   }
 
-  private cancelRock(player: Player): void {
-    clearTimeout(player.timers.rock);
-    player.rockLandsAt = null;
+  private cancelProjectile(player: Player): void {
+    clearTimeout(player.timers.projectile);
+    player.projectile = null;
   }
 
   // Ending a block, early or at its limit, starts the block cooldown.

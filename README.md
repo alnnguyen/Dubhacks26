@@ -41,15 +41,15 @@ docs/                      Team, interface, QA, deployment and evidence notes
 
 ## Current status
 
-**Integrated on `alex-dev` (Oct 17 merge):** Ally’s 3D cockpit (default), Alan’s latest camera (hand lock, wide rear, first-person rock retune), Alex LiveDuel `/?pvp=1` rehearsal, Justin’s Socket.IO demo match under `server/`, and D Photon/Voice fixtures. **Ally should pull `alex-dev`** after this merge for cockpit + camera together.
+**Integrated on `alex-dev` (Oct 17):** Ally’s 3D cockpit (default), Alan’s camera (hand lock / wide rear / rock retune), Alex LiveDuel `/?pvp=1`, Justin’s Socket.IO match + `web/src/networking` (`createGameClient`, gun/rock weapons), D Photon/Voice fixtures.
 
-**Server (B / Justin):** first runnable slice with demo match + rock events. Verified commands in [server/README.md](server/README.md):
+**Server (B / Justin):** demo match with rock + gun. Verified commands in [server/README.md](server/README.md):
 
 ```bash
 cd server && npm install && npm test
 ```
 
-**Web (A cockpit + C camera):** Ally’s spaceship lobby is the default app. Alan’s camera harness: `/?debug=camera` or legacy `/?camera=1`. Live duel rehearsal: `/?pvp=1`.
+**Web (A cockpit + C camera):** Ally’s spaceship lobby is the default app. Alan’s camera harness: `/?debug=camera` or legacy `/?camera=1`. Live duel rehearsal: `/?pvp=1` (still uses a direct socket; next step is adopt Justin’s `createGameClient`).
 
 ```bash
 # Web (cockpit / camera / pvp rehearsal)

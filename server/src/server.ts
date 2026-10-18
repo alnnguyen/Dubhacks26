@@ -28,14 +28,20 @@ export async function startServer(config: Config): Promise<RunningServer> {
     cors: { origin: config.allowedOrigins },
   });
 
-  // Every state change, whether from a command or a timer, broadcasts the full snapshot.
-  const match: Match = new Match(MATCH_ROOM, {
-    changed: () => io.to(MATCH_ROOM).emit("snapshot", match.toSnapshot()),
-    rockLanded: (event) => io.to(MATCH_ROOM).emit("rockLanded", event),
-  });
-  const sessions = new Sessions(match);
   // Latest socket per player, so a second tab or a reconnect replaces the old one.
   const socketsByPlayerId = new Map<string, GameSocket>();
+
+  // Every state change, whether from a command or a timer, sends each player their own view.
+  const match: Match = new Match(MATCH_ROOM, {
+    changed: () => {
+      for (const [id, socket] of socketsByPlayerId) {
+        const slot = sessions.slotOf(id);
+        if (slot !== undefined) socket.emit("view", match.toView(slot));
+      }
+    },
+    projectileLanded: (event) => io.to(MATCH_ROOM).emit("projectileLanded", event),
+  });
+  const sessions = new Sessions(match);
 
   io.on("connection", (socket) => {
     let playerId: string | null = null;
@@ -43,14 +49,12 @@ export async function startServer(config: Config): Promise<RunningServer> {
     socket.on("join", (request, reply) => {
       if (typeof reply !== "function") return;
 
-      // Join the room first so this socket also gets the broadcast join triggers.
-      socket.join(MATCH_ROOM);
       const result = sessions.join(request?.playerId);
       if (!result.ok) {
-        socket.leave(MATCH_ROOM);
         reply({ ok: false, reason: result.reason });
         return;
       }
+      socket.join(MATCH_ROOM);
 
       playerId = request.playerId;
       // Record the new socket before closing the old one, so the old socket's
@@ -59,7 +63,8 @@ export async function startServer(config: Config): Promise<RunningServer> {
       socketsByPlayerId.set(playerId, socket);
       if (previous && previous.id !== socket.id) previous.disconnect(true);
 
-      reply({ ok: true, slot: result.slot, snapshot: match.toSnapshot() });
+      // The join itself already notified everyone else; this player gets their view in the reply.
+      reply({ ok: true, slot: result.slot, view: match.toView(result.slot) });
     });
 
     socket.on("command", (command, reply) => {
