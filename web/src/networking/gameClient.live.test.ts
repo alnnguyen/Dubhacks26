@@ -31,7 +31,7 @@ const until = <T>(subscribe: (done: (value: T) => void) => () => void, matches: 
   })
 
 describe.runIf(url)("live game server", () => {
-  it("two clients join, block, throw, and both see the hit from their own side", async () => {
+  it("two clients join, block, fire the gun, and both see the hit from their own side", async () => {
     const alice = open()
     const bob = open()
     const online = (c: GameClient) =>
@@ -44,8 +44,10 @@ describe.runIf(url)("live game server", () => {
 
     const bobHit = until<PlayerView>(bob.onView, (v) => v.you.health < 100)
     const aliceSeesHit = until<PlayerView>(alice.onView, (v) => (v.rival?.health ?? 100) < 100)
-    expect(await alice.throwRock()).toMatchObject({ status: "accepted" })
-    expect(await alice.throwRock()).toMatchObject({ status: "rejected", reason: "busy" })
+    expect(alice.view()?.you.weapon).toBe("gun")
+    expect(await alice.fireGun()).toMatchObject({ status: "accepted" })
+    expect(await alice.fireGun()).toMatchObject({ status: "rejected", reason: "projectile_in_flight" })
+    expect(await alice.throwRock()).toMatchObject({ status: "rejected", reason: "weapon_not_active" })
 
     const [b, a] = await Promise.all([bobHit, aliceSeesHit])
     expect(b.you.health).toBe(80)

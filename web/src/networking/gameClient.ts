@@ -5,10 +5,11 @@ import type {
   CommandType,
   JoinReply,
   PlayerView,
-  RockLanded,
+  ProjectileLanded,
+  Weapon,
 } from "../../../server/src/contracts"
 
-export type { CommandReply, PlayerView, RockLanded }
+export type { CommandReply, PlayerView, ProjectileLanded, Weapon }
 
 export type ConnectionStatus = "connecting" | "online" | "offline"
 
@@ -43,7 +44,11 @@ export interface GameClient {
   view(): PlayerView | null
   onStatus(listener: (status: ConnectionStatus) => void): () => void
   onView(listener: (view: PlayerView) => void): () => void
-  onRockLanded(listener: (event: RockLanded) => void): () => void
+  onProjectileLanded(listener: (event: ProjectileLanded) => void): () => void
+  /** Make a weapon active. Instant; only the active weapon can fire. */
+  gunActive(): Promise<ClientReply>
+  rockActive(): Promise<ClientReply>
+  fireGun(): Promise<ClientReply>
   throwRock(): Promise<ClientReply>
   startBlock(): Promise<ClientReply>
   endBlock(): Promise<ClientReply>
@@ -63,7 +68,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
 
   const statusListeners = new Set<(status: ConnectionStatus) => void>()
   const viewListeners = new Set<(view: PlayerView) => void>()
-  const landedListeners = new Set<(event: RockLanded) => void>()
+  const landedListeners = new Set<(event: ProjectileLanded) => void>()
 
   function setStatus(next: ConnectionStatus) {
     if (next === status) return
@@ -93,7 +98,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   socket.on("disconnect", () => setStatus("offline"))
   socket.on("connect_error", () => setStatus("offline"))
   socket.on("view", (next: PlayerView) => setView(next))
-  socket.on("rockLanded", (event: RockLanded) => landedListeners.forEach((listener) => listener(event)))
+  socket.on("projectileLanded", (event: ProjectileLanded) => landedListeners.forEach((listener) => listener(event)))
 
   function send(type: CommandType): Promise<ClientReply> {
     const commandId = `c${nextCommand++}`
@@ -119,7 +124,10 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     view: () => view,
     onStatus: (listener) => subscribe(statusListeners, listener),
     onView: (listener) => subscribe(viewListeners, listener),
-    onRockLanded: (listener) => subscribe(landedListeners, listener),
+    onProjectileLanded: (listener) => subscribe(landedListeners, listener),
+    gunActive: () => send("gunActive"),
+    rockActive: () => send("rockActive"),
+    fireGun: () => send("fireGun"),
     throwRock: () => send("throwRock"),
     startBlock: () => send("startBlock"),
     endBlock: () => send("endBlock"),

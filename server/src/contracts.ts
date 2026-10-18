@@ -5,7 +5,8 @@
 
 export type PlayerSlot = 1 | 2;
 
-export type PlayerAction = "idle" | "throwing" | "blocking";
+// "attacking" covers a weapon's wind-up after firing (rock only, for now).
+export type PlayerAction = "idle" | "attacking" | "blocking";
 
 export interface BlockState {
   active: boolean;
@@ -13,7 +14,10 @@ export interface BlockState {
   cooldownEndsInMs: number | null;
 }
 
-export interface RockInFlight {
+export type Weapon = "rock" | "gun";
+
+export interface ProjectileInFlight {
+  weapon: Weapon;
   landsInMs: number;
 }
 
@@ -24,11 +28,12 @@ export interface PlayerState {
   reconnectEndsInMs: number | null;
   health: number;
   action: PlayerAction;
-  weapon: "rock";
-  throwCooldownEndsInMs: number | null;
+  // The active weapon; only it can fire. Switching is instant.
+  weapon: Weapon;
+  cooldowns: Record<Weapon, number | null>;
   block: BlockState;
-  // This player's own rock, flying toward the opponent.
-  rock: RockInFlight | null;
+  // This player's own shot, flying toward the opponent. At most one at a time.
+  projectile: ProjectileInFlight | null;
 }
 
 export type MatchPhase = "waiting" | "active" | "finished";
@@ -56,15 +61,22 @@ export interface PlayerView {
   rival: PlayerState | null;
 }
 
-export interface RockLanded {
+export interface ProjectileLanded {
   attackerSlot: PlayerSlot;
+  weapon: Weapon;
   blocked: boolean;
   damage: number;
 }
 
 // Every command carries a unique ID so the server can recognise a retry and
 // return the original reply instead of applying it again.
-export type CommandType = "throwRock" | "startBlock" | "endBlock";
+export type CommandType =
+  | "rockActive"
+  | "gunActive"
+  | "throwRock"
+  | "fireGun"
+  | "startBlock"
+  | "endBlock";
 
 export interface Command {
   commandId: string;
@@ -77,7 +89,8 @@ export type RejectReason =
   | "match_not_active"
   | "busy"
   | "on_cooldown"
-  | "rock_in_flight"
+  | "weapon_not_active"
+  | "projectile_in_flight"
   | "not_blocking";
 
 export type CommandReply =
@@ -96,7 +109,7 @@ export type JoinReply =
 
 export interface ServerToClientEvents {
   view: (view: PlayerView) => void;
-  rockLanded: (event: RockLanded) => void;
+  projectileLanded: (event: ProjectileLanded) => void;
 }
 
 export interface ClientToServerEvents {

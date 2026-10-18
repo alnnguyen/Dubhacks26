@@ -6,5 +6,6 @@ export type {
   GameClient,
   GameClientOptions,
   PlayerView,
-  RockLanded,
+  ProjectileLanded,
+  Weapon,
 } from "./gameClient"

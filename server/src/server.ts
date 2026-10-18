@@ -39,7 +39,7 @@ export async function startServer(config: Config): Promise<RunningServer> {
         if (slot !== undefined) socket.emit("view", match.toView(slot));
       }
     },
-    rockLanded: (event) => io.to(MATCH_ROOM).emit("rockLanded", event),
+    projectileLanded: (event) => io.to(MATCH_ROOM).emit("projectileLanded", event),
   });
   const sessions = new Sessions(match);
 
