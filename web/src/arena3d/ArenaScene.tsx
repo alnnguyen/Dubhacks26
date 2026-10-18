@@ -269,13 +269,14 @@ function ShoulderCamera({ frameRef, mySlot, groundY, initiation = false }: {
     // The camera isn't inside the arena's ground group, so it adds the ground height itself.
     hips.y += groundY
     const aim = hips.clone().addScaledVector(forward, AIM_AHEAD).add(new THREE.Vector3(0, AIM_HEIGHT, 0))
-    if (initiation) aim.addScaledVector(right, -1.15);
-    const distance = initiation ? 4.8 : CAMERA_DISTANCE;
-    const pitch = initiation ? Math.PI / 7 : CAMERA_PITCH;
+    // Setup fills a square viewport with only your real tracked fighter.
+    if (initiation) aim.copy(hips).add(new THREE.Vector3(0, 0.55, 0));
+    const distance = initiation ? 4.2 : CAMERA_DISTANCE;
+    const pitch = initiation ? 0.06 : CAMERA_PITCH;
     const desired = aim
       .clone()
       .addScaledVector(forward, -distance * Math.cos(pitch))
-      .addScaledVector(right, SHOULDER_OFFSET)
+      .addScaledVector(right, initiation ? 0 : SHOULDER_OFFSET)
       .add(new THREE.Vector3(0, distance * Math.sin(pitch), 0))
     // Follow with the same feel at any frame rate (~130 ms to catch up most of the way).
     const follow = 1 - Math.exp(-delta / 0.13)
@@ -348,11 +349,11 @@ function Fighters({ frameRef, flashRef, mySlot, board, groundY, initiation }: Fi
     <group position={[0, groundY, 0]}>
       <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} initiation={initiation} />
       <Avatar frameRef={frameRef} slot={mySlot} color={COLORS.you} flashRef={flashRef} />
-      <Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} />
+      {!initiation && <Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} />}
       <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} />
-      <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} />
-      <Impact flashRef={flashRef} />
-      <DuelMarkers frameRef={frameRef} mySlot={mySlot} board={board} />
+      {!initiation && <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} />}
+      {!initiation && <Impact flashRef={flashRef} />}
+      {!initiation && <DuelMarkers frameRef={frameRef} mySlot={mySlot} board={board} />}
     </group>
   )
 }
@@ -384,7 +385,13 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
       <FrameSampler getFrame={getFrame} frameRef={frameRef} />
-      {basicGraphics ? <>
+      {initiation ? <>
+        <color attach="background" args={["#061326"]} />
+        <hemisphereLight args={["#c5efff", "#174d80", 2.2]} />
+        <directionalLight position={[2, 5, 4]} intensity={2} color="#9de4ff" />
+        <gridHelper args={[12, 24, "#225884", "#102b46"]} />
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation />
+      </> : basicGraphics ? <>
         <color attach="background" args={["#1b0f0b"]} />
         <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
         <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>

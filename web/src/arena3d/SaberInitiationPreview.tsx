@@ -58,7 +58,7 @@ export function SaberInitiationPreview() {
   },[]);
   const select=(s:SetupStep)=>{setRunning(true);setStep(s);setBodySeen(true);setPhoneLive(s!=="stand"&&s!=="phone");setProgress(.55);setStart({startsAtMs:null,unlocked:false});setRivalReady(false);};
   return <main className="arena-duel" data-initiating={!fighting}>
-    <ArenaScene getFrame={()=>frame.current} flashRef={flash} mySlot={1} board={{cellSize:.65,rows:3}} initiation={!fighting}/>
+    <div className="si-arena-viewport"><ArenaScene getFrame={()=>frame.current} flashRef={flash} mySlot={1} board={{cellSize:.65,rows:3}} initiation={!fighting}/></div>
     <nav className="si-preview-tools" aria-label="Initiation preview controls"><span>DESIGN PREVIEW / SIMULATED TELEMETRY · NO CAMERA, PHONE OR SERVER</span>
       <select aria-label="Preview task" value={step} onChange={e=>select(e.target.value as SetupStep)}>{STEP_ORDER.map(s=><option key={s} value={s}>{s}</option>)}</select>
       <button onClick={()=>select(STEP_ORDER[Math.min(STEP_ORDER.indexOf(step)+1,STEP_ORDER.length-1)])}>Simulate task confirmed</button>

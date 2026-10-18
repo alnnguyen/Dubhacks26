@@ -2,7 +2,7 @@
 
 ## Goal, ownership, and exclusions
 
-Replace the long setup checklist with one task at a time, using the cinematic initiation design over the existing live Mars arena. Show each task as one level horizontal heading across the top center. Keep device/progress feedback to the left, the avatar visible to the right, and the mirrored self-camera in its existing bottom-right corner. Every slide follows measured setup progress, then both pilots share a server-controlled 3–2–1 before swings count.
+Replace the long setup checklist with one task at a time, using the cinematic initiation design over the existing live Mars arena. Show cinematic task copy and device/progress feedback on the left, the real tracked avatar centered in a clearly framed square on the right, and the mirrored self-camera in its existing bottom-right corner. Every slide follows measured setup progress, then both pilots share a server-controlled 3–2–1 before swings count.
 
 Owned paths: ArenaDuel, ArenaScene setup camera framing, new SaberInitiation component/CSS and development preview, arena-buffer metadata, setup-start rules/tests and optional wire fields, phone startup status, routing and handoff docs. No new dependencies, provider keys, endpoints, attacks, calibration thresholds, planets, or deployment. Concurrent sound/LYRA edits remain separate.
 
@@ -19,7 +19,7 @@ Normal Live challenge → accepted match → existing Mars travel/briefing → R
 
 The existing calibration algorithm, holds, notes/assumption fallbacks, camera permission request, and touch/phone controls remain. Each step shows real hold progress and independent camera/paired-phone/motion indicators. A short success message accompanies measured advancement. The frontend progress update compares against the last painted value, fixing a bar that could remain frozen when individual frame increments were less than 5%.
 
-Task headings are a centered horizontal line (for example RAISE YOUR SABER), with a straight blue keyword highlight and supporting instruction directly below. Mars and both live avatars continue rendering beneath the translucent instruction layer. During setup, the same renderer uses a wider camera framing with the fighters shifted to the right; combat returns smoothly to the existing shoulder camera. No duplicate WebGL scene, remote CV, or video upload.
+Task headings use the approved cinematic blue plates and laser transitions. During setup the existing canvas renders your real tracked avatar in a navy grid square; its camera centers your full figure and blade. At authoritative GO the same canvas expands to the full Mars scene with both avatars and the existing shoulder camera. No duplicate WebGL scene, remote CV, or video upload.
 
 Setup complete shows both pilots' readiness. When both are connected and have fresh calibrated body/phone input, the server sets one three-second deadline. Damage from setup swings cannot occur during that period. Tracking loss before GO cancels the deadline and a fresh three seconds starts when both recover. After the first GO, later tracking loss pauses swings through existing freshness rules; it does not repeat the countdown. Restart setup explicitly invalidates the previous calibration until measurements complete again.
 
@@ -50,3 +50,14 @@ Browser: transparent overlay and right-hand avatar framing visually checked on M
 - Finish one pilot first and verify they wait for the other. Complete both, see matching 3–2–1, and confirm swings are inactive until GO.
 - Interrupt body or phone tracking during startup: readiness drops and the countdown restarts after recovery.
 - Complete a fight and verify the normal result → cockpit flow and orbital/swipe controls still work.
+
+
+## Approved avatar-square revision
+
+The latest design supersedes the top-centered heading refinement: cinematic task copy and feedback are left, a real avatar is centered in a square on the right, and the existing mirrored camera stays bottom-right. ArenaDuel keeps one canvas mounted; setup uses a navy grid stage and camera centered on the local fighter. Only the local avatar/blade renders during initiation; full Mars and the rival return for combat. The displayed skeleton remains driven by live arena/body/phone input, never the illustrated preview puppet.
+
+The title plate and laser sweep animate on task changes; reduced motion disables them. QR pairing, measured task advancement, live hold bar, recovery and server countdown are unchanged. Four-arrow quick-swipe help is instructional: one swipe gives one move, lift to re-arm; ↑ closes in, ↓ backs away, ←/→ circle. It appears while waiting for the rival or via Movement controls. There is no joystick, simulated movement command, new contract or extra readiness gate in the live game.
+
+Review the exact production component with labelled synthetic telemetry at `/?dev=initiation`. It intentionally does not request camera/phone access or connect to a server. To physically verify: start a normal live match with the updated frontend/backend, start both cameras, pair both saber phones, perform each measured pose, confirm the actual avatar stays inside the square, then verify shared 3–2–1 changes to full Mars combat. Confirm tracking loss and Restart setup still recover. Physical validation requires those devices.
+
+Latest validation: production build/typecheck passed; 32 focused calibration/countdown/frame/local-fighter/glide/swipe tests passed. Browser review of the labelled synthetic route confirmed pairing, measured-feedback presentation, square canvas/frame alignment, movement-help open/close, waiting readiness, countdown to full Mars, and phone tracking loss recovery, without console warnings/errors. Physical two-device validation remains pending.

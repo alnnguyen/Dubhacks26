@@ -459,6 +459,7 @@ export function ArenaDuel({
 
   return (
     <main className="arena-duel" data-initiating={!fighting}>
+      <div className="si-arena-viewport">
       <ArenaRenderBoundary key={renderAttempt} onLeave={onLeave} onBasic={() => { setBasicGraphics(true); setRenderAttempt((n) => n + 1); }}>
       <ArenaScene
         basicGraphics={basicGraphics}
@@ -469,6 +470,7 @@ export function ArenaDuel({
         board={view.board}
       />
       </ArenaRenderBoundary>
+      </div>
 
       <div className="arena-hud">
         <div className="arena-bars">
