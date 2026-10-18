@@ -49,7 +49,7 @@ docs/                      Team, interface, QA, deployment and evidence notes
 cd server && npm install && npm test
 ```
 
-**Web (A cockpit + C camera):** Ally’s spaceship lobby is the default app. Alan’s camera harness: `/?debug=camera` or legacy `/?camera=1`. Live duel rehearsal: `/?pvp=1`.
+**Web (A cockpit + C camera):** Ally’s spaceship lobby is the default app. Alan’s camera harness: `/?debug=camera` or legacy `/?camera=1`. Live duel rehearsal: `/?pvp=1`. Networking client under `web/src/networking/` (from main).
 
 ```bash
 # Web (cockpit / camera / pvp rehearsal)
