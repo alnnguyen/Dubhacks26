@@ -1,0 +1,22 @@
+{
+  "source": "NASA PDS MGS-M-MOLA-5-MEGDR-L3-V1.0, megt44n000hb.img",
+  "sourceUrl": "https://pds-geosciences.wustl.edu/mgs/mgs-m-mola-5-megdr-l3-v1/mgsl_300x/meg128/megt44n000hb.img",
+  "instrument": "Mars Orbiter Laser Altimeter (MOLA), Mars Global Surveyor",
+  "region": "Jezero Crater, Mars",
+  "centerLatDeg": 18.38,
+  "centerLonDegE": 77.58,
+  "bounds": {
+    "minLat": 17.13,
+    "maxLat": 19.63,
+    "minLonE": 76.33,
+    "maxLonE": 78.83
+  },
+  "spanDeg": 2.5,
+  "spanKm": 147.9,
+  "sourceResolution": "128 px/deg (~463 m/px)",
+  "outputSize": 256,
+  "elevationMinM": -3719.4980392156863,
+  "elevationMaxM": -221.36516724336772,
+  "encoding": "16-bit grayscale PNG; elevation_m = min + v/65535 * (max - min), relative to the MOLA areoid",
+  "processing": "HTTP range-fetched rows, cropped, bilinear-resampled, normalized. Script: scripts/mars/crop_mola.py"
+}

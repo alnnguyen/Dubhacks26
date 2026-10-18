@@ -32,7 +32,7 @@ Pitch: “Choose a rival ship, jump into a camera duel, and wield a rock attack 
 
 Build a browser game using React/TypeScript, Three.js overlays, browser camera capture and MediaPipe. Target two identified phones over HTTPS first. Do not start a parallel Swift/Xcode implementation. A laptop version is a fallback platform if actual phone tests fail, not a second product to build concurrently.
 
-This is screen-space camera combat: detect a person in the image, anchor a health bar/effect to their detected body, and recognize your nearer hand as input. It is not a shared metric 3D room map. It does not establish physical sword contact, actual weapon reach or accurate person-to-person distance.
+This is screen-space camera combat: detect a person in the image and recognize your nearer hand as input. It is not a shared metric 3D room map. In the current saber duel the players aren't in the same room's geometry at all: each body is tracked by its own laptop and placed in a virtual arena, so blade collisions are virtual, not physical contact.
 
 One rear-camera stream must show your own free hand near the camera and the opponent farther away. Test actual framing instead of promising a universal distance or lens. Start with the default rear lens; ultra-wide selection is an optional device-specific enhancement. Hold or prop the phone, keep your hand low/to the side and avoid obscuring the opponent.
 
@@ -40,7 +40,17 @@ Use local Hand Landmarker for gesture commands and Pose Landmarker for the oppon
 
 Camera calibration on both actual phones is the highest-risk feasibility gate. Opponent hands can be confused with the player’s hand. Use a calibrated hand region/size and temporal tracking, inspect mistakes and keep explicit recovery. No heuristic guarantees that this never happens.
 
-## Combat: build the rock duel first
+## Combat: laptop + iPhone lightsaber duel in a shared 3D arena (current — decided 2026-10-17 ~22:50 after two phone-camera versions failed on devices)
+
+Each player has their own laptop and iPhone. The laptop camera tracks that player's body with MediaPipe Pose 3D world landmarks; the paired iPhone is the saber: its orientation gives the blade direction (out of the phone's top edge), recentered by pointing at the laptop screen. The hilt is the saber-hand wrist from the laptop camera. Only the head, shoulders, hips, elbows and wrists are tracked, smoothed with a One Euro filter on the laptop; the lower body is a fixed standing pose under the hips (out-of-frame legs were most of the avatar's shake), and hips that leave the frame sit below the shoulders at the last measured torso length. Players stay planted and walk with pinch-and-nudge: the free hand pinches thumb to index (MediaPipe Hand Landmarker) and nudging the pinched hand a few centimeters sets the direction and speed; releasing stops. Up/down stand in for forward/back because camera depth is unreliable. Holding WASD/arrow keys does the same. The laptop streams only a walking intent; the server moves the player at walking speed and owns their position.
+
+The server places both bodies in one virtual arena (meters; slot 2 1.3 m away, turned around) and runs a 30 Hz tick: a fast blade-tip movement is a swing; the sweep is checked in 10 sub-steps, and touching the defender's blade blocks while touching their torso capsule or head hits — the blade wins at the same sub-step. One outcome per swing, swing cooldown, clash recoil. Inputs older than 300 ms (camera or phone tracking lost) drop the blade and cancel the swing. Swings only count once both players have finished setup: body calibrated, phone paired and recentered. Clients send only their own body and aim; the server decides every hit. Body joints are self-reported, so this is trust-based, not cheat-proof.
+
+Laptops render the arena on the Mars terrain from over the player's own shoulder, with both fighters as glowing avatars from their streamed skeletons. Phones play the saber hum (pitch with swing speed), clash and hit sounds; iOS browsers have no vibration API. Pairing: the laptop shows a QR code of the pilot's private 6-character code link; a phone opening /?saber=CODE becomes that pilot's saber, and a newer phone replaces the old one. Codes don't expire in this demo. A guided setup, shown on both the laptop and the phone, then links the devices: stand still, ignite the phone, point it level at the screen (heading), raise it (the camera picks the saber hand), point right and thrust forward (these detect and correct a phone or camera that reads left/right or depth backwards), then open, pinch and nudge the free hand (measures that player's pinch and nudge size; falls back to defaults with a note if the hand isn't seen). The phone only streams raw orientation; the server applies the measured calibration. `/?dev=arena` shows the scene with synthetic fighters.
+
+Constants are placeholders in `server/src/game/rules.ts` (`SABER`). Gravity currently does not change saber combat. Space-data features are deferred until the duel works on devices.
+
+## Combat: rock duel (superseded by the lightsaber duel; server commands still exist)
 
 Initial rules: 60-second round, 100 health each, server-defined damage/cooldowns, win at zero opponent health or higher remaining health at the end; equal health is a draw. These are proposed design settings to tune, not scientific measurements.
 

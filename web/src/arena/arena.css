@@ -1,0 +1,321 @@
+.arena-root {
+  position: fixed;
+  inset: 0;
+  background: #2a1a12;
+  color: #f6e7da;
+  font-family: 'Rajdhani', 'Avenir Next Condensed', system-ui, sans-serif;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.arena-root canvas {
+  display: block;
+}
+
+.arena-facts {
+  position: absolute;
+  top: max(env(safe-area-inset-top), 14px);
+  left: max(env(safe-area-inset-left), 14px);
+  width: min(300px, calc(100vw - 28px));
+  padding: 14px 16px;
+  background: linear-gradient(180deg, rgba(38, 20, 12, 0.72), rgba(20, 10, 6, 0.8));
+  box-shadow: inset 0 0 0 1px rgba(255, 186, 140, 0.32);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.arena-eyebrow {
+  margin: 0;
+  font: 600 10.5px/1.2 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #ffb98a;
+}
+
+.arena-facts h1 {
+  margin: 2px 0 8px;
+  font-size: 28px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.arena-facts dl {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.arena-facts dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-top: 1px solid rgba(255, 186, 140, 0.14);
+  font-size: 15px;
+}
+
+.arena-facts dt {
+  color: #d9bba6;
+}
+
+.arena-facts dd {
+  margin: 0;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  text-align: right;
+}
+
+.arena-facts dd span {
+  color: #b99b87;
+}
+
+.arena-source {
+  margin: 10px 0 0;
+  font: 11px/1.4 'JetBrains Mono', ui-monospace, monospace;
+  color: #c9ab96;
+}
+
+.arena-source a {
+  color: #ffc9a3;
+}
+
+.arena-quality {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.arena-quality button {
+  flex: 1;
+  min-height: 36px;
+  border: 0;
+  font: 700 13px var(--display, 'Rajdhani', sans-serif);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f6e7da;
+  background: rgba(255, 186, 140, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 186, 140, 0.35);
+  cursor: pointer;
+}
+
+.arena-quality button[aria-pressed='true'] {
+  color: #2a140a;
+  background: #ffb98a;
+}
+
+.arena-tilt,
+.arena-recenter {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(env(safe-area-inset-bottom), 18px);
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
+  font: 700 16px 'Rajdhani', system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #2a140a;
+  background: linear-gradient(180deg, #ffd2ae, #ff9f62);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  cursor: pointer;
+}
+
+.arena-recenter {
+  left: auto;
+  right: max(env(safe-area-inset-right), 14px);
+  transform: none;
+  min-height: 42px;
+  font-size: 13px;
+  color: #f6e7da;
+  background: rgba(38, 20, 12, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(255, 186, 140, 0.4);
+}
+
+.arena-tilt-note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(env(safe-area-inset-bottom), 18px);
+  margin: 0;
+  text-align: center;
+  font: 12px 'JetBrains Mono', monospace;
+  color: #f6e7da;
+}
+
+/* Phones: fold the fact sheet so the arena stays visible. */
+@media (max-width: 600px) {
+  .arena-facts {
+    width: auto;
+    right: max(env(safe-area-inset-right), 14px);
+    padding: 10px 12px;
+  }
+  .arena-facts h1 {
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+  .arena-facts dl > div:nth-child(n + 4) {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------- Immersive Mars duel */
+/* The duel page goes full-screen; the live camera stays as CV input but is not shown. */
+.duel-page--immersive {
+  max-width: none;
+  padding: 0;
+}
+
+.duel-stage.duel-stage--immersive {
+  position: fixed;
+  inset: 0;
+  aspect-ratio: auto;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: #2a1a12;
+}
+
+.mars-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.mars-backdrop canvas {
+  display: block;
+}
+
+.duel-stage--immersive .video--source {
+  /* Stays "visible" (so frames keep decoding) but sits under the opaque Mars canvas. */
+  z-index: 0;
+  pointer-events: none;
+}
+
+.duel-stage--immersive .mars-backdrop {
+  z-index: 1;
+}
+
+.duel-stage--immersive .overlay {
+  z-index: 2;
+  /* Matches the cutout's zoom so thrown rocks still land on the opponent. */
+  transform: scale(var(--mars-zoom, 1.35));
+  transform-origin: var(--mars-zoom-origin, 50% 55%);
+}
+
+.duel-stage--immersive .lock-banner {
+  z-index: 3;
+  bottom: calc(max(env(safe-area-inset-bottom), 10px) + 64px);
+}
+
+.duel-page--immersive .duel-controls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  margin: 0;
+  padding: 8px max(env(safe-area-inset-left), 10px) max(env(safe-area-inset-bottom), 10px);
+  background: linear-gradient(0deg, rgba(20, 10, 6, 0.85), rgba(20, 10, 6, 0));
+}
+
+.duel-page--immersive .duel-hint,
+.duel-page--immersive .error {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(max(env(safe-area-inset-bottom), 10px) + 124px);
+  z-index: 4;
+  margin: 0;
+  padding: 8px 10px;
+  color: #f6e7da;
+  background: rgba(20, 10, 6, 0.7);
+}
+
+.mars-target {
+  position: absolute;
+  left: 50%;
+  top: calc(max(env(safe-area-inset-top), 10px) + 152px);
+  transform: translateX(-50%);
+  z-index: 3;
+  margin: 0;
+  padding: 6px 12px;
+  white-space: nowrap;
+  font: 600 12px/1 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.06em;
+  color: #2a140a;
+  background: #ffb98a;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.mars-target.locked {
+  color: #f6e7da;
+  background: rgba(30, 90, 60, 0.75);
+  box-shadow: inset 0 0 0 1px rgba(120, 255, 190, 0.5);
+}
+
+/* ---------------------------------------------------------------- Dev view (/?dev=mars) */
+.mars-dev {
+  position: fixed;
+  right: max(env(safe-area-inset-right), 10px);
+  bottom: calc(max(env(safe-area-inset-bottom), 10px) + 124px);
+  z-index: 6;
+  width: 168px;
+  opacity: 0.92;
+  padding: 10px 12px;
+  color: #f6e7da;
+  font: 12px/1.35 'JetBrains Mono', ui-monospace, monospace;
+  background: rgba(20, 10, 6, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(255, 186, 140, 0.35);
+  border-radius: 4px;
+}
+
+.mars-dev__state {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: #ffb98a;
+}
+
+.mars-dev__state.on {
+  color: #7dffc0;
+}
+
+.mars-dev dl {
+  margin: 0 0 6px;
+}
+
+.mars-dev dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.mars-dev dt {
+  color: #c9ab96;
+}
+
+.mars-dev dd {
+  margin: 0;
+  text-align: right;
+}
+
+.mars-dev label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.mars-dev__zoom {
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: 2px !important;
+}
+
+.mars-dev__zoom input {
+  width: 100%;
+}

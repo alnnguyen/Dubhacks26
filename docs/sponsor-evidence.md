@@ -58,3 +58,22 @@ Record evidence location, owner, time and observed result. Avoid secrets or pers
 - Replaced the required spoken test question with automatic state-derived Grok TTS in the briefing. Microphone is not requested for narration; realtime questions remain optional.
 - Real browser/API check: Mars script generated, playable MP3 duration 12.84 s, audio readyState 4, and browser reported “Briefing complete. Ready for the jump.” without a microphone session. Browser autoplay fallback remains Play briefing.
 - Three focused narration tests passed: selected-state validation, duplicate generation caching/state changes, and stale-world rejection/provider retry. Existing ten integration tests and production build passed.
+
+## Official Grok Bot planning bonus — READY TO RUN (not claimed yet)
+
+Do **not** treat in-game Voice/TTS or API characters as this bonus. Use the official Grok Bot / team planning product.
+
+**Suggested prompt (paste into the official Bot session):**
+
+> Review our spaceship lobby → Photon challenge → gravity wheel → camera rock duel plan for DubHacks. Assign A UI/cockpit, B authoritative game state and contracts, C camera gestures/overlays, D Photon + Grok Voice integrations. Identify blockers before Saturday 10 p.m. feature freeze. Cut extras that threaten the two-phone duel. Confirm B must ship createGamePort (getChallenge, respondChallenge, getMatchState) before Photon ACCEPT and Voice can leave fixtures.
+
+**After the real session, fill in (Alex / D):**
+
+- Date / time (Pacific):
+- Product used (official Grok Bot link / team bot name):
+- Participants:
+- Decisions recorded:
+- Link or export location (no secrets):
+- What we cut or prioritized:
+
+Until this block is filled with a real session, **no Grok Bot bonus claim** in submission.

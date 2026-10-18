@@ -5,6 +5,7 @@ import { LAYOUT } from './cockpitLayout';
 import { makeRadialTexture } from './textures';
 import type { AnchorRegistry } from './anchors';
 import type { NearbyPilot } from '../../state/lobbyTypes';
+import { bindUniforms } from '../../../three/bindUniforms'
 
 const CYAN = new THREE.Color(0.35, 0.86, 1.0);
 const ORANGE = new THREE.Color(1.0, 0.55, 0.2);
@@ -255,7 +256,7 @@ export function HolographicConsole({ pilots, selectedId, interactive, alert, boo
       {/* Projection beam from the dashboard emitter */}
       <mesh position={[0, -0.535, 0]}>
         <cylinderGeometry args={[R * 0.72, 0.09, 0.39, 40, 1, true]} />
-        <shaderMaterial vertexShader={DISC_VERT} fragmentShader={BEAM_FRAG} uniforms={beamU} side={THREE.DoubleSide} {...additive} />
+        <shaderMaterial vertexShader={DISC_VERT} fragmentShader={BEAM_FRAG} uniforms={beamU} ref={bindUniforms(beamU)} side={THREE.DoubleSide} {...additive} />
       </mesh>
 
       <group ref={globe}>
@@ -276,7 +277,7 @@ export function HolographicConsole({ pilots, selectedId, interactive, alert, boo
           }}
         >
           <sphereGeometry args={[R, seg, seg / 2]} />
-          <shaderMaterial vertexShader={GLOBE_VERT} fragmentShader={GLOBE_FRAG} uniforms={globeU} side={THREE.DoubleSide} {...additive} />
+          <shaderMaterial vertexShader={GLOBE_VERT} fragmentShader={GLOBE_FRAG} uniforms={globeU} ref={bindUniforms(globeU)} side={THREE.DoubleSide} {...additive} />
         </mesh>
         <sprite scale={[R * 1.6, R * 1.6, 1]}>
           <spriteMaterial map={glowTex} color={[0.5, 0.9, 1.2]} {...additive} opacity={0.32} toneMapped={false} />
@@ -303,7 +304,7 @@ export function HolographicConsole({ pilots, selectedId, interactive, alert, boo
       {/* Radar plane with sweep, and nearby pilot blips */}
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[R * 1.2, 64]} />
-        <shaderMaterial vertexShader={DISC_VERT} fragmentShader={DISC_FRAG} uniforms={discU} side={THREE.DoubleSide} {...additive} />
+        <shaderMaterial vertexShader={DISC_VERT} fragmentShader={DISC_FRAG} uniforms={discU} ref={bindUniforms(discU)} side={THREE.DoubleSide} {...additive} />
       </mesh>
       <mesh position={[0, 0.02, 0]}>
         <octahedronGeometry args={[0.018, 0]} />

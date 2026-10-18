@@ -5,5 +5,11 @@ export {
   handFloatPoint,
   opponentTarget,
   DEBUG_FLIGHT_SECONDS,
+  PICKUP_DISTANCE,
+  GROUND_Y,
+  HELD_ROCK_SCALE,
+  DEFAULT_AIM,
+  THROW_LOFT,
 } from "./rockVisual"
-export type { RockVisualState, RockVisualMode, RockVisualFrame } from "./rockVisual"
+export type { RockVisualState, RockVisualMode, RockVisualFrame, DrawRock } from "./rockVisual"
+export { estimateHandVelocity, sampleBallistic, throwImpulse } from "./throwPhysics"

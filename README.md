@@ -41,13 +41,25 @@ docs/                      Team, interface, QA, deployment and evidence notes
 
 ## Current status
 
-Planning scaffold for lobby/server remains. Role C added a temporary camera debug harness under `web/`:
+**Integrated on `mars-arena`:** Ally’s 3D cockpit, `main`’s server lobby + networking client (real challenges, server-picked world, rock and gun), Alan’s camera (hand lock, wide rear), and the immersive Mars arena (NASA MOLA Jezero terrain; real opponent composited in via segmentation when the server picks Mars).
+
+**Server (B / Justin):** authoritative match + lobby. Verified commands in [server/README.md](server/README.md):
 
 ```bash
-cd web && npm install && npm test && npm run dev
+cd server && npm install && npm test
 ```
 
-Open the HTTPS URL Vite prints (accept the self-signed cert). For phones, tunnel that HTTPS origin (see `web/README.md`). Full lobby/server tooling is still A/B-owned and not initialized at the repo root.
+**Web:** the default app is the real flow — cockpit lobby → challenge → server-picked world + briefing → camera duel → result. Other routes: `/?camera=1` (Alan’s camera harness), `/?dev=mars` (camera + vision + Mars background, no match — for tuning detection), `/?arena=mars` (Mars scene only), `/?pvp=1` (older LiveDuel rehearsal).
+
+```bash
+# Web
+cd web && npm install && npm test && npm run dev
+
+# Authoritative server (B)
+cd server && npm install && npm test && npm run dev
+```
+
+Open the HTTPS URL Vite prints (accept the self-signed cert). For phones, tunnel that HTTPS origin (see `web/README.md`). Server defaults to port `3001` — see [server/README.md](server/README.md).
 
 Target: mobile HTTPS website, two selected demo phones, rear-camera overlays and server-authoritative combat. Native Swift/ARKit, campus GPS, planet ownership and offline armies are outside this MVP.
 

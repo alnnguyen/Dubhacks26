@@ -19,7 +19,12 @@ beforeEach(() => {
   landed = [];
   nextId = 0;
   lobby = new Lobby(
-    { changed: () => changes++, projectileLanded: (playerIds, event) => landed.push({ playerIds, event }) },
+    {
+      changed: () => changes++,
+      projectileLanded: (playerIds, event) => landed.push({ playerIds, event }),
+      saberResolved: () => {},
+      arenaFrame: () => {},
+    },
     { pickWorld: () => "moon" },
   );
   lobby.join(ALICE, "alice");

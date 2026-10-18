@@ -16,6 +16,6 @@ coverage/
 # Private recordings and local artifacts
 recordings/
 tmp/
+welcome.mp3
 
 .vibe-wise
-welcome.mp3

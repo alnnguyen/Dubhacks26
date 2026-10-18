@@ -1,5 +1,5 @@
 {
-  "name": "jedi-space-duels-web",
+  "name": "jedi-space-battle-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -16,12 +16,14 @@
     "@react-three/fiber": "^9.8.2",
     "@react-three/postprocessing": "^3.2.0",
     "postprocessing": "^6.39.5",
+    "qrcode": "1.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "socket.io-client": "^4.8.4",
     "three": "^0.180.0"
   },
   "devDependencies": {
+    "@types/qrcode": "1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.180.0",

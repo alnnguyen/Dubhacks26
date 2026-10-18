@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { createBattleInput, stepBattleInput, type BattleInputState } from "../vision/battleInput"
+import { createHandLock, resetHandLock, tickHandLock, type HandLockState } from "../vision/handLock"
+import { classifyGesture } from "../vision/landmarks"
 import type { BattleCommand, Phase, TouchInput } from "../vision/types"
 import {
   createRockVisual,
@@ -7,16 +9,25 @@ import {
   tickRockVisual,
   type RockVisualState,
 } from "../overlay/rockVisual"
-import { CameraStartError } from "./openRearCamera"
+import { CameraStartError, type CameraDevices } from "./openRearCamera"
 import { openDebugCamera, type DebugCameraKind } from "./openDebugCamera"
 import {
   createVisionBundle,
   handsFromLandmarker,
+  poseCenter,
   poseFromLandmarker,
+  selectOpponentIndex,
   type PoseOverlay,
   type VisionBundle,
 } from "./mediapipeVision"
 import { drawCameraOverlay } from "./drawOverlay"
+import { PersonMask } from "../arena/segmentation"
+import { useDeviceAim } from "../arena/mars/useDeviceAim"
+import type { ArenaObstacle } from "../arena/mars/obstacles"
+import { arenaDev } from "../arena/devFlags"
+
+// Immersive Mars arena (3D scene + segmented opponent). Lazy so other routes don't load it.
+const MarsDuelBackdrop = lazy(() => import("../arena/MarsDuelBackdrop"))
 
 const SESSION_ID = "debug-pilot"
 const MATCH_ID = "debug-match"
@@ -36,6 +47,13 @@ export type DuelHudProps = {
   note?: string
   incoming?: boolean
   onSimulateRival?: () => void
+  /**
+   * Replace the real background with the 3D arena and composite the opponent
+   * in via segmentation. Defaults to true when the world is Mars.
+   */
+  immersive?: boolean
+  /** Arena formations (e.g. from the room scan). Defaults to a Jezero layout. */
+  arenaObstacles?: ArenaObstacle[]
 }
 
 function nowLabel() {
@@ -54,6 +72,11 @@ export function CameraDebugPage({
   duel?: DuelHudProps
 } = {}) {
   const isDuel = mode === "duel"
+  const immersive = isDuel && (duel?.immersive ?? (duel?.worldName ?? "").toLowerCase().includes("mars"))
+  const personMask = useMemo(() => new PersonMask(), [])
+  useEffect(() => () => personMask.dispose(), [personMask])
+  const aim = useDeviceAim()
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null)
   const commandSinkRef = useRef(onCommands)
   commandSinkRef.current = onCommands
   const duelRef = useRef(duel)
@@ -64,10 +87,12 @@ export function CameraDebugPage({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const battleRef = useRef<BattleInputState>(createBattleInput(performance.now()))
   const rockRef = useRef<RockVisualState>(createRockVisual(flightSeconds))
+  const lockRef = useRef<HandLockState>(createHandLock())
   const touchRef = useRef<TouchInput>({ ...idleTouch })
   const visionRef = useRef<VisionBundle | null>(null)
   const stopCameraRef = useRef<(() => void) | null>(null)
   const poseRef = useRef<PoseOverlay | null>(null)
+  const opponentCenterRef = useRef<{ x: number; y: number } | null>(null)
   const frameRef = useRef(0)
   const rafRef = useRef(0)
   const lastVideoTimeRef = useRef(-1)
@@ -75,6 +100,7 @@ export function CameraDebugPage({
   const [status, setStatus] = useState("Idle")
   const [cameraKind, setCameraKind] = useState<DebugCameraKind | null>(null)
   const [cameraNote, setCameraNote] = useState("")
+  const [cameraWide, setCameraWide] = useState(false)
   const [phase, setPhase] = useState<Phase>("IDLE")
   const [gesture, setGesture] = useState("none")
   const [intent, setIntent] = useState("lost")
@@ -82,6 +108,8 @@ export function CameraDebugPage({
   const [handCount, setHandCount] = useState(0)
   const [poseOk, setPoseOk] = useState(false)
   const [rockMode, setRockMode] = useState("hidden")
+  const [lockPhase, setLockPhase] = useState<HandLockState["phase"]>("calibrating")
+  const [lockProgress, setLockProgress] = useState(0)
   const [commandLog, setCommandLog] = useState<LogLine[]>([])
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
@@ -109,13 +137,22 @@ export function CameraDebugPage({
     setTouchUi(next)
   }
 
+  function recalibrate() {
+    lockRef.current = resetHandLock()
+    setLockPhase("calibrating")
+    setLockProgress(0)
+  }
+
   async function start() {
+    // iOS only grants motion access synchronously inside the tap, so ask first.
+    if (immersive && aim.status === "needs-permission") void aim.request()
     const generation = ++cameraGenerationRef.current
     setRunning(true)
     setError(null)
     setStatus("Loading MediaPipe…")
     try {
-      const vision = await createVisionBundle()
+      // Immersive arena: track up to 3 people so bystanders don't steal the opponent.
+      const vision = await createVisionBundle({ segmentation: immersive, numPoses: immersive ? 3 : 1 })
       if (generation !== cameraGenerationRef.current) {
         vision.close()
         return
@@ -126,7 +163,13 @@ export function CameraDebugPage({
       if (!devices?.getUserMedia) {
         throw new CameraStartError("unsupported", "This browser has no getUserMedia.")
       }
-      const session = await openDebugCamera(devices, window.isSecureContext)
+      const session = await openDebugCamera(
+        {
+          getUserMedia: (constraints) =>
+            devices.getUserMedia(constraints) as ReturnType<CameraDevices["getUserMedia"]>,
+        },
+        window.isSecureContext,
+      )
       if (generation !== cameraGenerationRef.current) {
         session.stop()
         return
@@ -134,19 +177,27 @@ export function CameraDebugPage({
       stopCameraRef.current = session.stop
       setCameraKind(session.kind)
       setCameraNote(session.note)
+      setCameraWide(session.wide)
 
       const video = videoRef.current
       if (!video) throw new Error("Missing video element")
       video.srcObject = session.stream as unknown as MediaStream
       await video.play()
       if (generation !== cameraGenerationRef.current) return
+      if (immersive) {
+        setVideoEl(video)
+        aim.recenter() // wherever the phone points now (the opponent) is "forward" on Mars
+      }
       commandSessionRef.current = `${SESSION_ID}:${crypto.randomUUID()}`
       lastVideoTimeRef.current = -1
       poseRef.current = null
 
       battleRef.current = createBattleInput(performance.now())
       rockRef.current = createRockVisual(flightSeconds)
-      setRockMode("hidden")
+      lockRef.current = createHandLock()
+      setLockPhase("calibrating")
+      setLockProgress(0)
+      setRockMode(isDuel ? "hidden" : "ground")
       setRunning(true)
       setStatus("Running")
       loop()
@@ -196,15 +247,31 @@ export function CameraDebugPage({
 
       if (frameRef.current % POSE_EVERY_N_FRAMES === 0) {
         const poseResult = vision.poseLandmarker.detectForVideo(video, nowMs + 0.001)
-        poseRef.current = poseFromLandmarker(poseResult)
+        if (immersive) arenaDev.stats.people = poseResult.landmarks.length
+        if (poseResult.landmarks.length > 1) {
+          const index = selectOpponentIndex(poseResult.landmarks, opponentCenterRef.current)
+          poseRef.current = index >= 0 ? poseFromLandmarker(poseResult, index) : null
+        } else {
+          poseRef.current = poseFromLandmarker(poseResult)
+        }
+        opponentCenterRef.current = poseRef.current ? poseCenter(poseRef.current.landmarks) : null
+        if (vision.segmentation) personMask.update(poseResult.segmentationMasks, nowMs)
       }
 
+      const lock = tickHandLock(lockRef.current, { nowMs, hands })
+      lockRef.current = lock
+      setLockPhase(lock.phase)
+      setLockProgress(lock.progress01)
+
+      const gesturesPaused = lock.phase !== "locked"
       const stepped = stepBattleInput(battleRef.current, {
         nowMs,
         hands,
         touch: touchRef.current,
         sessionId: commandSessionRef.current,
         matchId: MATCH_ID,
+        lockHint: lock.phase === "locked" ? lock.hint : null,
+        gesturesPaused,
       })
       battleRef.current = stepped.state
       pushCommands(stepped.commands)
@@ -216,12 +283,19 @@ export function CameraDebugPage({
       setPoseOk(Boolean(poseRef.current))
 
       const ownHand = hands.find((hand) => hand.id === stepped.ownHandId) ?? null
+      const rockHand =
+        ownHand ??
+        (gesturesPaused ? null : hands.find((hand) => hand.landmarks.length >= 21) ?? null)
       const rockFrame = tickRockVisual(rockRef.current, {
         nowMs,
         phase: stepped.phase,
         commands: stepped.commands,
-        ownHand,
+        ownHand: rockHand,
         target: opponentTarget(poseRef.current),
+        palmOpen:
+          stepped.gesture === "palm" ||
+          touchRef.current.lift ||
+          (rockHand ? classifyGesture(rockHand.landmarks) === "palm" : false),
       })
       rockRef.current = rockFrame.state
       setRockMode(rockFrame.state.mode)
@@ -234,7 +308,7 @@ export function CameraDebugPage({
       }
       const ctx = canvas.getContext("2d")
       if (ctx) {
-        drawCameraOverlay(ctx, width, height, hands, stepped.ownHandId, poseRef.current, rockFrame.drawAt, {
+        drawCameraOverlay(ctx, width, height, hands, stepped.ownHandId, poseRef.current, rockFrame.draw.rocks, {
           showLandmarks: !isDuel,
           rivalHealth: duelRef.current?.rivalHealth ?? 100,
           rockScale: isDuel ? 1.35 : 1,
@@ -249,6 +323,13 @@ export function CameraDebugPage({
     return () => stop()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const lockBanner =
+    lockPhase === "calibrating"
+      ? `Hold your hand low in front of the lens for 2 seconds… ${Math.round(lockProgress * 100)}%`
+      : lockPhase === "lost"
+        ? "Hand lock lost — Recalibrate. Touch Lift/Throw/Block still work."
+        : "Hand locked — opponent hands ignored."
 
   const worldKey = (duel?.worldName ?? "earth").toLowerCase()
   const tintClass =
@@ -265,6 +346,9 @@ export function CameraDebugPage({
           Stop
         </button>
       )}
+      <button type="button" onClick={recalibrate} disabled={!running}>
+        Recalibrate
+      </button>
       <button
         type="button"
         className={touchUi.lift ? "on" : ""}
@@ -313,11 +397,28 @@ export function CameraDebugPage({
     const you = duel.health ?? 100
     const rival = duel.rivalHealth ?? 100
     return (
-      <main className="duel-page">
-        <div className={`duel-stage ${tintClass}`}>
-          <video ref={videoRef} className="video" playsInline muted autoPlay />
+      <main className={`duel-page${immersive ? " duel-page--immersive" : ""}`}>
+        <div className={`duel-stage ${immersive ? "duel-stage--immersive" : tintClass}`}>
+          {immersive ? (
+            <Suspense fallback={null}>
+              <MarsDuelBackdrop
+                video={running ? videoEl : null}
+                mask={personMask}
+                pose={poseRef}
+                deviceQuat={aim.quat}
+                obstacles={duel.arenaObstacles}
+              />
+            </Suspense>
+          ) : null}
+          <video ref={videoRef} className={`video${immersive ? " video--source" : ""}`} playsInline muted autoPlay />
           <canvas ref={canvasRef} className="overlay" />
-          <div className="duel-tint" aria-hidden />
+          {immersive ? null : <div className="duel-tint" aria-hidden />}
+          {immersive && running ? (
+            <p className={`mars-target ${poseOk ? "locked" : ""}`} role="status">
+              {poseOk ? "Opponent on Mars" : "Point the camera at your opponent"}
+            </p>
+          ) : null}
+          {running ? <div className={`lock-banner ${lockPhase}`}>{lockBanner}</div> : null}
           <div className="duel-hud">
             <div className="duel-world-chip">
               {duel.worldName} · {duel.gravity} m/s² · window {flightSeconds.toFixed(2)} s
@@ -352,7 +453,8 @@ export function CameraDebugPage({
         {error ? <p className="error">{error}</p> : null}
         {!running ? (
           <p className="duel-hint">
-            Palm hold lifts a rock; fist throws. Tracking loss cancels. Touch buttons mirror gestures.
+            Palm hold lifts a rock; fist throws. Calibrate your hand first. Tracking loss cancels. Touch buttons mirror
+            gestures.
           </p>
         ) : null}
       </main>
@@ -364,14 +466,16 @@ export function CameraDebugPage({
       <header className="header">
         <h1>Camera debug</h1>
         <p>
-          Role C harness — MediaPipe hands + pose into <code>stepBattleInput</code>. Screen-space rock
-          only (no gun/saber, no catch). Not the lobby. FlightApp duel mode uses a separate HUD.
+          Role C harness — hand lock, ~0.5× rear when available, ground rocks, palm pickup, velocity throw, plus{" "}
+          <code>stepBattleInput</code> commands. Screen-space overlay for iPhone (not WebXR / ARKit). Not the lobby.
+          FlightApp / LiveDuel duel mode uses a separate HUD.
         </p>
       </header>
 
       <section className="stage">
         <video ref={videoRef} className="video" playsInline muted autoPlay />
         <canvas ref={canvasRef} className="overlay" />
+        {running ? <div className={`lock-banner ${lockPhase}`}>{lockBanner}</div> : null}
       </section>
 
       {controls}
@@ -386,6 +490,11 @@ export function CameraDebugPage({
         </p>
         <p>
           <strong>Camera</strong> {cameraKind ?? "—"} {cameraNote ? `· ${cameraNote}` : ""}
+          {cameraKind === "environment" && !cameraWide ? " · banner: wide unavailable" : ""}
+        </p>
+        <p>
+          <strong>Hand lock</strong> {lockPhase}
+          {lockPhase === "calibrating" ? ` · ${Math.round(lockProgress * 100)}%` : ""}
         </p>
         <p>
           <strong>Phase</strong> {phase} · <strong>gesture</strong> {gesture} · <strong>intent</strong>{" "}
@@ -396,9 +505,12 @@ export function CameraDebugPage({
           <strong>pose</strong> {poseOk ? "yes" : "no"} · <strong>rock</strong> {rockMode}
         </p>
         {error ? <p className="error">{error}</p> : null}
+        {!cameraWide && cameraKind === "environment" ? (
+          <p className="warn">Wide lens unavailable — default rear. Use rear / 0.5 if the phone offers it.</p>
+        ) : null}
         <p className="hint">
-          Framing: hand low/near the lens, opponent farther. Green = own hand. Rock floats on hold, arcs
-          on throw, vanishes on cancel. Block is the defense — there is no catch. Gun/saber are deferred.
+          Calibrate your near hand first. Rocks sit in the lower third — open palm (or Lift) to pick up; swipe + fist or
+          Throw to fling toward upper-center / shoulders. Cancel drops. No gun/saber yet.
         </p>
       </section>
 
