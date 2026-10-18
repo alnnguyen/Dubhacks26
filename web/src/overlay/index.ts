@@ -13,3 +13,13 @@ export {
 } from "./rockVisual"
 export type { RockVisualState, RockVisualMode, RockVisualFrame, DrawRock } from "./rockVisual"
 export { estimateHandVelocity, sampleBallistic, throwImpulse } from "./throwPhysics"
+export {
+  createTracerShot,
+  sampleTracer,
+  tickTracers,
+  muzzleFromHand,
+  DEFAULT_MUZZLE,
+} from "./bulletTracer"
+export type { TracerShot, DrawTracer } from "./bulletTracer"
+export { createGunModel, gunPoseFromLandmarks, GUN_MODEL_URL } from "./gunModel"
+export type { GunModelHandle, GunPose } from "./gunModel"

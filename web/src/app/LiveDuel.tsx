@@ -3,9 +3,11 @@ import type { PlayerView, Weapon } from '../networking';
 import { createGameClient, type ClientReply, type ConnectionStatus, type GameClient } from '../networking';
 import type { BattleCommand } from '../vision/types';
 import { CameraDebugPage } from '../camera/CameraDebugPage';
-import { commandBridge } from './liveCommands';
+import { describeCombatReply, dispatchBattleCommand } from './liveCommands';
 import { accentCss, loadPilotIdentity } from './pilotIdentity';
 import './flight.css';
+
+const GUN_FLIGHT_MS = 800;
 
 /** Per-tab identity so two tabs on one laptop can still be two pilots. Phones keep their own storage naturally. */
 function tabStorage(): Pick<Storage, 'getItem' | 'setItem'> {
@@ -32,7 +34,6 @@ export function LiveDuel() {
 
   const clientRef = useRef<GameClient | null>(null);
   const viewRef = useRef<PlayerView | null>(null);
-  const bridge = useRef(commandBridge());
   const [view, setView] = useState<PlayerView | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [joinError, setJoinError] = useState<string | null>(null);
@@ -40,6 +41,8 @@ export function LiveDuel() {
   const [receivedAt, setReceivedAt] = useState(0);
   const [now, setNow] = useState(performance.now());
   const [busy, setBusy] = useState(false);
+  const [bolt, setBolt] = useState<{ startedAt: number } | null>(null);
+  const [rockResolvedAt, setRockResolvedAt] = useState(0);
 
   useEffect(() => {
     const client = createGameClient({ storage: tabStorage() });
@@ -72,7 +75,7 @@ export function LiveDuel() {
         return;
       }
       if (previous === 'waiting' && next.phase === 'active') {
-        setNote('Both pilots joined. Switch weapon, throw, or raise your shield.');
+        setNote('Both pilots joined. Rock: palm → fist → fling. Gun: fist hold, index+middle fire.');
       } else if (next.phase === 'waiting') {
         setNote('You joined. Waiting for the second player on this same link.');
       } else if (next.phase === 'active') {
@@ -84,12 +87,16 @@ export function LiveDuel() {
 
     const offLanded = client.onProjectileLanded((event) => {
       if (!viewRef.current) return;
+      const mine = viewRef.current.you.slot === event.attackerSlot;
       const weapon = event.weapon === 'gun' ? 'gun bolt' : 'rock';
       setNote(
         event.blocked
           ? `Pilot ${event.attackerSlot} ${weapon} blocked — no damage.`
           : `Pilot ${event.attackerSlot} hit with ${weapon} for ${event.damage}.`,
       );
+      if (!mine) return;
+      if (event.weapon === 'rock') setRockResolvedAt(performance.now());
+      if (event.weapon === 'gun') setBolt(null);
     });
 
     const timer = window.setInterval(() => setNow(performance.now()), 100);
@@ -111,7 +118,11 @@ export function LiveDuel() {
     }
     setBusy(true);
     try {
-      setNote(describeReply(label, await action()));
+      const reply = await action();
+      setNote(describeReply(label, reply));
+      if (label === 'fireGun' && reply.status === 'accepted') {
+        setBolt({ startedAt: performance.now() });
+      }
     } finally {
       setBusy(false);
     }
@@ -126,19 +137,19 @@ export function LiveDuel() {
     await (weapon === 'rock' ? client.rockActive() : client.gunActive());
   }
 
-  function cameraCommands(commands: BattleCommand[]) {
+  async function cameraCommands(commands: BattleCommand[]) {
     const client = clientRef.current;
-    if (!client) return;
-    for (const input of commands) {
-      const action = bridge.current(input);
-      if (!action) continue;
-      void run(action, async () => {
-        if (action === 'throwRock') {
-          await ensureWeapon('rock');
-          return client.throwRock();
-        }
-        return client.startBlock();
-      });
+    if (!client || client.status() !== 'online' || viewRef.current?.phase !== 'active') {
+      setNote('Wait until both pilots are connected and the match is active.');
+      return;
+    }
+    for (const command of commands) {
+      const reply = await dispatchBattleCommand(client, command);
+      if (!reply) continue;
+      setNote(describeCombatReply(command.name, reply));
+      if (command.name === 'fireGun' && reply.status === 'accepted') {
+        setBolt({ startedAt: performance.now() });
+      }
     }
   }
 
@@ -164,7 +175,7 @@ export function LiveDuel() {
         <p>Both players open this same link. The second join starts the round automatically (Justin’s createGameClient).</p>
         <p className="flight-notice" style={{ borderColor: accentCss(accent) }}>
           Flying as <strong>{callsign}</strong> aboard <strong>{shipName}</strong>. Real shared combat · one demo room · Mars
-          only. Cockpit ship challenges do not open this page yet — use <code>/?pvp=1</code> on both devices.
+          arena. Cockpit challenges can route here; rehearsal link is <code>/?pvp=1</code>.
         </p>
         <p role="status">{note}</p>
         {!online && (
@@ -243,11 +254,10 @@ export function LiveDuel() {
           </div>
         )}
         <p className="flight-muted">
-          Buttons check the shared server first. Then Start camera: palm lifts locally, fist sends throwRock (after selecting
-          rock), Block raises a server-timed shield. Camera effects are previews; server views own damage/results.
+          Server owns damage. Camera: rock palm→fist→fling; gun fist→index+middle. Mars arena composites the opponent cutout.
         </p>
       </section>
-      {active && (
+      {active && you && (
         <CameraDebugPage
           mode="duel"
           flightSeconds={1.302}
@@ -255,12 +265,25 @@ export function LiveDuel() {
             worldName: 'Mars',
             gravity: 3.7,
             rivalName: `Pilot ${rival?.slot ?? '?'}`,
-            health: you?.health ?? 100,
+            health: you.health,
             rivalHealth: rival?.health ?? 100,
             incoming,
             note,
+            serverNote: note,
+            weapon: you.weapon,
+            onSelectRock: () => void run('rockActive', () => clientRef.current!.rockActive()),
+            onSelectGun: () => void run('gunActive', () => clientRef.current!.gunActive()),
+            onFireGun: () =>
+              void run('fireGun', async () => {
+                await ensureWeapon('gun');
+                return clientRef.current!.fireGun();
+              }),
+            boltStartedAt: bolt?.startedAt ?? null,
+            boltFlightMs: GUN_FLIGHT_MS,
+            rockResolvedAt,
+            immersive: true,
           }}
-          onCommands={cameraCommands}
+          onCommands={(commands) => void cameraCommands(commands)}
         />
       )}
     </main>

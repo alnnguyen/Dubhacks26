@@ -1,19 +1,41 @@
-import type { BattleCommand } from '../vision/types';
+import type { ClientReply } from "../networking/gameClient"
+import type { BattleCommand } from "../vision/types"
 
-/** Camera gestures that map onto Justin's createGameClient methods. */
-export type LiveCombatAction = 'throwRock' | 'startBlock';
+/** The combat calls LiveDuel is allowed to make. IDs stay inside createGameClient. */
+export type CombatClient = {
+  rockActive(): Promise<ClientReply>
+  throwRock(): Promise<ClientReply>
+  gunActive(): Promise<ClientReply>
+  fireGun(): Promise<ClientReply>
+  startBlock(): Promise<ClientReply>
+  endBlock(): Promise<ClientReply>
+}
 
 /**
- * C owns local palm/lift visuals; only deliberate release and shield reach B.
- * createGameClient owns server command IDs — this bridge only dedupes camera
- * commandIds so a repeated frame does not fire a second throw/block.
+ * Palm lift and tracking-loss cancel stay on the phone.
+ * Fist grab is local (`startLift`). Fling-open throws. Gun: fist cocks, index+middle fires.
  */
-export function commandBridge() {
-  const fired = new Set<string>();
-  return (input: BattleCommand): LiveCombatAction | null => {
-    if (input.name !== 'releaseRock' && input.name !== 'block') return null;
-    if (fired.has(input.commandId)) return null;
-    fired.add(input.commandId);
-    return input.name === 'releaseRock' ? 'throwRock' : 'startBlock';
-  };
+export async function dispatchBattleCommand(
+  client: CombatClient,
+  command: BattleCommand,
+): Promise<ClientReply | null> {
+  if (command.name === "releaseRock") {
+    const switched = await client.rockActive()
+    if (switched.status !== "accepted") return switched
+    return client.throwRock()
+  }
+  if (command.name === "gunActive") return client.gunActive()
+  if (command.name === "fireGun") {
+    const switched = await client.gunActive()
+    if (switched.status !== "accepted") return switched
+    return client.fireGun()
+  }
+  if (command.name === "block") return client.startBlock()
+  if (command.name === "endBlock") return client.endBlock()
+  return null
+}
+
+export function describeCombatReply(label: string, reply: ClientReply): string {
+  if (reply.status === "accepted") return `${label} accepted by the server.`
+  return `${label} rejected: ${reply.reason}.`
 }

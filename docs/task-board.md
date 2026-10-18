@@ -4,7 +4,7 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 
 ## Doing
 
-- C (Alan) + Alex QA: phone framing + gestures on **duel HUD** (FlightApp / LiveDuel) and full harness at `/?debug=camera` or `/?camera=1`. Hand lock + wide rear merged into alex-dev Oct 17. Checklist in `docs/qa-checklist.md`. Gun/saber deferred.
+- C (Alan): live duel gestures — rock palm→fist→fling; gun fist-hold then index+middle fire. Still on `createGameClient`. Phone QA in `docs/qa-checklist.md`. Saber / lobby / Photon deferred.
 - D (Alex): Grok Bot bonus session (template in `docs/sponsor-evidence.md`). Live Photon/Voice on real challenges **blocked on B**.
 - A (Ally): **pull `alex-dev`** — Alan’s latest camera is merged; cockpit default + turn-to-look remain on ally paths. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
 

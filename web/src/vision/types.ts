@@ -1,6 +1,6 @@
 export type Landmark = { x: number; y: number; z?: number }
 
-export type Gesture = "palm" | "fist" | "none"
+export type Gesture = "palm" | "fist" | "gun" | "none"
 
 export type HandTrack = {
   id: string
@@ -14,11 +14,18 @@ export type TouchInput = {
   cancel: boolean
 }
 
-export type Phase = "IDLE" | "CHARGING" | "HELD" | "LAUNCHED" | "COOLDOWN"
+export type Phase = "IDLE" | "CHARGING" | "HELD" | "GUN_AIM" | "LAUNCHED" | "COOLDOWN"
 
-export type BattleCommandName = "startLift" | "releaseRock" | "cancelLift" | "block"
+export type BattleCommandName =
+  | "startLift"
+  | "releaseRock"
+  | "cancelLift"
+  | "block"
+  | "endBlock"
+  | "gunActive"
+  | "fireGun"
 
-/** Same command path buttons and gestures must share. Payloads stay pending B's schema. */
+/** Same command path buttons and gestures must share. */
 export type BattleCommand = {
   name: BattleCommandName
   commandId: string
@@ -29,4 +36,4 @@ export type BattleCommand = {
 
 export type Point = { x: number; y: number }
 
-export type Intent = "palm" | "fist" | "none" | "lost" | "ambiguous"
+export type Intent = "palm" | "fist" | "gun" | "release" | "none" | "lost" | "ambiguous"
