@@ -45,13 +45,16 @@ Record decisions below with owner/date and affected modules. No decisions have b
 - 2026-10-17, C (Alan) — Demo server default `ALLOWED_ORIGIN` includes `https://localhost:5173` so the Vite HTTPS page can join. Override with the env var for tunnels.
 - 2026-10-17, C (Alan) — Live duel (`/?pvp=1`) calls `createGameClient` only. Rock CV: palm charge → fist grab (`startLift` local) → fling-open with speed (or touch Throw) → `rockActive()` + `throwRock()`. Gun CV (weapon=Gun): **fist** holds/cocks → `gunActive`; **index+middle extend** (ring/pinky curled) → `fireGun` once per cock. Touch **Rock / Gun** switch weapons; **Fire gun** is a touch backup. Touch Block is a hold: `startBlock` / `endBlock`. Rock arc uses `rockFlightMs(3.7)`; bolt 800 ms. Callers do not send command IDs.
 - 2026-10-17, B — Weapons: `gun` (starting weapon) and `rock`. Commands `gunActive` / `rockActive` switch instantly (allowed mid-block); `fireGun` / `throwRock` fire only the active weapon, else `weapon_not_active`. One shot in flight per player (`projectile_in_flight`). Gun bolt: 800 ms travel, 20 damage, 1 s cooldown, no wind-up, auto-locks on the opponent; a block active on arrival stops it. `PlayerState` now has `weapon`, `cooldowns: { rock, gun }`, `projectile: { weapon, landsInMs } | null`, and `action` is `idle | attacking | blocking`; `rockLanded` is replaced by `projectileLanded({ attackerSlot, weapon, blocked, damage })`. Client: `gunActive()`, `rockActive()`, `fireGun()`, `onProjectileLanded()`. Numbers are placeholders.
-- 2026-10-17, C (Alan) + B path — Weapon `saber` added: `saberActive` / `slash`. Saber “flight” is a 350 ms hit window (25 damage, 1.2 s cooldown), same block/dedupe path as gun/rock — Wii-style timing, not blade–blade physics. Client: `saberActive()`, `slash()`; CV fist hold + lateral swipe. `cooldowns` includes `saber`. Affects `server/src/contracts.ts`, `match.ts`, `rules.ts`, `web/src/networking`, LiveDuel / CameraDebugPage overlay.
 - 2026-10-17, B — Lobby, challenges and server-picked world replace the single fixed demo match. Affects A (cockpit/FlightApp), C (duel props), D (game-port adapter).
   - Join: `join({ playerId, callsign? })` → `{ ok: true, lobby, view }` (`view` null outside a match) or `{ ok: false, reason: "invalid_request" }`. No `slot`/`match_full`. Each pilot gets a public `id` (`p` + 8 hex); the private `playerId` is never sent to other phones.
   - Server emits `lobby(LobbyView)` — `{ you, pilots, challenge }`, where `challenge` is your latest one as `{ id, role, opponent, status: pending|accepted|declined|cancelled|expired, expiresInMs }` — and `view(PlayerView | null)`.
   - New commands on the same `command` path and ID dedupe: `setCallsign{callsign}`, `challenge{pilotId}`, `acceptChallenge|declineChallenge|cancelChallenge{challengeId}`, `ready`, `leaveMatch`. New reject reasons `not_in_match | in_match | pilot_unavailable | challenge_unavailable`. One pending challenge per pilot; 30 s expiry; a disconnect cancels it.
   - Accepting creates a match with the challenger as slot 1. The server picks the world once (`PlayerView.world: { id, name, gravityMps2, rockFlightMs }`); rock flight follows that world (Earth 800, Mars 1302, Moon 1980 ms). Phase `waiting` is now the briefing; it turns `active` when both players send `ready`. `PlayerState` adds `pilotId`, `callsign`, `ready`; `rival` is never null. Disconnecting during the briefing also starts the 15 s grace. `leaveMatch` before the end forfeits; wins/losses are in-memory only.
   - Web: `web/src/lobby/useServerLobby.ts` implements `LobbyViewModel` from the server; FlightApp shows server health/world/result and maps C's commands: `startLift` → `rockActive` (if needed), `releaseRock` → `throwRock`, `block` → `startBlock` (ends at the 1.5 s limit; C's machine has no release edge yet), `cancelLift` → nothing sent. The local reducer `app/state.ts` is removed. `VITE_GAME_SERVER_URL` (public URL, not a secret) points a separately hosted frontend at the server.
+- 2026-10-18, B — Movement stamina (additive). `ArenaPlayer` gains `stamina` (0–100) and `winded`, sent on every arena frame. Each accepted step spends stamina (`SABER.stepStamina`: 14 in/out, 24 for a left/right dodge); it refills at 28/s starting 700 ms after the last step. A step that leaves less than the cheapest step sets `winded`, and no step is accepted until stamina is back to 40. New reject reason `exhausted`; it is checked after `blocked`, so a refused step costs nothing, and an unaffordable step is refused at once, not buffered. Knockback is free. Affects the laptop HUD (`ArenaDuel`) and phone swipe feedback (`SaberPhone`); numbers in `server/src/game/rules.ts` are placeholders to tune in play-testing.
+
+- 2026-10-18, B — Real swings and guard breaks. A swing only hits, blocks or breaks a guard once its tip has travelled `SABER.minSwingTravel` (0.3 m) from where it started, in the swinger's body frame. This fixes the cheese where a blade held out, plus any wobble, damaged an opponent stepping into it. Any guard in the attack's path blocks. Guard break: if the defender's guard is held still (not itself a swing) and the attack swings along its line, within `guardMatchDeg` (30°), the guard breaks. Both lines are projected onto the upright plane between the players, so a vertical chop breaks an upright guard, a sideways slash breaks a flat one, and a diagonal breaks the same diagonal. The defender is stunned for `stunMs` (700): no swings, steps are rejected with the new reason `stunned`, and their blade blocks nothing. The attacker's swing ends with no cooldown, so a follow-up swing gets a free hit. `SaberResolved.outcome` adds `"guardBreak"` (`attackerSlot` is the attacker). `ArenaPlayer` adds `stunned`. Affects ArenaDuel/ArenaScene (gold burst, flicker, dimmed blade, toasts), FlightApp notes and SaberPhone audio.
+
 ## Cockpit Demo / Live composition — Alex
 
 `BridgeApp` now owns onboarding plus a persisted `sd.lobby.mode.v1` selection (default Live). Demo mounts the existing simulated cockpit without a game connection. Live owns a `createGameClient` connection, synchronizes the onboarding callsign, and passes that client to `FlightApp`. Switching away closes that connection. The mode controls lock while a live challenge is pending or a match exists and only render in the cockpit.
@@ -102,6 +105,76 @@ This is a frontend callback boundary, not a new multiplayer event or shared wire
 
 `gameEndpoint.ts` centralizes the public `VITE_GAME_SERVER_URL` default for game and saber clients. Explicit GameClient URLs still override it. `VITE_SABER_CONTROLLER_URL` chooses the HTTPS frontend used for arena QR links, separately from the laptop page origin. Local defaults remain same-origin; Demo never creates the client. No wire or server contract changed. See `docs/shared-live-server.md` for current ignored local settings, actual shared-server proof and the missing remote copilot handlers.
 
+
+## Opponent-relative orbital movement — October 18, user-authorized B/frontend update
+
+Supersedes the lane-grid movement decision above. Existing `step` commands and authorization/buffering remain. `GridCell {q,r}` retains its wire shape but now contains fractional arena coordinates in `board.cellSize` units. Left/right rotate around the rival's latest accepted destination by min(0.65 m / distance, 15 degrees), preserving destination separation; forward/back change separation by 0.65 m within 1.3–3.9 m. Facing points toward the rival's current gliding root. `engaged` uses current hip separation ≤ sqrt(5) × 0.65 m; swept collisions still decide outcomes.
+
+`stepped` adds optional `orbitCenter: [worldX, worldZ]` for left/right arcs. Server and laptop prediction share arc interpolation; radial steps omit the field. `board.rows` stays for wire compatibility, with no row ownership. Both server and web need this update for the new rules and matching local prediction. A/C-facing handoff: round foot markers replace the square lane; existing camera/body/phone inputs and calibration are unchanged. This document and task board are the repository handoff; no external message or deployment was sent.
+
+## Damage knockback — October 18, user-authorized server update
+
+Every positive-damage saber or projectile hit forces the defender away from the attacker's current root by up to `SABER.knockbackMeters` (0.65 m), capped at the existing 3.9 m separation. Uses current gliding roots, interrupts the defender's glide, cancels their buffered step, and restarts the normal 110 ms glide plus 60 ms movement cooldown. Blocked hits cause no displacement. Existing `stepped` and arena frames carry the authoritative destination; no wire changes. A/C handoff: the existing avatar glide renders this forced movement automatically. No external messages or deployment performed.
+
+## Exploration feature port — Alex, October 18
+
+Source `origin/alan` at `b637186`, feature-scoped into the current alex-dev UI. Frontend `LobbyView` adds `pilot`; `HyperspaceTunnel` accepts optional `caption`; `ExploreApp` accepts optional `onBattleLaunch` so accepted challenges reuse the cockpit launch/audio path and return to the existing planetary travel + saber arena. Existing lobby actions and game-client connection remain owned by BridgeApp/FlightApp. No server wire, phone step, combat, or knockback contract changed. See `docs/exploration-integration.md`. No external message or deployment sent.
+
+## Live saber initiation + shared countdown — Alex, October 18
+
+User-authorized setup presentation and startup gate. Optional `ArenaFrame.saberStart { startsAtMs, unlocked }` carries one server deadline and explicit combat unlock; interpolation preserves it. Optional `SaberStatus.match.startsInMs` and shared `armed` status align the phone. Six existing measured setup steps remain; no command/phase changes. Swings cannot resolve during the initial 3-second gate, tracking loss before GO cancels it, and deadline expiry alone never opens combat on the laptop. New laptop setup requires the matching updated backend. B/C handoff: see `docs/saber-initiation-overlay.md` for ownership, compatibility, checks and device QA. No deployment or external messages sent.
+
+## Rock/gun path removed — October 18, user-authorized server/web/voice update
+
+The duel is lightsaber-only. Removed from the wire: commands `rockActive`, `gunActive`, `throwRock`, `fireGun`, `startBlock`, `endBlock`; the `projectileLanded` event and `ProjectileLanded`; `PlayerState.action`, `weapon`, `cooldowns`, `block` and `projectile` (with `PlayerAction`, `BlockState`, `Weapon`, `ProjectileInFlight`); `World.rockFlightMs`; reject reasons `on_cooldown`, `weapon_not_active`, `projectile_in_flight` and `not_blocking`. `MatchCommandType` is now `ready | leaveMatch`; saber swings, blocks and knockback come only from the body/aim streams. Rules lose `startingWeapon`, `blockLimitMs`, `blockCooldownMs`, `rockFlightMs()` and `weaponsFor()`; world gravity stays. Web removes the matching `GameClient` methods and `onProjectileLanded`, the `/?pvp=1`, `/?camera=1` / `/?debug=camera` and `/?dev=mars` routes, `LiveDuel`, `liveCommands`, `CameraDebugPage`, `DevMars`, the Mars camera backdrop/cutout, `src/vision`, `src/overlay` and `public/models/gun.glb`; `camera/mediapipeVision.ts` keeps only `WASM_ROOT`. LYRA's control help now describes the saber duel. Affects A (routes), C (camera/vision/overlay/models), D (copilot text, `game-smoke.mjs` deleted). D's Grok briefing fixtures still compute their own `rockFlightSeconds` and were not changed. No external messages or deployment.
+
+## Faster saber setup — October 18, user-authorized web/server update
+
+`SetupStep` is now `phone | stand | upright | right | reach | done`, in that order (was `stand | phone | forward | up | right | reach | done`). `forward` and `up` are removed and `upright` is added. Server `SETUP_STEPS` (`server/src/game/match.ts`) matches. No shape changes: `BodyPose.setup` and `SaberCalibration` are unchanged. Laptop-only behavior (`web/src/arena3d/setupWizard.ts`):
+- `stand` (body in view, standing still) now comes after the phone step.
+- `upright` picks the saber hand.
+- `right` stores the phone's "right" heading and sets a provisional `forward`.
+- `reach` (a thrust at the screen) sets the final `forward` and `mirror`.
+
+Holds are 0/600/500/500/400 ms and the camera give-up is 2.5 s. The phone shows the new `INSTRUCTIONS` text automatically. No external messages or deployment.
+
+## Rematch without recalibrating — October 18, user-authorized server/web update
+
+New in-match command `rematch` (`MatchCommandType` is now `ready | rematch | leaveMatch`; `GameClient.rematch()`). Accepted only in the `finished` phase while the rival is still in the match (`match_not_active` / `pilot_unavailable` otherwise); deduplicated by commandId like `ready`. `PlayerState.rematch` shows who has asked. Once both ask, the same match (same `matchId`) starts a new round: health, positions, stamina, cooldowns and stun reset, while phone pairing, `SaberCalibration` and the live body/aim streams carry over. Body and aim streams are now accepted after the match ends so both players are still armed when the round restarts. The round is `active` with a countdown: `MatchSnapshot.startsInMs` / `PlayerView.startsInMs` (remaining ms, `RULES.rematchCountdownMs` 3000; null otherwise). No swings or steps count until it ends. Views are re-sent when it ends, and `stepped` is sent for both start positions. Leaving a finished match (`leaveMatch`) now marks that player as disconnected, so the rival sees they left. Each round updates wins/losses. Laptop: `ArenaDuel` stays mounted through the result (camera and setup wizard are kept) and shows the result panel with Rematch / Back to bridge, then a 3-2-1-FIGHT countdown. Phones need no change. No external messages or deployment.
+
+Follow-up: new in-match command `forfeit` (`GameClient.forfeit()`): gives the round to the rival like `leaveMatch` did before the end, but keeps the player in the match, so both land on the result screen and can rematch. Refused with `match_not_active` once finished. The laptop's in-duel button is now "Forfeit" (was "Forfeit & return"); "Back to bridge" on the result still sends `leaveMatch`. The briefing's header button now forfeits too (was "Forfeit & return"), so a forfeit from the briefing also lands both pilots on the result screen with Rematch; the rematch round then runs the saber setup as usual.
+
+Follow-up: every round now has the countdown, not just rematches. `RULES.rematchCountdownMs` → `RULES.countdownMs` (3000). The countdown starts on the first server tick of an `active` round where both players are armed (body calibrated, phone live, setup done), so `startsInMs` stays null during the first round's setup. After a rematch the players are usually still armed, so it starts on the next tick. Swings never count before it ends. Steps are refused only while it is running (still allowed during setup). Wire shapes unchanged.
+
+Follow-up: `SaberStatus.match.startsInMs` added (same value as the laptop's `PlayerView.startsInMs`), so the paired phone shows the 3-2-1-FIGHT countdown with a chime per number. Laptop and phone share `web/src/arena3d/useCountdown.ts`.
+
+## Neptune destination — feature/neptune-arena, user-authorized integration
+
+The existing authenticated, deduplicated `challenge` command gains optional
+`destination: "mars" | "neptune"`. The server rejects other values, stores the
+request on that challenge, and chooses the match world once on acceptance.
+Omitting it preserves the existing server `pickWorld` behavior (Mars by default).
+`WorldId` gains `neptune`, with 11.2 m/s² reference gravity; the arena is a
+fictional floating station, not solid Neptune terrain. Saber timing/damage are
+unchanged. Both clients route travel/environment from the authoritative view,
+including after reconnect. No new events, ready semantics, controller changes,
+or provider calls. A/B/C handoff is recorded here and in the task board; no
+external messages or deployment were sent. Deploy both updated server and client
+together before using Neptune in real matches.
+
+
+## Random arena world — feature/neptune-arena
+
+With no `destination` on the challenge, the server now rolls Mars or Neptune 50/50 when the challenge is accepted (`pickArenaWorld`), once per match; both pilots and reconnects see the same world. The web client no longer sends `destination` (the cockpit picker is removed); the optional field stays for tests and tools.
+
+## saber-duel merged into alex-dev — October 18
+
+Source: origin/saber-duel at 7e8d387. Preserves the current cockpit/exploration, direct travel-to-setup flow, persisted journey, early camera avatar/display-only saber, compact LYRA slides, prominent QR and in-square swipe help. Integrates stamina, guard breaks/stun, rematch/forfeit, saved callsign, and the bundled travel-video fix. Removed legacy rock/gun commands and unused old camera-duel routes per Justin's lightsaber-only branch.
+
+Calibration now uses five measured tasks: phone → stand → upright → right → reach, then done. Both phone and laptop follow that same order. One authoritative startup gate drives ArenaFrame.saberStart and view/phone startsInMs; pre-GO tracking loss cancels and restarts three seconds, local timer expiry cannot enable combat. Rematch resets the gate while keeping camera and measured calibration mounted. The phone clears a cancelled countdown and waits for actual server readiness before FIGHT.
+
+Validation: 98/98 server tests passed (including sockets, rematch, stale-input countdown cancellation and recovery); 149 frontend tests passed, one opt-in live test skipped; frontend typecheck/production build passed. Existing large exploration chunk warning remains. Physical two-player camera/phone/travel and rematch QA remains necessary. No new dependencies, environment variables, provider calls, deployment or push. Uncommitted audio/LYRA work in the main checkout is preserved separately.
+
 ## Exploration location — Alan (C, user-authorized cross-boundary), October 18 ~03:00
 
 Affects B (server/contracts), A (cockpit `SpaceshipHome`), D (LYRA). Additive and optional; no existing field or command changed.
@@ -111,3 +184,29 @@ Affects B (server/contracts), A (cockpit `SpaceshipHome`), D (LYRA). Additive an
 - Web: `NearbyPilot.location`, `LobbyViewModel.actions.setLocation?` (optional for older adapters). Free flight reports the nearest body (debounced 1.2 s, only on change) and clears it on exit. Ships are drawn circling that body in the local universe (`RivalShips.tsx`) — illustrative positions, not coordinates.
 - **Deploy note:** a shared server running older code rejects `setLocation`; the client ignores that, so free flight still works but no rival ships appear until that server runs this branch.
 - Match handoff: when a challenge reaches `launching` during free flight, `ExploreApp.onMatchLaunch` returns to the cockpit so the existing Mars travel → briefing → arena flow runs unchanged.
+
+
+## Alan exploration update integrated — October 18
+
+Source: origin/alan-team-merge at f7e5700. Its two new feature commits dde44fe and f7e5700 were applied onto alex-dev's existing b637186 exploration port, rather than reintroducing the retired camera/rock/gun paths from the older branch history. Adds branded exploration HUD, categorized destination search, SpaceX fleet snapshots and schematic craft, object side views, cosmic zoom, orbit time controls, rival ships/coarse reported locations, peaceful Explore mode and the exploration LYRA guide.
+
+The cockpit still owns accepted-match launch, travel persistence and direct saber setup. ExploreApp retains onBattleLaunch and receives the existing copilotClient; new location commands use the normal authenticated/deduplicated server command path. Current phone saber UI, shared countdown, rematches, early avatar/saber feedback and committed sound changes remain intact. New setLocation and optional Pilot.location are documented above; host must run the updated server for those location reports. No new dependencies or environment variables.
+
+Validation: 100/100 server tests and 177 frontend tests passed (one opt-in live test skipped); frontend typecheck/production build passed with the existing large exploration chunk warning. Browser smoke test verified Universe ready, branded HUD, destination categories, SpaceX fleet records and a state-aware local LYRA answer, with no captured warning/error logs. Grok Voice/provider calls, actual two-player camera/phone launch and sustained mobile performance were not tested during this integration. No deployment or external messages. Sound/LYRA changes were pushed separately as 39500ba; this exploration integration is local pending a later push request.
+
+
+## Replay integrated on alex-dev — October 18
+
+Applied replay-only source commits 4caf1d3 and 283f824 from origin/codex/cinematic-arena-replay. The preceding 09b5291 changes cockpit/exploration mode presentation and was excluded from this replay integration. Alan's exploration feature commits were already integrated; no second exploration merge was performed.
+
+Adaptation preserves direct travel-to-setup, compact LYRA initiation, fresh local avatar/saber preview, authoritative countdown, guard breaks/stamina, mounted camera/calibration and rematch controls. Enable recording under Setup options; webcam capture starts only at actual combat readiness. Finished results contain the local video and cinematic panel. Removed the retired live projectile event subscription; historical replay weapon labels remain local to replay code. Optional MatchSnapshot.round / PlayerView.round starts at 1 and increments on rematch; capture, result UI, upload tickets and cached analysis are isolated by round. A regression verifies an old round's ticket cannot access a later round and that later analysis does not reuse old output.
+
+The replay HTTP route honors the configured ALLOWED_ORIGIN list; use the public frontend origin there for a separately hosted frontend. PERCEPTRON_API_KEY (optional PERCEPTRON_MODEL) belongs only in ignored server/.env on the actual host. This integration made no provider calls or uploads and did not deploy or change running-host configuration.
+
+Necessary checks only: frontend build/typecheck passed; 50 focused replay/recorder/networking/local-fighter/buffer/countdown-display tests passed; server build plus 33 replay HTTP/parser/match/rematch/countdown tests passed. Inference is mocked in transport tests. No broad full-suite rerun or browser/device walkthrough was performed. Physical capture-to-real-provider playback remains an acceptance check for the team. Existing exploration chunk-size warning remains. Not pushed.
+
+## alex-dev merged into saber-duel — October 18
+
+Source: origin/alex-dev at 4b354a8 onto saber-duel at 07a0229 (base 7e8d387). Conflicts in `FlightApp.tsx`, `ArenaScene.tsx`, `gameClient.ts`, `SaberPhone.tsx` and both docs were resolved by keeping alex-dev's newer flow (direct travel → saber setup, persisted arena journey, hold-to-ignite phone HUD, Perceptron replay) as the structure and layering the Neptune generalization on it: travel destinations are `DestinationId`, the cockpit receives the server's world, and `ArenaScene` takes `destination`, `initiation` and `replay` together (initiation square is world-agnostic; the Neptune branch now also honors the replay presentation). `GameClient` keeps both `setLocation` and the optional `challenge(pilotId, destination?)` testing override. The phone keeps the "duel over → close tab" and result-screen mute behavior; the removed local countdown chime stays removed as on alex-dev.
+
+Wiring added beyond the raw conflicts: `ReplayPanel`/`CinematicReplay` accept `destination` so a Neptune duel replays on Neptune; the exploration HUD and LYRA copy no longer claim duels are always on Mars. No contract fields changed.

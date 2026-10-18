@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, mock, test } from "node:test";
 import type { ArenaFrame, Hand, PlayerSlot, SaberResolved, Vec3 } from "../contracts.js";
 import { bodyDirection, Match } from "./match.js";
-import { SABER } from "./rules.js";
+import { RULES, SABER } from "./rules.js";
 import { bodyToWorld, resolveSweep, segmentDistance, worldToDirection } from "./saber3d.js";
-import { CELL_SIZE, cellToWorld, inReach, ownRow, ROWS_PER_SIDE } from "./grid.js";
+import { CELL_SIZE, cellToWorld, inReach, orbitStep, interpolateStep } from "./grid.js";
 
 const PILOTS = { 1: { pilotId: "p1", callsign: "ONE" }, 2: { pilotId: "p2", callsign: "TWO" } };
 const close = (a: number[], b: number[], eps = 1e-9) =>
@@ -26,14 +26,39 @@ describe("saber3d geometry", () => {
     close(worldToDirection([-0.2, 0, -0.3], [0, -1]), [0.2, 0, 0.3]);
   });
 
-  test("grid: front rows 1.3 m apart, three rows a side, columns without end", () => {
-    assert.ok(Math.abs(cellToWorld({ q: 0, r: 1 })[1] - cellToWorld({ q: 0, r: -1 })[1] - 1.3) < 1e-9);
-    assert.deepEqual([-4, -3, -1, 0, 1].map((r) => ownRow(1, r)), [false, true, true, false, false]);
-    assert.deepEqual([-1, 0, 1, 3, 4].map((r) => ownRow(2, r)), [false, false, true, true, false]);
-    assert.equal(ROWS_PER_SIDE, 3);
-    assert.equal(inReach({ q: 5, r: -1 }, { q: 6, r: 1 }), true);
-    assert.equal(inReach({ q: 5, r: -1 }, { q: 7, r: 1 }), false, "two columns apart");
-    assert.equal(inReach({ q: 0, r: -2 }, { q: 0, r: 1 }), false, "one player back a row");
+  test("orbital steps preserve separation and close a complete circle for either player", () => {
+    for (const side of [-1, 1]) {
+      const rival = { q: 0, r: side };
+      const start = { q: 0, r: -side };
+      for (const direction of ["left", "right"] as const) {
+        let current = start;
+        for (let i = 0; i < 240; i++) {
+          current = orbitStep(current, rival, direction)!;
+          assert.ok(Math.abs(Math.hypot(current.q - rival.q, current.r - rival.r) - 2) < 1e-9);
+        }
+        close([current.q, current.r], [start.q, start.r]);
+      }
+    }
+    const target = orbitStep({ q: 0, r: -1 }, { q: 0, r: 1 }, "right")!;
+    assert.ok(target.q > 0, "right is the fighter's right");
+    const mid = interpolateStep([0, -CELL_SIZE], cellToWorld(target), 0.5, [0, CELL_SIZE]);
+    assert.ok(Math.abs(Math.hypot(mid[0], mid[1] - CELL_SIZE) - 1.3) < 1e-9, "glide follows an arc");
+    assert.equal(inReach({ q: 0, r: 0 }, { q: 2, r: 0 }), true);
+    assert.equal(inReach({ q: 0, r: 0 }, { q: 3, r: 0 }), false);
+  });
+
+  test("forward/back from a fractional gap stop at the limit instead of being refused", () => {
+    const rival = { q: 0, r: 0 };
+    // Knockback can leave players 2.4 apart: out of reach, so a refused step would strand them.
+    const closer = orbitStep({ q: 0, r: -2.4 }, rival, "forward")!;
+    close([closer.q, closer.r], [0, -2]);
+    assert.ok(inReach(closer, rival));
+    assert.equal(orbitStep(closer, rival, "forward"), null, "already at the minimum");
+    const farther = orbitStep({ q: 0, r: -5.5 }, rival, "back")!;
+    close([farther.q, farther.r], [0, -6]);
+    assert.equal(orbitStep(farther, rival, "back"), null, "already at the maximum");
+    // A gap already inside the minimum is never pushed out by a forward step.
+    assert.equal(orbitStep({ q: 0, r: -1.5 }, rival, "forward"), null);
   });
 
   test("a blade touching the defender's blade blocks before the body behind it", () => {
@@ -78,7 +103,6 @@ describe("saber duel in the arena", () => {
     seq = 0;
     match = new Match("arena", "mars", PILOTS, {
       changed: () => {},
-      projectileLanded: () => {},
       saberResolved: (e) => resolved.push(e),
       arenaFrame: (f) => frames.push(f),
       stepped: (e) => stepped.push(e),
@@ -93,6 +117,10 @@ describe("saber duel in the arena", () => {
     assert.equal(match.step(1, "forward"), null);
     assert.equal(match.step(2, "forward"), null);
     mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    for (let t = 0; t < 3100; t += SABER.tickMs) step();
+    resolved.length = 0;
+    // Start each geometry case with no previous blade path; its first pose is not a swing.
+    mock.timers.tick(SABER.staleMs + SABER.tickMs);
   });
 
   afterEach(() => {
@@ -154,14 +182,78 @@ describe("saber duel in the arena", () => {
     swingAcross();
     assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "hit", damage: SABER.damage }]);
     assert.equal(health(2), 100 - SABER.damage);
+    assert.equal(stepped.at(-1)!.slot, 2);
+    assert.ok(Math.abs(stepped.at(-1)!.cell.r - 2) < 1e-9);
+    assert.equal(stepped.at(-1)!.cell.q, 0);
+    mock.timers.tick(SABER.stepMs);
+    assert.equal(match.engaged, false, "a hit pushes the defender out of reach");
     step(slash(-40));
     assert.equal(resolved.length, 1, "carrying on through doesn't hit again");
   });
 
   test("the defender's blade in the path blocks, and the body behind it is safe", () => {
+    const moves = stepped.length;
     swingAcross(guard);
+    assert.equal(stepped.length, moves, "blocked hits do not push");
     assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "blocked", damage: 0 }]);
     assert.equal(health(2), 100);
+  });
+
+  test("a blade held out at someone stepping in doesn't hurt them, even shaking", () => {
+    // Slot 1 points straight at slot 2 and wobbles a few degrees each tick: fast, but going nowhere.
+    for (let i = 0; i < 20; i++) step(slash(i % 2 ? 4 : -4));
+    assert.ok(frames.at(-1)!.players[0].swinging, "the wobble is fast enough to be a swing");
+    assert.equal(resolved.length, 0);
+    // A real thrust from the same spot does land.
+    step(slash(40));
+    step(slash(10));
+    step(slash(-20));
+    assert.equal(resolved.at(-1)?.outcome, "hit");
+  });
+
+  // Slot 1's right hand chopping straight down in front of them, from overhead.
+  const chop = (angleDeg: number): Input => ({ dir: [0, Math.sin(deg(angleDeg)), Math.cos(deg(angleDeg))] });
+  function chopDown(defender: Input) {
+    for (const angle of [80, 65, 50, 35, 20, 5]) step(chop(angle), defender);
+  }
+  // Slot 2's left hand, at rest in front of them, holding the blade upright or flat (pointing to their right).
+  const uprightGuard: Input = { hand: "left", dir: [0, 1, 0] };
+  const flatGuard: Input = { hand: "left", dir: [1, 0, 0] };
+
+  test("a vertical chop onto an upright guard breaks it and stuns the defender", () => {
+    chopDown(uprightGuard);
+    assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "guardBreak", damage: 0 }]);
+    assert.equal(health(2), 100);
+    assert.equal(frames.at(-1)!.players[1].stunned, true);
+    assert.equal(frames.at(-1)!.players[0].stunned, false);
+    assert.equal(match.step(2, "back"), "stunned");
+    assert.equal(match.step(1, "back"), null, "the attacker is free to move");
+    mock.timers.tick(SABER.stunMs);
+    assert.equal(frames.at(-1)!.players[1].stunned, false);
+    assert.equal(match.step(2, "back"), null);
+  });
+
+  test("a sideways slash onto a flat guard breaks it too", () => {
+    swingAcross(flatGuard);
+    assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "guardBreak", damage: 0 }]);
+  });
+
+  test("an attack across the guard's line just blocks", () => {
+    chopDown(flatGuard);
+    assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "blocked", damage: 0 }]);
+    assert.equal(frames.at(-1)!.players[1].stunned, false);
+  });
+
+  test("a broken guard is down: the attacker follows up for a free hit", () => {
+    chopDown(uprightGuard);
+    assert.equal(resolved.at(-1)?.outcome, "guardBreak");
+    // Slot 2 holds a guard that blocks this slash (see the blocking test)...
+    step(slash(60), guard);
+    step(slash(60), guard);
+    swingAcross(guard);
+    // ...but it's down while stunned, and the attacker has no cooldown after a break.
+    assert.deepEqual(resolved.at(-1), { attackerSlot: 1, outcome: "hit", damage: SABER.damage });
+    assert.equal(health(2), 100 - SABER.damage);
   });
 
   test("a slow movement into the body is not a swing", () => {
@@ -173,6 +265,7 @@ describe("saber duel in the arena", () => {
     swingAcross();
     for (const angle of [60, 35, 10, -15]) step(slash(angle));
     assert.equal(resolved.length, 1, "the back-swing came during the cooldown");
+    match.step(2, "forward");
     for (let i = 0; i < SABER.swingCooldownMs / SABER.tickMs; i++) step(slash(60));
     swingAcross();
     assert.equal(resolved.length, 2);
@@ -214,8 +307,10 @@ describe("saber duel in the arena", () => {
   });
 
   test("malformed input is dropped", () => {
-    match.handleBodyPose(1, { seq: 1, tracked: true, joints: [[0, 0, 0]], calibrated: true, setup: null });
-    match.handleSaberAim(1, { seq: 1, tracked: true, top: [0, 0, 0], rate: 0 });
+    // Let the valid startup streams expire; malformed newer input must not restore them.
+    mock.timers.tick(SABER.staleMs + 1);
+    match.handleBodyPose(1, { seq: ++seq, tracked: true, joints: [[0, 0, 0]], calibrated: true, setup: null });
+    match.handleSaberAim(1, { seq: ++seq, tracked: true, top: [0, 0, 0], rate: 0 });
     assert.equal(match.setSaberCalibration(1, { forward: [0, 1], hand: "middle", mirror: false, done: true }), "invalid_command");
     mock.timers.tick(SABER.tickMs);
     assert.equal(frames.at(-1)!.players[0].joints, null);
@@ -234,12 +329,73 @@ describe("saber duel in the arena", () => {
 
   const hips = (slot: PlayerSlot) => frames.at(-1)!.players[slot - 1].joints![24];
 
-  const settle = () => mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+  // Long enough to land a step and refill the stamina it cost, so movement tests never run dry.
+  const settle = () =>
+    mock.timers.tick(SABER.staminaRegenDelayMs + (1000 * SABER.stepStamina.left) / SABER.staminaRegenPerSec);
+  const stamina = (slot: PlayerSlot) => frames.at(-1)!.players[slot - 1];
+
+  test("dodging spends stamina until winded; a winded player can't step until it recovers", () => {
+    settle();
+    step();
+    assert.equal(stamina(1).stamina, 100);
+    const dodges = Math.floor(SABER.staminaMax / SABER.stepStamina.right);
+    for (let i = 0; i < dodges; i++) {
+      assert.equal(match.step(1, i % 2 ? "left" : "right"), null, `dodge ${i + 1}`);
+      mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    }
+    assert.equal(stamina(1).winded, true);
+    assert.equal(match.step(1, "back"), "exhausted", "winded: not even a cheap step");
+    // The refill pause has passed but stamina is still under the recovery mark.
+    mock.timers.tick(SABER.staminaRegenDelayMs);
+    assert.ok(stamina(1).stamina < SABER.windedRecoverAt);
+    assert.equal(match.step(1, "back"), "exhausted");
+    mock.timers.tick((1000 * SABER.windedRecoverAt) / SABER.staminaRegenPerSec);
+    assert.equal(stamina(1).winded, false);
+    assert.equal(match.step(1, "back"), null);
+    assert.equal(stamina(2).stamina, 100, "the rival's stamina is untouched");
+  });
+
+  test("a refused step costs nothing and doesn't delay the refill", () => {
+    settle();
+    assert.equal(match.step(1, "forward"), "blocked");
+    step();
+    assert.equal(stamina(1).stamina, 100);
+    assert.equal(match.step(1, "back"), null);
+    step();
+    assert.equal(stamina(1).stamina, 100 - SABER.stepStamina.back);
+  });
+
+  test("stamina refills only after a pause, and an unaffordable step isn't buffered", () => {
+    settle();
+    for (let i = 0; i < 3; i++) {
+      assert.equal(match.step(1, "right"), null);
+      mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    }
+    const left = SABER.staminaMax - 3 * SABER.stepStamina.right;
+    assert.equal(stamina(1).stamina, left, "no refill between quick steps");
+    assert.equal(match.step(1, "back"), null);
+    // Now below a dodge's cost: refused at once, not queued behind the glide.
+    assert.equal(match.step(1, "right"), "exhausted");
+    mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    assert.equal(stepped.at(-1)!.slot, 1);
+    mock.timers.tick(SABER.staminaRegenDelayMs + (1000 * SABER.staminaMax) / SABER.staminaRegenPerSec);
+    assert.equal(stamina(1).stamina, 100);
+  });
+
+  test("knockback is free", () => {
+    settle();
+    stepped = [];
+    step();
+    const before = stamina(2).stamina;
+    swingAcross();
+    assert.equal(resolved.at(-1)?.outcome, "hit");
+    assert.ok(stepped.some((e) => e.slot === 2), "the defender was pushed back");
+    assert.equal(stamina(2).stamina, before);
+  });
 
   test("players start a row back from the front line, not engaged, and swings there don't count", () => {
     const fresh = new Match("start", "mars", PILOTS, {
       changed: () => {},
-      projectileLanded: () => {},
       saberResolved: (e) => resolved.push(e),
       arenaFrame: (f) => frames.push(f),
       stepped: (e) => stepped.push(e),
@@ -257,53 +413,60 @@ describe("saber duel in the arena", () => {
     fresh.dispose();
   });
 
-  test("forward and back move between your own three rows; the center line and your back row stop you", () => {
-    assert.equal(match.step(1, "forward"), "blocked", "the center line");
-    assert.equal(match.step(1, "back"), null);
-    settle();
-    step();
-    close(hips(1), [0.12, SABER.hipHeight, -2 * CELL_SIZE]);
-    assert.equal(frames.at(-1)!.engaged, false);
-    assert.equal(match.step(1, "back"), null);
-    settle();
-    assert.equal(match.step(1, "back"), "blocked", "the back row");
-    // Slot 2 faces -z: their back is +z.
-    assert.equal(match.step(2, "back"), null);
-    settle();
-    assert.equal(match.step(2, "back"), null);
-    settle();
-    assert.equal(match.step(2, "back"), "blocked");
-    step();
-    assert.deepEqual(frames.at(-1)!.players.map((p) => p.cell), [{ q: 0, r: -3 }, { q: 0, r: 3 }]);
-  });
-
-  test("left and right sidestep along the lane without end, facing stays straight down it", () => {
-    for (let i = 0; i < 25; i++) {
-      assert.equal(match.step(1, "right"), null);
+  test("forward/back change separation and stop at the minimum and maximum gap", () => {
+    assert.equal(match.step(1, "forward"), "blocked");
+    for (let i = 0; i < 4; i++) {
+      assert.equal(match.step(1, "back"), null);
       settle();
     }
-    step({ dir: [0, 0, 1] });
-    const [one] = frames.at(-1)!.players;
-    assert.deepEqual(one.cell, { q: 25, r: -1 });
-    close(one.facing, [0, 1]);
-    close([one.joints![24][0], one.joints![24][2]], [25 * CELL_SIZE + 0.12, -CELL_SIZE]);
-    assert.equal(frames.at(-1)!.engaged, false, "far out of reach");
-    // Slot 2 is turned around: their right is -x.
-    assert.equal(match.step(2, "right"), null);
-    settle();
-    step();
-    assert.deepEqual(frames.at(-1)!.players[1].cell, { q: -1, r: 1 });
-  });
-
-  test("a sidestep of one column stays engaged; two breaks it", () => {
-    assert.equal(match.step(1, "left"), null);
-    settle();
-    step();
-    assert.equal(frames.at(-1)!.engaged, true);
-    assert.equal(match.step(1, "left"), null);
-    settle();
+    assert.equal(match.step(1, "back"), "blocked");
     step();
     assert.equal(frames.at(-1)!.engaged, false);
+    for (let i = 0; i < 4; i++) {
+      assert.equal(match.step(2, "forward"), null);
+      settle();
+    }
+    assert.equal(match.step(2, "forward"), "blocked");
+    step();
+    assert.equal(frames.at(-1)!.engaged, true);
+  });
+
+  test("both players can circle repeatedly and keep facing each other", () => {
+    for (let i = 0; i < 96; i++) {
+      for (const slot of [1, 2] as const) {
+        assert.equal(match.step(slot, "right"), null);
+        settle();
+      }
+      step();
+      const [a, b] = frames.at(-1)!.players;
+      const dx = b.cell.q - a.cell.q, dz = b.cell.r - a.cell.r;
+      const gap = Math.hypot(dx, dz);
+      close([gap], [2]);
+      close(a.facing, [dx / gap, dz / gap]);
+      close(b.facing, [-dx / gap, -dz / gap]);
+      assert.equal(frames.at(-1)!.engaged, true);
+    }
+  });
+
+  test("orbiting keeps engagement at the same distance", () => {
+    for (let i = 0; i < 48; i++) {
+      assert.equal(match.step(1, "left"), null);
+      settle();
+      step();
+      assert.equal(frames.at(-1)!.engaged, true);
+    }
+  });
+
+  test("simultaneous orbit commands remain finite and preserve destination separation", () => {
+    for (let i = 0; i < 96; i++) {
+      assert.equal(match.step(1, "right"), null);
+      assert.equal(match.step(2, i % 2 ? "left" : "right"), null);
+      settle();
+      step();
+      const [a, b] = frames.at(-1)!.players;
+      close([Math.hypot(a.cell.q - b.cell.q, a.cell.r - b.cell.r)], [2]);
+      assert.ok([...a.facing, ...b.facing].every(Number.isFinite));
+    }
   });
 
   test("a swipe mid-glide is buffered and taken the moment the step lands; a third waits", () => {
@@ -377,7 +540,6 @@ describe("saber duel in the arena", () => {
   test("no blade before the laptop sends a calibration", () => {
     const fresh = new Match("c", "mars", PILOTS, {
       changed: () => {},
-      projectileLanded: () => {},
       saberResolved: () => {},
       arenaFrame: (f) => frames.push(f),
       stepped: (e) => stepped.push(e),
@@ -395,9 +557,55 @@ describe("saber duel in the arena", () => {
   test("a knockout finishes the match", () => {
     for (let i = 0; i < Math.ceil(100 / SABER.damage); i++) {
       swingAcross();
+      if (match.toSnapshot().result) break;
+      mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+      match.step(2, "forward");
+      mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
       for (let k = 0; k < SABER.swingCooldownMs / SABER.tickMs + 1; k++) step(slash(60));
     }
     assert.deepEqual(match.toSnapshot().result, { winner: 1, reason: "knockout" });
+  });
+
+  test("the first round counts down once both players are set up, not before", () => {
+    match.dispose();
+    match = new Match("fresh", "mars", PILOTS, {
+      changed: () => {},
+      saberResolved: (e) => resolved.push(e),
+      arenaFrame: () => {},
+      stepped: () => {},
+      finished: () => {},
+    });
+    match.setSaberPaired(1, true);
+    match.setSaberPaired(2, true);
+    match.handleCommand(1, { commandId: "r1", type: "ready" });
+    match.handleCommand(2, { commandId: "r2", type: "ready" });
+    // Stepping is allowed during setup, so they can already be engaged.
+    match.step(1, "forward");
+    match.step(2, "forward");
+    mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    assert.equal(match.toView(1).startsInMs, null, "no countdown while setting up");
+    step({}, { setupDone: false });
+    assert.equal(match.toView(1).startsInMs, null, "or while one player is still setting up");
+    step();
+    assert.equal(match.toView(1).startsInMs, RULES.countdownMs);
+    swingAcross();
+    assert.deepEqual(resolved, [], "swings during the countdown don't count");
+  });
+
+  test("a rematch counts down; no steps or swings count until it ends", () => {
+    match.handleCommand(1, { commandId: "f", type: "forfeit" });
+    match.handleCommand(1, { commandId: "re1", type: "rematch" });
+    match.handleCommand(2, { commandId: "re2", type: "rematch" });
+    step();
+    assert.equal(match.toView(2).startsInMs, RULES.countdownMs);
+    assert.equal(match.step(1, "forward"), "match_not_active");
+    for (let t = 0; t < RULES.countdownMs; t += SABER.tickMs) step();
+    assert.equal(match.toView(2).startsInMs, null);
+    assert.equal(match.step(1, "forward"), null);
+    assert.equal(match.step(2, "forward"), null);
+    mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    swingAcross();
+    assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "hit", damage: SABER.damage }]);
   });
 });
 

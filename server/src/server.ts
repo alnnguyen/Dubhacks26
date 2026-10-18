@@ -27,9 +27,9 @@ export async function startServer(config: Config, options: LobbyOptions & { copi
         res.writeHead(204, { 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Replay-Duration' }).end(); return;
       }
       if (req.method !== 'POST') { res.writeHead(405).end(); return; }
-      void replay.handle(req, res, replayPath[1], (actor, match) => {
+      void replay.handle(req, res, replayPath[1], (actor, match, round) => {
         const view = lobby.matchView(actor);
-        return socketsByPlayerId.has(actor) && view?.matchId === match && view.phase === 'finished';
+        return socketsByPlayerId.has(actor) && view?.matchId === match && view.phase === 'finished' && (view.round ?? 1) === round;
       }).catch(() => { if (!res.headersSent) res.writeHead(500).end(); else res.end(); });
       return;
     }
@@ -41,11 +41,7 @@ export async function startServer(config: Config, options: LobbyOptions & { copi
   });
 
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
-    cors: {
-      origin(origin, callback) {
-        callback(null, isAllowedOrigin(origin, config.allowedOrigins));
-      },
-    },
+    cors: { origin: config.allowedOrigins },
   });
 
   // Latest socket per player, so a second tab or a reconnect replaces the old one.
@@ -67,9 +63,6 @@ export async function startServer(config: Config, options: LobbyOptions & { copi
           const status = lobby.saberStatus(id);
           if (status) phone.emit("saberStatus", status);
         }
-      },
-      projectileLanded: (playerIds, event) => {
-        for (const id of playerIds) socketsByPlayerId.get(id)?.emit("projectileLanded", event);
       },
       saberResolved: (playerIds, event) => {
         for (const id of playerIds) {
@@ -101,7 +94,7 @@ export async function startServer(config: Config, options: LobbyOptions & { copi
       if (!request || typeof request !== 'object' || Object.keys(request).length !== 1 || typeof request.matchId !== 'string') return reply({ ok: false, reason: 'invalid_request' });
       const view = lobby.matchView(playerId);
       if (view?.matchId !== request.matchId || view.phase !== 'finished') return reply({ ok: false, reason: 'not_finished' });
-      reply(replay.ticket(playerId, view.matchId));
+      reply(replay.ticket(playerId, view.matchId, view.round ?? 1));
     });
 
     socket.on("join", (request, reply) => {

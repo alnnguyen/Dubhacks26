@@ -8,7 +8,6 @@ import type {
   PilotLocation,
   PlayerSlot,
   PlayerView,
-  ProjectileLanded,
   RejectReason,
   ArenaFrame,
   GridCell,
@@ -50,6 +49,7 @@ interface PilotRecord {
 }
 
 interface ChallengeRecord {
+  destination?: "mars" | "neptune";
   id: string;
   challenger: PilotRecord;
   defender: PilotRecord;
@@ -61,7 +61,6 @@ interface ChallengeRecord {
 export interface LobbyEvents {
   // Any lobby or match change; the server re-sends views to connected players.
   changed: () => void;
-  projectileLanded: (playerIds: string[], event: ProjectileLanded) => void;
   saberResolved: (playerIds: string[], event: SaberResolved) => void;
   // Both players in the arena, every server tick, to both laptops.
   arenaFrame: (playerIds: string[], frame: ArenaFrame) => void;
@@ -78,6 +77,11 @@ export type JoinResult = { ok: true } | { ok: false; reason: "invalid_request" }
 
 // One shared demo room: pilots, challenges between them, and the matches accepted challenges start.
 // Every player action, from the app or a provider adapter, goes through handleCommand.
+/** The two built arenas, equally likely. */
+export function pickArenaWorld(random: () => number = Math.random): WorldId {
+  return random() < 0.5 ? "mars" : "neptune";
+}
+
 export class Lobby {
   private pilots = new Map<string, PilotRecord>();
   private challenges = new Map<string, ChallengeRecord>();
@@ -87,8 +91,8 @@ export class Lobby {
   private pickWorld: () => WorldId;
 
   constructor(private events: LobbyEvents, options: LobbyOptions = {}) {
-    // Every match is on Mars (the only built arena). Tests can still inject a world.
-    this.pickWorld = options.pickWorld ?? (() => "mars");
+    // Each accepted challenge lands on Mars or Neptune, 50/50, chosen once here. Tests can still inject a world.
+    this.pickWorld = options.pickWorld ?? (() => pickArenaWorld());
   }
 
   join(playerId: unknown, callsign?: unknown): JoinResult {
@@ -175,7 +179,8 @@ export class Lobby {
         phase: view.phase,
         health: view.you.health,
         rivalHealth: view.rival.health,
-        armed: view.you.saber.bodyReady && view.you.saber.saberReady,
+        armed: pilot.match.match.saberCombatReady && view.you.saber.bodyReady && view.you.saber.saberReady && view.rival.saber.bodyReady && view.rival.saber.saberReady,
+        startsInMs: pilot.match.match.saberStartsInMs,
         setup: pilot.match.match.setupProgress(pilot.match.slot),
       },
     };
@@ -273,13 +278,14 @@ export class Lobby {
 
       case "challenge": {
         if (typeof command.pilotId !== "string") return "invalid_command";
+        if (command.destination !== undefined && command.destination !== "mars" && command.destination !== "neptune") return "invalid_command";
         if (pilot.match) return "in_match";
         if (this.pendingChallengeOf(pilot)) return "busy";
         const defender = [...this.pilots.values()].find((p) => p.id === command.pilotId);
         if (!defender || defender === pilot || !defender.connected || defender.match || this.pendingChallengeOf(defender)) {
           return "pilot_unavailable";
         }
-        this.open(pilot, defender);
+        this.open(pilot, defender, command.destination);
         return null;
       }
 
@@ -293,7 +299,7 @@ export class Lobby {
 
         if (command.type === "acceptChallenge") {
           this.close(challenge, "accepted");
-          this.startMatch(challenge.challenger, challenge.defender);
+          this.startMatch(challenge.challenger, challenge.defender, challenge.destination);
         } else {
           this.close(challenge, command.type === "declineChallenge" ? "declined" : "cancelled");
         }
@@ -317,11 +323,12 @@ export class Lobby {
     }
   }
 
-  private open(challenger: PilotRecord, defender: PilotRecord): void {
+  private open(challenger: PilotRecord, defender: PilotRecord, destination?: "mars" | "neptune"): void {
     const challenge: ChallengeRecord = {
       id: `ch${this.nextChallenge++}`,
       challenger,
       defender,
+      destination,
       status: "pending",
       expiresAt: Date.now() + RULES.challengeExpiryMs,
     };
@@ -344,18 +351,17 @@ export class Lobby {
     return challenge?.status === "pending" ? challenge : undefined;
   }
 
-  private startMatch(challenger: PilotRecord, defender: PilotRecord): void {
+  private startMatch(challenger: PilotRecord, defender: PilotRecord, destination?: "mars" | "neptune"): void {
     const seats = { 1: challenger, 2: defender } as const;
     const match = new Match(
       `m${this.nextMatch++}`,
-      this.pickWorld(),
+      destination ?? this.pickWorld(),
       {
         1: { pilotId: challenger.id, callsign: challenger.callsign },
         2: { pilotId: defender.id, callsign: defender.callsign },
       },
       {
         changed: () => this.events.changed(),
-        projectileLanded: (event) => this.events.projectileLanded([challenger.playerId, defender.playerId], event),
         saberResolved: (event) => this.events.saberResolved([challenger.playerId, defender.playerId], event),
         arenaFrame: (frame) => this.events.arenaFrame([challenger.playerId, defender.playerId], frame),
         stepped: (event) => this.events.stepped([challenger.playerId, defender.playerId], event),

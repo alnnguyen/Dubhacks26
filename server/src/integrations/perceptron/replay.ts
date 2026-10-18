@@ -15,7 +15,7 @@ const fail = (reason: Extract<ReplayReply, { ok: false }>['reason']): ReplayRepl
 
 /** In-memory only. No recording is written to disk or served back to another pilot. */
 export function createReplayService({ key = process.env.PERCEPTRON_API_KEY, model = process.env.PERCEPTRON_MODEL || 'perceptron-mk1.5', fetchImpl = fetch, now = Date.now }: ReplayOptions = {}) {
-  const tickets = new Map<string, { actor: string; match: string; expires: number }>();
+  const tickets = new Map<string, { actor: string; match: string; round: number; expires: number }>();
   const jobs = new Map<string, { expires: number; reply: Promise<ReplayReply> }>();
   let pending = 0;
   const attempts: number[] = [];
@@ -25,13 +25,13 @@ export function createReplayService({ key = process.env.PERCEPTRON_API_KEY, mode
     for (const [id, job] of jobs) if (job.expires <= time) jobs.delete(id);
     while (attempts.length && attempts[0] <= time - 300_000) attempts.shift();
   }
-  function ticket(actor: string, match: string): ReplayTicketReply {
+  function ticket(actor: string, match: string, round = 1): ReplayTicketReply {
     if (!key) return { ok: false, reason: 'unavailable' };
     prune();
-    for (const [id, t] of tickets) if (t.actor === actor && t.match === match) return { ok: true, ticket: id };
+    for (const [id, t] of tickets) if (t.actor === actor && t.match === match && t.round === round) return { ok: true, ticket: id };
     if (tickets.size >= 256) return { ok: false, reason: 'rate_limited' };
     const id = randomBytes(24).toString('hex');
-    tickets.set(id, { actor, match, expires: now() + 120_000 });
+    tickets.set(id, { actor, match, round, expires: now() + 120_000 });
     return { ok: true, ticket: id };
   }
 
@@ -68,12 +68,12 @@ export function createReplayService({ key = process.env.PERCEPTRON_API_KEY, mode
     } catch { return fail('provider_error'); }
   }
 
-  async function handle(req: IncomingMessage, res: ServerResponse, match: string, authorized: (actor: string, match: string) => boolean): Promise<void> {
+  async function handle(req: IncomingMessage, res: ServerResponse, match: string, authorized: (actor: string, match: string, round: number) => boolean): Promise<void> {
     const send = (status: number, reply: ReplayReply) => res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(reply));
     prune();
     const t = tickets.get((req.headers.authorization ?? '').replace(/^Bearer /, ''));
-    if (!t || t.match !== match || !authorized(t.actor, match)) { send(401, fail('unauthorized')); return; }
-    const id = JSON.stringify([t.actor, match]);
+    if (!t || t.match !== match || !authorized(t.actor, match, t.round)) { send(401, fail('unauthorized')); return; }
+    const id = JSON.stringify([t.actor, match, t.round]);
     const old = jobs.get(id);
     if (old) { req.resume(); send(200, await old.reply); return; }
     const mime = String(req.headers['content-type'] ?? '').split(';')[0];
@@ -90,7 +90,7 @@ export function createReplayService({ key = process.env.PERCEPTRON_API_KEY, mode
     try {
       const bytes = await readVideo(req);
       // A disconnect, replacement, or leave during upload invalidates it.
-      if (!authorized(t.actor, match)) finish(fail('unauthorized'));
+      if (!authorized(t.actor, match, t.round)) finish(fail('unauthorized'));
       else {
         attempts.push(now());
         finish(await analyze(bytes, mime, duration));

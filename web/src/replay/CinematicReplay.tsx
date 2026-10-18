@@ -2,6 +2,7 @@ import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 
 import type { ArenaFrame, PlayerSlot, ReplayMoment } from '../../../server/src/contracts';
 import { ArenaScene, type ArenaReplayPresentation, type ImpactFlash } from '../arena3d/ArenaScene';
 import type { Board } from '../arena3d/gridBoard';
+import type { DestinationId } from '../destinations/config';
 import { finishingImpact, recordedFrameAt, type ArenaRecording } from './arenaRecording';
 import { buildReel, cinematicCamera, impactAt, reelCursor, reelDuration, sampledImpactPosition, shotOffset, type CameraAngle } from './director';
 import './replay.css';
@@ -13,8 +14,9 @@ class ReplayGraphicsBoundary extends Component<{ children: ReactNode; onBasic: (
   render() { return this.state.error ? <div className="cinematic-error" role="alert"><p>Replay graphics could not load. The webcam recording is still available.</p><button onClick={this.props.onBasic}>Retry with simple graphics</button></div> : this.props.children; }
 }
 
-export function CinematicReplay({ recording, moments = EMPTY, board, mySlot, fixture = false, onSync, pauseSignal = 0 }: {
+export function CinematicReplay({ recording, moments = EMPTY, board, mySlot, destination = 'mars', fixture = false, onSync, pauseSignal = 0 }: {
   recording: ArenaRecording; moments?: ReplayMoment[]; board: Board; mySlot: PlayerSlot;
+  destination?: DestinationId;
   fixture?: boolean;
   pauseSignal?: number;
   /** Source-video seconds share the local capture epoch. Never used to send commands. */
@@ -104,7 +106,7 @@ export function CinematicReplay({ recording, moments = EMPTY, board, mySlot, fix
       Recorded arena motion supplies the angles. {finalShot ? 'The server-confirmed finishing blow is reserved for the finale.' : recording.result?.reason === 'forfeit' ? 'This match ended by forfeit; there is no knockout scene.' : 'A finishing hit was not captured; no knockout scene is invented.'}</p>
     <div className={`cinematic-stage ${finaleLanded ? 'cinematic-stage--finish' : ''}`}>
       <ReplayGraphicsBoundary key={`graphics-${attempt}`} onBasic={() => { setSimple(true); setAttempt(n => n + 1); }}>
-        <ArenaScene {...presentation} flashRef={flashRef} mySlot={mySlot} board={board} basicGraphics={simple} />
+        <ArenaScene {...presentation} flashRef={flashRef} mySlot={mySlot} board={board} destination={destination} basicGraphics={simple} />
       </ReplayGraphicsBoundary>
       <div className="cinematic-letterbox cinematic-letterbox--top" /><div className="cinematic-letterbox cinematic-letterbox--bottom" />
       <div className="cinematic-shot-label">{angle ?? selected?.angle} / {cursor?.hold ? 'IMPACT HOLD' : cursor && cursor.rate < .8 ? 'SLOW MOTION' : 'REPLAY'}</div>

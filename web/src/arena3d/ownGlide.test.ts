@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { orbitStep } from "../../../server/src/game/grid"
 import { cellToWorld } from "./gridBoard"
 import { glideRoot, onOwnStep, reconcile } from "./ownGlide"
 
@@ -15,6 +16,18 @@ describe("own glide", () => {
     expect(partway).toBeGreaterThan(-1.3)
     expect(partway).toBeLessThan(-0.65)
     close(glideRoot(stepping, SIZE, STEP_MS, 1000 + STEP_MS), cellToWorld({ q: 0, r: -1 }, SIZE))
+  })
+
+  it("uses the server's orbit center to follow the same circular arc", () => {
+    const start = { q: 0, r: -1 }
+    const rival = { q: 0, r: 1 }
+    const target = orbitStep(start, rival, "right")!
+    const g = onOwnStep(reconcile(null, start, SIZE, 0), target, SIZE, STEP_MS, 1000, [0, SIZE])
+    for (let ms = 0; ms <= STEP_MS; ms += 10) {
+      const [x, z] = glideRoot(g, SIZE, STEP_MS, 1000 + ms)
+      expect(Math.hypot(x, z - SIZE)).toBeCloseTo(1.3, 9)
+    }
+    close(glideRoot(g, SIZE, STEP_MS, 1110), cellToWorld(target, SIZE))
   })
 
   it("a step during a glide continues from where you're drawn, without a jump", () => {

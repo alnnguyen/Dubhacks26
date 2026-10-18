@@ -15,6 +15,7 @@ import { preloadPlanetaryTextures } from '../cinematics/PlanetaryRoulette';
 import { PlanetaryTransition } from '../cinematics/PlanetaryTransition';
 import { PlanetarySound } from '../cinematics/PlanetarySound';
 import type { PlanetaryCinematicState } from '../cinematics/sequence';
+import type { DestinationId } from '../../destinations/config';
 import '../styles/spaceship.css';
 import '../styles/explore.css';
 import '../../onboarding/onboarding.css';
@@ -27,8 +28,10 @@ export interface SpaceshipHomeProps {
   lobby?: LobbyViewModel;
   /** Development-only local rehearsal callback; normal gameplay uses onTravelComplete. */
   onEnterBattle?: (opponent: NearbyPilot) => void;
-  /** Called once after travel ends or is skipped, before the server-backed Mars briefing. */
-  onTravelComplete?: (destination: 'mars') => void;
+  /** Server world for this match. Travel plays that destination, Mars when omitted. */
+  destination?: DestinationId;
+  /** Called once after travel ends or is skipped, with the destination that played. */
+  onTravelComplete?: (destination: DestinationId) => void;
   /** Optional GLB cockpit to replace the procedural prototype. */
   cockpitModelUrl?: string;
   /** Optional compact controls in the existing Radar / Console dock. */
@@ -55,7 +58,7 @@ function initialSettings(): SceneSettings {
   return { quality: 'high', reducedMotion: !!reduced, parallax: true, ...saved };
 }
 
-export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete, cockpitModelUrl, cockpitControls, copilotClient }: SpaceshipHomeProps) {
+export function SpaceshipHome({ lobby: external, destination = 'mars', onEnterBattle, onTravelComplete, cockpitModelUrl, cockpitControls, copilotClient }: SpaceshipHomeProps) {
   const mock = useMockLobby({ enabled: !external });
   const lobby = external ?? mock.lobby;
   const { challenge, actions } = lobby;
@@ -135,7 +138,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
     actions.launch();
   }, [actions, enableCinematicAudio]);
   const finishTravel = useCallback(
-    (destination: 'mars') => {
+    (destination: DestinationId) => {
       setTravelActive(false);
       setCinematic({ phase: 'idle', selectedPlanet: 'mars' });
       const opponent = travelOpponent.current;
@@ -381,6 +384,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
 
       {travelActive && (
         <PlanetaryTransition
+          destination={destination}
           sceneReady={sceneReady && rouletteReady}
           frameTick={cinematicTick}
           reducedMotion={settings.reducedMotion}

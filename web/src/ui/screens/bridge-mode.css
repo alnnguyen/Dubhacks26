@@ -13,3 +13,6 @@
 .sd-shortcuts--with-mode .bridge-mode__reset{flex:0 0 34px;padding:6px;color:var(--muted)}
 .bridge-mode__loading{position:fixed;inset:0;display:grid;place-content:center;margin:0;color:#a7dbed;background:#050a13;font:14px system-ui}
 @media(max-width:600px){.sd-shortcuts--with-mode>.sd-shortcut{gap:5px;padding:6px;min-height:46px}.sd-shortcuts--with-mode>.sd-shortcut>svg{width:14px;height:14px}.sd-shortcuts--with-mode .sd-shortcut__label{font-size:12px;letter-spacing:.08em}.sd-shortcuts--with-mode .sd-shortcut__meta{font-size:8px;letter-spacing:.06em}.sd-shortcuts--with-mode .bridge-mode{flex-basis:94px;gap:3px;padding:5px 6px}.sd-shortcuts--with-mode .bridge-mode__label{font-size:9px}.bridge-mode__switch button{font-size:10px;padding:5px 4px}.sd-shortcuts--with-mode .bridge-mode__reset{flex-basis:30px}}
+
+.sd-shortcuts--with-mode{width:min(640px,calc(100vw - 24px))}
+@media(max-width:600px){.sd-shortcuts--with-mode{flex-wrap:wrap}.sd-shortcuts--with-mode>.sd-shortcut{flex:1 1 22%}.sd-shortcuts--with-mode .bridge-mode{flex:1 1 112px}}

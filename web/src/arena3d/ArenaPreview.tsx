@@ -1,3 +1,4 @@
+import { destinationFromWorld } from '../destinations/config';
 import { useEffect, useRef, useState } from "react"
 import type { ArenaFrame, PlayerSlot, Vec3 } from "../../../server/src/contracts"
 import { ArenaScene, type ImpactFlash } from "./ArenaScene"
@@ -59,8 +60,8 @@ export function ArenaPreview() {
         serverMs: performance.now(),
         engaged: true,
         players: [
-          { slot: 1, cell: { q: 0, r: -1 }, facing: [0, 1], joints: j.map((p) => toWorld(p, 1)), blade: blade(1, j[16], [Math.sin(a), 0, Math.cos(a)]), swinging: phase > 0.5 && phase < 0.65 },
-          { slot: 2, cell: { q: 0, r: 1 }, facing: [0, -1], joints: j.map((p) => toWorld(p, 2)), blade: blade(2, [-0.455, -0.05, 0.336], [0, 1, 0]), swinging: false },
+          { slot: 1, cell: { q: 0, r: -1 }, facing: [0, 1], joints: j.map((p) => toWorld(p, 1)), blade: blade(1, j[16], [Math.sin(a), 0, Math.cos(a)]), swinging: phase > 0.5 && phase < 0.65, stamina: 100, winded: false, stunned: false },
+          { slot: 2, cell: { q: 0, r: 1 }, facing: [0, -1], joints: j.map((p) => toWorld(p, 2)), blade: blade(2, [-0.455, -0.05, 0.336], [0, 1, 0]), swinging: false, stamina: 100, winded: false, stunned: false },
         ],
       }
       const cycle = Math.floor(t / 2)
@@ -76,7 +77,7 @@ export function ArenaPreview() {
 
   return (
     <main className="arena-duel">
-      <ArenaScene getFrame={() => frameRef.current} flashRef={flashRef} mySlot={view} board={{ cellSize: 0.65, rows: 3 }} />
+      <ArenaScene destination={destinationFromWorld(new URLSearchParams(location.search).get("destination")??"mars")} getFrame={() => frameRef.current} flashRef={flashRef} mySlot={view} board={{ cellSize: 0.65, rows: 3 }} />
       <div className="arena-hud">
         <p className="arena-note">Dev preview: synthetic fighters (blue = the viewing player). Not a match.</p>
         <button type="button" className="arena-leave" onClick={() => setView(view === 1 ? 2 : 1)}>

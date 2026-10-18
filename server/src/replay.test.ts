@@ -14,7 +14,7 @@ async function fixture(options: ReplayOptions) {
   const stranger = io(base, { transports: ['websocket'] });
   return {
     base, a, b, stranger,
-    async finish() {
+    async finish(leave = true) {
       await request(a, 'join', { playerId: 'replay-alice', callsign: 'Alice' });
       const bj = await request(b, 'join', { playerId: 'replay-bobby', callsign: 'Bob' });
       await request(stranger, 'join', { playerId: 'replay-outsider', callsign: 'Other' });
@@ -24,7 +24,7 @@ async function fixture(options: ReplayOptions) {
       const context = await request(a, 'copilot:context', {});
       const matchId = context.context.match.matchId as string;
       assert.deepEqual(await request(a, 'replay:ticket', { matchId }), { ok: false, reason: 'not_finished' });
-      await request(b, 'command', { type: 'leaveMatch', commandId: 'replay-leave' });
+      await request(b, 'command', { type: leave ? 'leaveMatch' : 'forfeit', commandId: 'replay-leave' });
       return matchId;
     },
     async close() { a.disconnect(); b.disconnect(); stranger.disconnect(); await server.close(); },
@@ -117,5 +117,31 @@ test('no valid provider moments produces an explicit cached failure, never fabri
     assert.deepEqual(await (await upload(f.base, match, ticket.ticket)).json(), {ok:false,reason:'no_moments'});
     assert.deepEqual(await (await upload(f.base, match, ticket.ticket)).json(), {ok:false,reason:'no_moments'});
     assert.equal(calls, 1);
+  } finally { await f.close(); }
+});
+
+
+test('rematch rejects old replay tickets and analyzes the new round separately', async () => {
+  let calls = 0;
+  const f = await fixture({ key: 'fake-server-key', fetchImpl: (async (_url, options) => {
+    calls++;
+    const body = JSON.parse(String(options?.body));
+    return new Response(JSON.stringify({choices:[{message:{content:body.vision_config.annotation_format === 'clip'
+      ? '<clip mention="Visible swing" t="1 seconds 3 seconds" />'
+      : '<track><point_box t="2 seconds">(100,100) (800,900)</point_box></track>'}}]}));
+  }) as typeof fetch });
+  try {
+    const match = await f.finish(false);
+    const first = await request(f.a, 'replay:ticket', {matchId: match});
+    assert.equal((await upload(f.base, match, first.ticket)).status, 200);
+    assert.equal(calls, 2);
+    await request(f.a, 'command', {type:'rematch', commandId:'rematch-a'});
+    await request(f.b, 'command', {type:'rematch', commandId:'rematch-b'});
+    await request(f.b, 'command', {type:'forfeit', commandId:'forfeit-round-two'});
+    assert.equal((await upload(f.base, match, first.ticket)).status, 401);
+    const second = await request(f.a, 'replay:ticket', {matchId: match});
+    assert.notEqual(second.ticket, first.ticket);
+    assert.equal((await upload(f.base, match, second.ticket)).status, 200);
+    assert.equal(calls, 4, 'the second round must not reuse the first round analysis');
   } finally { await f.close(); }
 });

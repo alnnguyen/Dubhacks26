@@ -1,3 +1,6 @@
+import { NeptuneEnvironment } from '../arena/neptune/NeptuneEnvironment';
+import { NeptuneDust } from '../arena/neptune/NeptuneDust';
+import type { DestinationId } from '../destinations/config';
 import { Suspense, use, useMemo, useRef, type RefObject } from "react"
 import * as THREE from "three"
 import { Canvas, useFrame } from "@react-three/fiber"
@@ -17,7 +20,7 @@ import { cellToWorld, type Board } from "./gridBoard"
  */
 export const toThree = (v: Vec3): THREE.Vector3 => new THREE.Vector3(v[0], v[1], -v[2])
 
-export type ImpactFlash = { kind: "blocked" | "hit"; at: Vec3; startedMs: number }
+export type ImpactFlash = { kind: "blocked" | "hit" | "guardBreak"; at: Vec3; startedMs: number }
 /** Presentation-only replay controls; omitted in live combat. Coordinates use the arena frame. */
 export interface ArenaReplayPresentation {
   timeMs: () => number
@@ -92,7 +95,9 @@ function Avatar({ frameRef, slot, color, flashRef, clock = realTime }: {
     const age = flash ? clock() - flash.startedMs : Infinity
     const hitMe = flash?.kind === "hit" && age < 300 && player?.joints && isNear(flash.at, player.joints)
     material.emissive.copy(hitMe ? hurt : base)
-    material.emissiveIntensity = hitMe ? 2.5 : 0.6
+    // A stunned fighter (guard broken) flickers until they can act again.
+    const stunned = player?.stunned && Math.floor(clock() / 80) % 2 === 0
+    material.emissiveIntensity = hitMe ? 2.5 : stunned ? 0.1 : 0.6
   })
 
   return (
@@ -166,6 +171,8 @@ function Blade({ frameRef, slot, color, clock = realTime }: { frameRef: RefObjec
     const a = toThree(blade.hilt)
     const b = toThree(blade.tip)
     updateTrail(a, b, player?.swinging ?? false)
+    // A stunned fighter's guard is down: their blade gutters and blocks nothing.
+    glowMaterial.opacity = player?.stunned ? 0.12 : 0.55
     if (core.current) placeBetween(core.current, a, b)
     if (glow.current) placeBetween(glow.current, a, b)
     if (hilt.current) {
@@ -216,6 +223,12 @@ function Blade({ frameRef, slot, color, clock = realTime }: { frameRef: RefObjec
   )
 }
 
+const IMPACT_COLORS: Record<ImpactFlash["kind"], { core: string; light: string }> = {
+  blocked: { core: "#ffffff", light: "#bfe6ff" },
+  hit: { core: "#ff6a4a", light: "#ff6a4a" },
+  guardBreak: { core: "#ffd34d", light: "#ffc23a" },
+}
+
 function Impact({ flashRef, clock = realTime, cinematic = false, reducedMotion = false }: { flashRef: RefObject<ImpactFlash | null>; clock?: () => number; cinematic?: boolean; reducedMotion?: boolean }) {
   const mesh = useRef<THREE.Mesh>(null)
   const light = useRef<THREE.PointLight>(null)
@@ -233,11 +246,12 @@ function Impact({ flashRef, clock = realTime, cinematic = false, reducedMotion =
     const at = toThree(flash.at)
     const t = age / 0.3
     mesh.current!.position.copy(at)
-    mesh.current!.scale.setScalar(0.05 + 0.35 * t)
+    // A guard break bursts bigger, in gold.
+    mesh.current!.scale.setScalar(0.05 + (flash.kind === "guardBreak" ? 0.6 : 0.35) * t)
     material.opacity = 1 - t
-    material.color.set(flash.kind === "blocked" ? "#ffffff" : "#ff6a4a").multiplyScalar(4)
+    material.color.set(IMPACT_COLORS[flash.kind].core).multiplyScalar(4)
     light.current!.position.copy(at)
-    light.current!.color.set(flash.kind === "blocked" ? "#bfe6ff" : "#ff6a4a")
+    light.current!.color.set(IMPACT_COLORS[flash.kind].light)
   })
   return (
     <>
@@ -301,15 +315,16 @@ const AIM_HEIGHT = 0.3
 const SHOULDER_OFFSET = 0.45
 
 /** Over your own shoulder, looking down at the duel. Follows your hips as you walk. */
-function ShoulderCamera({ frameRef, mySlot, groundY }: {
+function ShoulderCamera({ frameRef, mySlot, groundY, initiation = false }: {
   frameRef: RefObject<ArenaFrame | null>
   mySlot: PlayerSlot
   groundY: number
+  initiation?: boolean
 }) {
   const target = useRef(new THREE.Vector3())
   useFrame(({ camera }, delta) => {
     const player = frameRef.current?.players.find((p) => p.slot === mySlot)
-    // Always behind you, looking down the lane toward your rival's side.
+    // Follow the fighter as they turn toward their rival.
     const [fx, fz] = player?.facing ?? [0, mySlot === 1 ? 1 : -1]
     const forward = toThree([fx, 0, fz])
     const right = toThree([fz, 0, -fx])
@@ -318,11 +333,15 @@ function ShoulderCamera({ frameRef, mySlot, groundY }: {
     // The camera isn't inside the arena's ground group, so it adds the ground height itself.
     hips.y += groundY
     const aim = hips.clone().addScaledVector(forward, AIM_AHEAD).add(new THREE.Vector3(0, AIM_HEIGHT, 0))
+    // Setup fills a square viewport with only your real tracked fighter.
+    if (initiation) aim.copy(hips).add(new THREE.Vector3(0, 0.55, 0));
+    const distance = initiation ? 4.2 : CAMERA_DISTANCE;
+    const pitch = initiation ? 0.06 : CAMERA_PITCH;
     const desired = aim
       .clone()
-      .addScaledVector(forward, -CAMERA_DISTANCE * Math.cos(CAMERA_PITCH))
-      .addScaledVector(right, SHOULDER_OFFSET)
-      .add(new THREE.Vector3(0, CAMERA_DISTANCE * Math.sin(CAMERA_PITCH), 0))
+      .addScaledVector(forward, -distance * Math.cos(pitch))
+      .addScaledVector(right, initiation ? 0 : SHOULDER_OFFSET)
+      .add(new THREE.Vector3(0, distance * Math.sin(pitch), 0))
     // Follow with the same feel at any frame rate (~130 ms to catch up most of the way).
     const follow = 1 - Math.exp(-delta / 0.13)
     camera.position.lerp(desired, follow)
@@ -337,6 +356,7 @@ type FightersProps = {
   flashRef: RefObject<ImpactFlash | null>
   mySlot: PlayerSlot
   board: Board
+  initiation?: boolean
   replay?: ArenaReplayPresentation
 }
 
@@ -346,89 +366,46 @@ function MarsFighters(props: FightersProps) {
   return <Fighters {...props} groundY={sampler.heightAt(0, 0)} />
 }
 
-const GRID_LINE = new THREE.Color("#ffd7a0")
-// Columns drawn either side of you. The lane has no end: the drawing follows
-// you a whole column at a time, so it looks the same wherever you are.
-const DRAWN_COLUMNS = 20
-
-/**
- * The lane board on the ground: faint cell outlines on each side of the center
- * line, your cell blue, your rival's red; while you're engaged both glow and a
- * link joins them.
- */
-function LaneBoard({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFrame | null>; mySlot: PlayerSlot; board: Board }) {
-  const { cellSize, rows } = board
-  const outline = useMemo(() => {
-    const points: number[] = []
-    const xEdge = (DRAWN_COLUMNS + 0.5) * cellSize
-    // Each side spans z from half a cell off the center line to its back row's far edge (three's z flips).
-    for (const side of [-1, 1]) {
-      const near = side * 0.5 * cellSize
-      const far = side * (rows + 0.5) * cellSize
-      for (let i = 0; i <= rows; i++) {
-        const z = near + side * i * cellSize
-        points.push(-xEdge, 0.02, -z, xEdge, 0.02, -z)
-      }
-      for (let q = -DRAWN_COLUMNS; q <= DRAWN_COLUMNS + 1; q++) {
-        const x = (q - 0.5) * cellSize
-        points.push(x, 0.02, -near, x, 0.02, -far)
-      }
-    }
-    const g = new THREE.BufferGeometry()
-    g.setAttribute("position", new THREE.Float32BufferAttribute(points, 3))
-    return g
-  }, [cellSize, rows])
-  const fill = useMemo(() => new THREE.PlaneGeometry(cellSize * 0.92, cellSize * 0.92), [cellSize])
-  const grid = useRef<THREE.Group>(null)
+/** Round foot markers replace the square board; the link indicates saber reach. */
+function DuelMarkers({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFrame | null>; mySlot: PlayerSlot; board: Board }) {
   const mine = useRef<THREE.Mesh>(null)
   const theirs = useRef<THREE.Mesh>(null)
   const link = useRef<THREE.Mesh>(null)
-  const mineMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: COLORS.you, transparent: true, opacity: 0.25, depthWrite: false }), [])
-  const theirsMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: COLORS.rival, transparent: true, opacity: 0.25, depthWrite: false }), [])
-
   useFrame(() => {
     const frame = frameRef.current
     const place = (mesh: THREE.Mesh | null, slot: PlayerSlot) => {
-      const cell = frame?.players.find((p) => p.slot === slot)?.cell
+      const player = frame?.players.find((p) => p.slot === slot)
       if (!mesh) return null
-      mesh.visible = Boolean(cell)
-      if (!cell) return null
-      const [x, z] = cellToWorld(cell, cellSize)
+      mesh.visible = Boolean(player)
+      if (!player) return null
+      const hips = player.joints
+      const [x, z] = hips
+        ? [(hips[23][0] + hips[24][0]) / 2, (hips[23][2] + hips[24][2]) / 2]
+        : cellToWorld(player.cell, board.cellSize)
       mesh.position.set(x, 0.015, -z)
       return mesh.position
     }
     const a = place(mine.current, mySlot)
     const b = place(theirs.current, mySlot === 1 ? 2 : 1)
-    if (grid.current && a) grid.current.position.x = a.x
-    const engaged = Boolean(frame?.engaged)
-    mineMaterial.opacity = engaged ? 0.55 : 0.25
-    theirsMaterial.opacity = engaged ? 0.55 : 0.25
     if (link.current) {
-      link.current.visible = engaged && a !== null && b !== null
+      link.current.visible = Boolean(frame?.engaged && a && b)
       if (link.current.visible) placeBetween(link.current, a!.clone().setY(0.03), b!.clone().setY(0.03))
     }
   })
-
-  return (
-    <group>
-      <group ref={grid}>
-        <lineSegments geometry={outline}>
-          <lineBasicMaterial color={GRID_LINE} transparent opacity={0.35} />
-        </lineSegments>
-        {/* The center line between the two sides. */}
-        <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[(DRAWN_COLUMNS * 2 + 1) * cellSize, 0.05]} />
-          <meshBasicMaterial color={GRID_LINE} transparent opacity={0.6} />
-        </mesh>
-      </group>
-      <mesh ref={mine} geometry={fill} material={mineMaterial} rotation={[-Math.PI / 2, 0, 0]} />
-      <mesh ref={theirs} geometry={fill} material={theirsMaterial} rotation={[-Math.PI / 2, 0, 0]} />
-      <mesh ref={link}>
-        <cylinderGeometry args={[0.02, 0.02, 1, 8]} />
-        <meshBasicMaterial color={new THREE.Color(3, 1.2, 0.8)} toneMapped={false} />
-      </mesh>
-    </group>
-  )
+  return <group>
+    <mesh ref={mine} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.25, 0.30, 64]} />
+      <meshBasicMaterial color={COLORS.you} transparent opacity={0.6} depthWrite={false} />
+    </mesh>
+    <mesh ref={theirs} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.25, 0.30, 64]} />
+      <meshBasicMaterial color={COLORS.rival} transparent opacity={0.6} depthWrite={false} />
+    </mesh>
+    <mesh ref={link}>
+      <cylinderGeometry args={[0.02, 0.02, 1, 8]} />
+      <meshBasicMaterial color={new THREE.Color(3, 1.2, 0.8)} toneMapped={false} />
+    </mesh>
+  </group>
 }
 
 function DirectedCamera({ frameRef, groundY, replay }: { frameRef: RefObject<ArenaFrame | null>; groundY: number; replay: ArenaReplayPresentation }) {
@@ -443,17 +420,17 @@ function DirectedCamera({ frameRef, groundY, replay }: { frameRef: RefObject<Are
   return null
 }
 
-function Fighters({ frameRef, flashRef, mySlot, board, groundY, replay }: FightersProps & { groundY: number }) {
+function Fighters({ frameRef, flashRef, mySlot, board, groundY, initiation, replay }: FightersProps & { groundY: number }) {
   const rivalSlot: PlayerSlot = mySlot === 1 ? 2 : 1
   return (
     <group position={[0, groundY, 0]}>
-      {replay ? <DirectedCamera frameRef={frameRef} groundY={groundY} replay={replay} /> : <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} />}
+      {replay ? <DirectedCamera frameRef={frameRef} groundY={groundY} replay={replay} /> : <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} initiation={initiation} />}
       <Avatar frameRef={frameRef} slot={mySlot} color={COLORS.you} flashRef={flashRef} clock={replay?.timeMs} />
-      <Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} clock={replay?.timeMs} />
+      {!initiation && <Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} clock={replay?.timeMs} />}
       <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} clock={replay?.timeMs} />
-      <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} clock={replay?.timeMs} />
-      <Impact flashRef={flashRef} clock={replay?.timeMs} cinematic={Boolean(replay)} reducedMotion={replay?.reducedMotion} />
-      <LaneBoard frameRef={frameRef} mySlot={mySlot} board={board} />
+      {!initiation && <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} clock={replay?.timeMs} />}
+      {!initiation && <Impact flashRef={flashRef} clock={replay?.timeMs} cinematic={Boolean(replay)} reducedMotion={replay?.reducedMotion} />}
+      {!initiation && <DuelMarkers frameRef={frameRef} mySlot={mySlot} board={board} />}
     </group>
   )
 }
@@ -466,8 +443,11 @@ function FrameSampler({ getFrame, frameRef }: { getFrame: () => ArenaFrame | nul
   return null
 }
 
-export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false, replay }: {
+export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false, initiation = false, replay, destination = 'mars' }: {
+  /** Which world's environment to draw; the server's view decides it. */
+  destination?: DestinationId
   basicGraphics?: boolean
+  initiation?: boolean
   /** The arena to draw right now: blended server frames, with your own fighter drawn locally. */
   getFrame: () => ArenaFrame | null
   flashRef: RefObject<ImpactFlash | null>
@@ -481,28 +461,45 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
       className="arena-canvas"
       dpr={[1, 1.5]}
       shadows
-      camera={{ fov: 55, near: 0.05, far: 400, position: [0, 2, 2.5] }}
+      camera={{ fov: 55, near: 0.05, far: 2400, position: [0, 2, 2.5] }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
       <FrameSampler getFrame={getFrame} frameRef={frameRef} />
-      {basicGraphics ? <>
+      {initiation ? <>
+        {/* The saber setup square is world-agnostic: a calm grid while the player calibrates. */}
+        <color attach="background" args={["#061326"]} />
+        <hemisphereLight args={["#c5efff", "#174d80", 2.2]} />
+        <directionalLight position={[2, 5, 4]} intensity={2} color="#9de4ff" />
+        <gridHelper args={[12, 24, "#225884", "#102b46"]} />
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation />
+      </> : destination === 'neptune' ? <>
+        {basicGraphics ? <>
+          <color attach="background" args={["#4f97d8"]} />
+          <hemisphereLight args={["#8cc4f0", "#0d2c58", 1.6]} />
+          <mesh rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[11, 48]} /><meshStandardMaterial color="#3a4a5c" /></mesh>
+        </> : <>
+          <NeptuneEnvironment/>
+          <NeptuneDust/>
+        </>}
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} replay={replay} />
+      </> : basicGraphics ? <>
         <color attach="background" args={["#1b0f0b"]} />
         <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
-        <gridHelper args={[10, 20, "#a8643c", "#4a2a1a"]} />
-        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} replay={replay} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation={initiation} replay={replay} />
       </> : <Suspense
         fallback={
           // Plain floor while the Mars terrain loads, so the duel is playable immediately.
           <>
             <color attach="background" args={["#1b0f0b"]} />
             <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
-            <gridHelper args={[10, 20, "#a8643c", "#4a2a1a"]} />
-            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} replay={replay} />
+            <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>
+            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation={initiation} replay={replay} />
           </>
         }
       >
         <MarsEnvironment quality="low" obstacles={[]} />
-        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} replay={replay} />
+        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} initiation={initiation} replay={replay} />
       </Suspense>}
       {!basicGraphics && <EffectComposer multisampling={0} enableNormalPass={false}>
         <Bloom mipmapBlur intensity={0.9} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.55} />

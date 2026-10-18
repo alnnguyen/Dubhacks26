@@ -58,10 +58,10 @@ Detailed proofs, limits, and what is / isn’t claimed live in [`docs/sponsor-ev
 - Immersive Jezero-style terrain from **NASA MOLA**-derived height data
 - Opponent cutout / multi-person detection for an “across the dust” duel feel
 - Phone tilt look-around; dust, rocks, sky treatment
-- Dev routes for tuning without a full match (`/?arena=mars`, `/?dev=mars`)
+- Dev route for tuning without a full match (`/?arena=mars`)
 
 ### Real space data in gameplay
-- **NASA Planetary Fact Sheet** gravity (e.g. Mars **3.7 m/s²**) maps to rock flight / defense window — not fake sci-fi timers
+- **NASA Planetary Fact Sheet** gravity (e.g. Mars **3.7 m/s²**) is shown for each world; it does not yet change saber combat
 - Arena and briefing copy grounded in provenance docs (`datasets.md`, arena attributions under `web/public/arena/mars/`)
 - Research backlog for windshield ephemeris, star maps, and space weather chips when we have bandwidth
 
@@ -97,10 +97,9 @@ Open the HTTPS URL Vite prints (accept the self-signed cert). For phones, tunnel
 | Route | What you get |
 | --- | --- |
 | `/` | Onboarding → cockpit shell (`BridgeApp`) |
-| FlightApp path | Real lobby → challenge → briefing → camera duel (composition target for the full demo) |
-| `/?pvp=1` | LiveDuel networking rehearsal |
-| `/?debug=camera` or `/?camera=1` | Alan’s MediaPipe harness |
-| `/?dev=mars` | Camera + Mars backdrop, no match |
+| FlightApp path | Real lobby → challenge → briefing → saber arena duel (composition target for the full demo) |
+| `/?saber=CODE` | Phone lightsaber controller (opened from the laptop's pair QR) |
+| `/?dev=arena` | Saber arena with synthetic fighters, no camera/phone/server |
 | `/?arena=mars` | Mars scene only |
 
 Provider demos (Photon / Grok) use gitignored env files — see [`server/src/integrations/`](server/src/integrations/) READMEs. **Never commit API keys.**

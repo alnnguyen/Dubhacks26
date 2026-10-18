@@ -1,9 +1,9 @@
 import type { GridCell } from "../../../server/src/contracts"
 
-/** The server's lane board, for drawing (same formulas as server/src/game/grid.ts). */
+/** Coordinate scale retained from the server board wire format. */
 export type Board = { cellSize: number; rows: number; stepMs?: number }
 
-/** World x, z of a cell's center: q along x, r along z. */
+/** World x, z; q/r may be fractional after orbital movement. */
 export function cellToWorld(cell: GridCell, cellSize: number): [number, number] {
   return [cellSize * cell.q, cellSize * cell.r]
 }

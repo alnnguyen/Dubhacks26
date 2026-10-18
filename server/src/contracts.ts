@@ -5,22 +5,6 @@
 
 export type PlayerSlot = 1 | 2;
 
-// "attacking" covers a weapon's wind-up after firing (rock only, for now).
-export type PlayerAction = "idle" | "attacking" | "blocking";
-
-export interface BlockState {
-  active: boolean;
-  endsInMs: number | null;
-  cooldownEndsInMs: number | null;
-}
-
-export type Weapon = "rock" | "gun" | "saber";
-
-export interface ProjectileInFlight {
-  weapon: Weapon;
-  landsInMs: number;
-}
-
 // Saber duel in a shared 3D arena, in meters. World frame: x to slot 1's
 // right, y up, z from slot 1 toward slot 2. A game space: each player is in
 // front of their own laptop, wherever that is.
@@ -45,18 +29,16 @@ export interface BodyPose {
 // One step to a neighboring cell, relative to the way the player faces (forward is toward the rival's side).
 export type StepDirection = "forward" | "back" | "left" | "right";
 
-// A board cell: q is the column along x (unbounded), r the row along z
-// (slot 1 owns rows -rows..-1, slot 2 rows 1..rows).
+// Arena coordinates in board.cellSize units; q = x, r = z. Fractional after orbiting.
 export interface GridCell {
   q: number;
   r: number;
 }
 
 export type SetupStep =
-  | "stand"
   | "phone"
-  | "forward"
-  | "up"
+  | "stand"
+  | "upright"
   | "right"
   | "reach"
   | "done";
@@ -111,12 +93,24 @@ export interface ArenaPlayer {
   slot: PlayerSlot;
   // The cell the player stands in (or is stepping to).
   cell: GridCell;
-  // Which way they face, a horizontal unit vector (world x, z): straight down the lane, slot 1 +z, slot 2 -z.
+  // Horizontal unit vector (world x, z) toward the rival.
   facing: [number, number];
   // World-frame joints; null while the body isn't tracked.
   joints: Vec3[] | null;
   blade: ArenaBlade | null;
   swinging: boolean;
+  // Movement stamina, 0..100. Steps cost some; it refills after a short pause.
+  stamina: number;
+  // Ran dry: no steps until stamina recovers.
+  winded: boolean;
+  // Guard broken: no swings, steps or guard for a moment.
+  stunned: boolean;
+}
+
+/** Shared pre-combat countdown. A deadline alone never authorizes a hit. */
+export interface SaberStart {
+  startsAtMs: number | null;
+  unlocked: boolean;
 }
 
 // Both players in world coordinates, sent to both laptops on every server tick.
@@ -124,6 +118,8 @@ export interface ArenaFrame {
   // Server time of the tick (ms), so laptops can blend between frames smoothly
   // despite network jitter. Only differences matter; clocks aren't synced.
   serverMs: number;
+  // Optional for compatibility with older scene recordings/clients.
+  saberStart?: SaberStart;
   players: ArenaPlayer[];
   // Both players at the front line within a column of each other: only then do swings count.
   engaged: boolean;
@@ -131,7 +127,8 @@ export interface ArenaFrame {
 
 export interface SaberResolved {
   attackerSlot: PlayerSlot;
-  outcome: "blocked" | "hit";
+  // "guardBreak": the attack swung along the defender's held guard, which broke; the defender is stunned.
+  outcome: "blocked" | "hit" | "guardBreak";
   damage: number;
 }
 
@@ -145,6 +142,8 @@ export interface SaberStatus {
     health: number;
     rivalHealth: number;
     armed: boolean;
+    // The round's countdown, as on the laptop's view.
+    startsInMs: number | null;
     // The laptop's current setup step, so the phone can show it too.
     setup: SetupProgress | null;
   } | null;
@@ -152,7 +151,7 @@ export interface SaberStatus {
 
 export type PairReply = { ok: true; status: SaberStatus } | { ok: false; reason: "invalid_code" };
 
-export type WorldId = "earth" | "mars" | "moon";
+export type WorldId = "earth" | "mars" | "moon" | "neptune";
 
 // Chosen once by the server when a challenge is accepted. Both phones show this record.
 export interface World {
@@ -160,8 +159,6 @@ export interface World {
   name: string;
   // Rounded NASA Planetary Fact Sheet surface gravity.
   gravityMps2: number;
-  // Gameplay mapping 0.8 × √(9.8 / gravity) s, not projectile physics.
-  rockFlightMs: number;
 }
 
 export interface PlayerState {
@@ -174,14 +171,9 @@ export interface PlayerState {
   reconnectEndsInMs: number | null;
   // Pressed Ready after the briefing. The match starts when both are ready.
   ready: boolean;
+  // Asked for a rematch on the result screen. A new round starts once both have.
+  rematch: boolean;
   health: number;
-  action: PlayerAction;
-  // The active weapon; only it can fire. Switching is instant.
-  weapon: Weapon;
-  cooldowns: Record<Weapon, number | null>;
-  block: BlockState;
-  // This player's own shot, flying toward the opponent. At most one at a time.
-  projectile: ProjectileInFlight | null;
   saber: SaberState;
 }
 
@@ -196,7 +188,11 @@ export interface MatchResult {
 
 export interface MatchSnapshot {
   matchId: string;
+  round?: number; // Starts at 1; increments when both pilots rematch.
   phase: MatchPhase;
+  // Counts down once both players are set up, before each round (the first and each rematch);
+  // swings and steps don't count until it ends. null before both are set up, and after.
+  startsInMs: number | null;
   world: World;
   players: PlayerState[];
   result: MatchResult | null;
@@ -205,21 +201,15 @@ export interface MatchSnapshot {
 // What one phone receives: its own player as "you", the opponent as "rival".
 export interface PlayerView {
   matchId: string;
+  round?: number;
   phase: MatchPhase;
+  startsInMs: number | null;
   world: World;
   result: MatchResult | null;
-  // The lane board, so laptops draw the same one: cell size (center to center, m), rows on
-  // each side, and how long a step glides (laptops start your own glide the moment a step is accepted).
+  // Coordinate scale and glide duration. rows is retained for older clients (no row ownership).
   board: { cellSize: number; rows: number; stepMs: number };
   you: PlayerState;
   rival: PlayerState;
-}
-
-export interface ProjectileLanded {
-  attackerSlot: PlayerSlot;
-  weapon: Weapon;
-  blocked: boolean;
-  damage: number;
 }
 
 // "in-duel" pilots are in a match and can't be challenged.
@@ -265,21 +255,13 @@ export interface LobbyView {
 
 // Every command carries a unique ID so the server can recognise a retry and
 // return the original reply instead of applying it again.
-export type MatchCommandType =
-  | "ready"
-  | "leaveMatch"
-  | "rockActive"
-  | "gunActive"
-  | "saberActive"
-  | "throwRock"
-  | "fireGun"
-  | "slash"
-  | "startBlock"
-  | "endBlock";
+// "rematch" is only accepted once the match has finished, with both players still there.
+// "forfeit" ends the round but keeps you in the match (for a rematch); "leaveMatch" also detaches you.
+export type MatchCommandType = "ready" | "forfeit" | "rematch" | "leaveMatch";
 
 export type Command =
   | { commandId: string; type: MatchCommandType }
-  | { commandId: string; type: "challenge"; pilotId: string }
+  | { commandId: string; type: "challenge"; pilotId: string; destination?: "mars" | "neptune" }
   | { commandId: string; type: "acceptChallenge" | "declineChallenge" | "cancelChallenge"; challengeId: string }
   | { commandId: string; type: "setCallsign"; callsign: string }
   // null clears it, e.g. when the pilot leaves exploration.
@@ -296,13 +278,13 @@ export type RejectReason =
   | "not_in_match"
   | "in_match"
   | "busy"
-  | "on_cooldown"
-  | "weapon_not_active"
-  | "projectile_in_flight"
-  | "not_blocking"
   | "pilot_unavailable"
   // A step past the center line or the back of your side.
   | "blocked"
+  // Not enough stamina for that step, or winded.
+  | "exhausted"
+  // Guard broken a moment ago.
+  | "stunned"
   | "challenge_unavailable";
 
 export type CommandReply =
@@ -325,7 +307,6 @@ export interface ServerToClientEvents {
   lobby: (lobby: LobbyView) => void;
   // null while the player is not in a match.
   view: (view: PlayerView | null) => void;
-  projectileLanded: (event: ProjectileLanded) => void;
   arena: (frame: ArenaFrame) => void;
   saberResolved: (event: SaberResolved) => void;
   // To a paired phone.
@@ -333,7 +314,7 @@ export interface ServerToClientEvents {
   // To the pilot's laptop: their own phone's latest reading, for the setup checks.
   phoneAim: (aim: SaberAim) => void;
   // To both laptops, the moment a step is accepted (ahead of the next arena frame).
-  stepped: (event: { slot: PlayerSlot; cell: GridCell }) => void;
+  stepped: (event: { slot: PlayerSlot; cell: GridCell; orbitCenter?: [number, number] }) => void;
 }
 
 export interface ClientToServerEvents {

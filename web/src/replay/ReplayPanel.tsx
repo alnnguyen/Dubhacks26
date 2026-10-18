@@ -4,9 +4,10 @@ import type { PlayerSlot, ReplayMoment, ReplayReply } from '../../../server/src/
 import type { RecordedReplay } from './recorder';
 import type { ArenaRecording } from './arenaRecording';
 import type { Board } from '../arena3d/gridBoard';
+import type { DestinationId } from '../destinations/config';
 import { CinematicReplay } from './CinematicReplay';
-import './replay.css';
 import { BRAND_NAME } from '../ui/brand';
+import './replay.css';
 
 const ERRORS: Record<string, string> = {
   unavailable: 'Perceptron is not configured on this game server yet. Your recording remains local.',
@@ -22,9 +23,11 @@ const ERRORS: Record<string, string> = {
 };
 const EMPTY_MOMENTS: ReplayMoment[] = [];
 
-export function ReplayPanel({ client, matchId, clip, status, onDiscard, arena, board, mySlot }: {
+export function ReplayPanel({ client, matchId, clip, status, onDiscard, arena, board, mySlot, destination }: {
   client: GameClient; matchId: string; clip: RecordedReplay | null; status: string; onDiscard: () => void;
   arena?: ArenaRecording | null; board?: Board; mySlot?: PlayerSlot;
+  /** The world the duel was fought on, so the cinematic replays the same environment. */
+  destination?: DestinationId;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const abort = useRef<AbortController | null>(null);
@@ -99,7 +102,7 @@ export function ReplayPanel({ client, matchId, clip, status, onDiscard, arena, b
     <p className="flight-eyebrow">REPLAY / DIRECTOR</p>
     <h2>Your duel. The highlights.</h2>
     <p role="status">{busy ? 'Perceptron is selecting moments and framing the player…' : status || 'Enable local replay recording during arena setup to save a clip.'}</p>
-    {arena && board && mySlot && <CinematicReplay recording={arena} moments={result?.moments ?? EMPTY_MOMENTS} board={board} mySlot={mySlot} onSync={syncWebcam} pauseSignal={cinematicPause} />}
+    {arena && board && mySlot && <CinematicReplay recording={arena} moments={result?.moments ?? EMPTY_MOMENTS} board={board} mySlot={mySlot} destination={destination} onSync={syncWebcam} pauseSignal={cinematicPause} />}
     {clip && url && <>
       {arena && <h3>Original webcam / model evidence</h3>}
       {webcamGap && <p className="flight-muted">Arena-only closing moment: the webcam capture ended before this part of the match. The finale comes from the server's recorded result.</p>}

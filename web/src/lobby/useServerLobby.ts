@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { clearArenaJourney, journeyFor, matchesJourney, readArenaJourney, saveArenaJourney } from '../app/arenaJourney';
 import {
   getGameClient,
   useGameLobby,
@@ -9,6 +10,7 @@ import {
   type Pilot,
   type PlayerView,
 } from '../networking';
+import { savePilotCallsign } from '../app/pilotIdentity';
 import type { ChallengePhase, LobbyViewModel, NearbyPilot, PilotProfile } from '../ui/state/lobbyTypes';
 
 /**
@@ -16,11 +18,21 @@ import type { ChallengePhase, LobbyViewModel, NearbyPilot, PilotProfile } from '
  * server's room. Only `launching` (the Engage transition) and dismissed
  * declined banners are local UI state.
  */
+/**
+ * Testing override: `?world=mars` or `?world=neptune` on the challenger's page
+ * asks the server for that arena. Without it the server rolls 50/50.
+ */
+function devWorld(): "mars" | "neptune" | undefined {
+  const world = typeof location === "undefined" ? null : new URLSearchParams(location.search).get("world");
+  return world === "mars" || world === "neptune" ? world : undefined;
+}
+
 export function useServerLobby(client: GameClient = getGameClient()): LobbyViewModel {
   const connection = useGameStatus(client);
   const lobby = useGameLobby(client);
   const view = useGameView(client);
-  const [launchingMatch, setLaunchingMatch] = useState<string | null>(null);
+  const [launchingJourney, setLaunchingJourney] = useState(readArenaJourney);
+  const launchingMatch = view && launchingJourney?.stage === "travel" && matchesJourney(view, launchingJourney) ? view.matchId : null;
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
 
   const nearby = useMemo(() => (lobby && connection === 'online' ? lobby.pilots.map(toNearby) : []), [lobby, connection]);
@@ -29,20 +41,28 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
 
   const actions = useMemo<LobbyViewModel['actions']>(
     () => ({
-      challenge: (pilotId) => void client.challenge(pilotId),
+      challenge: (pilotId) => void client.challenge(pilotId, devWorld()),
       cancelChallenge: () => challengeId && void client.cancelChallenge(challengeId),
       accept: () => challengeId && void client.acceptChallenge(challengeId),
       decline: () => challengeId && void client.declineChallenge(challengeId),
       dismiss: () => {
+        clearArenaJourney();
+        setLaunchingJourney(null);
         // Dismissing a ready match backs out of it on the server too.
         if (client.view()) void client.leaveMatch();
         if (challengeId) setDismissed((d) => new Set(d).add(challengeId));
       },
-      launch: () => setLaunchingMatch(client.view()?.matchId ?? null),
+      launch: () => {
+        const current = client.view();
+        if (!current || current.phase === 'finished') return;
+        const journey = journeyFor(current, 'travel');
+        saveArenaJourney(journey);
+        setLaunchingJourney(journey);
+      },
       setLocation: (location) => void client.setLocation(location),
       setCallsign: (callsign) => {
-        const trimmed = callsign.trim().toUpperCase().slice(0, 14);
-        if (trimmed) void client.setCallsign(trimmed);
+        const saved = savePilotCallsign(callsign);
+        if (saved) void client.setCallsign(saved);
       },
     }),
     [client, challengeId],

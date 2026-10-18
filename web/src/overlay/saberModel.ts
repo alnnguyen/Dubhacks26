@@ -3,7 +3,7 @@
  * Hits are server-timed slashes — this mesh is cosmetic aim feedback only.
  */
 import * as THREE from "three"
-import type { Landmark } from "../vision/types"
+type Landmark = { x: number; y: number; z?: number }
 import { Lightsaber } from "./Lightsaber"
 
 export const SABER_MODEL_URL = "/models/saber.glb"

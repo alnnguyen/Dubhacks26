@@ -1,0 +1,57 @@
+/* Adapted from the user-supplied Downloads/button-handoff.zip.
+   Shared feedback only: keep each screen's layout, shape, and status colors. */
+:root { --sb-button-ease: cubic-bezier(.18,.92,.24,1); --sb-button-focus: #a6eeff; }
+
+/* Individual scale composes with skew/position transforms already used by the HUD. */
+:root :is(button, [role="button"]):not([data-button-feedback="off"]) {
+  scale: 1;
+  transition: scale 220ms var(--sb-button-ease), background-color 200ms ease-out,
+    color 200ms ease-out, border-color 200ms ease-out, box-shadow 200ms ease-out,
+    transform 120ms var(--sb-button-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+:root :is(button, [role="button"]):not([data-button-feedback="off"]):focus-visible {
+  outline: 2px solid var(--sb-button-focus);
+  outline-offset: 4px;
+}
+:root :is(.sd-btn, .lyra-launcher):focus-visible { outline-offset: -3px; }
+:root :is(button > svg, .sb-icon, .obn-cta > span, .lyra-action > span) {
+  transition: translate 220ms var(--sb-button-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  :root :is(button, [role="button"]):not(:disabled, [aria-disabled="true"], [data-button-feedback="off"]):hover {
+    scale: 1.05;
+    border-color: #87dcff88;
+    box-shadow: inset 0 0 0 1px #87dcff66, inset 0 0 18px #87dcff14, 0 0 24px #297dff33;
+  }
+  :root :is(button, [role="button"]):not(:disabled, [aria-disabled="true"], [data-button-feedback="off"]):hover > :is(svg, .sb-icon),
+  :root .obn-cta:not(:disabled, [aria-disabled="true"], [data-button-feedback="off"]):hover > span,
+  :root .lyra-action:not(:disabled, [aria-disabled="true"], [data-button-feedback="off"]):hover > span { translate: 3px -3px; }
+  :root :is(.obn-cta, .sd-btn--primary):not(:disabled, [aria-disabled="true"], [data-button-feedback="off"]):hover {
+    background: #a1e5ff;
+    color: #06162d;
+    box-shadow: inset 0 0 0 1px #d3f4ff99, 0 0 30px #297dff44;
+  }
+}
+:root :is(button, [role="button"]):not(:disabled, [aria-disabled="true"], [data-button-feedback="off"]):active {
+  scale: .97;
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+}
+/* Replace the old scale transform so a press is .97, rather than two scales. */
+:root :is(.sd-btn, .sd-icon-btn, .sd-shortcut, .sd-key, .sd-pilot):not(:disabled, [aria-disabled="true"], [data-button-feedback="off"]):active {
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root :is(button, [role="button"]):not([data-button-feedback="off"]) {
+    scale: 1 !important;
+    transition-property: color, background-color, box-shadow, border-color;
+  }
+  :root :is(button > svg, .sb-icon, .obn-cta > span, .lyra-action > span) { translate: none !important; }
+}
+/* Also honor the game's saved reduced-motion setting. */
+:root [data-reduced-motion="true"] :is(button, [role="button"]):not([data-button-feedback="off"]) {
+  scale: 1 !important;
+  transition-property: color, background-color, box-shadow, border-color;
+}
+:root [data-reduced-motion="true"] :is(button > svg, .sb-icon, .obn-cta > span, .lyra-action > span) { translate: none !important; }

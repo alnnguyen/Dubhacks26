@@ -4,8 +4,9 @@ import type { BodyPlacement } from "./bodyFrame"
 /**
  * Guided setup that ties a laptop camera to a phone saber. Each step asks for
  * a pose and advances once both devices agree for a moment, measuring along
- * the way: the step spot, which way "toward the screen" is for the phone, the
- * saber hand, whether the camera or the phone reads left/right (or the camera
+ * the way: the step spot, the saber
+ * hand (held upright), which way "right" and "toward the screen" are for the
+ * phone, and whether the camera or the phone reads left/right (or the camera
  * forward/back) backwards. Pure: the duel screen feeds it every frame.
  */
 
@@ -33,10 +34,11 @@ export type WizardState = {
   holdSinceMs: number | null
   progress: number
   stepStartedMs: number
-  /** The placement or phone reading when the hold started, to check stillness. */
+  /** The placement when the hold started, to check stillness. */
   holdPlacement: BodyPlacement | null
-  holdTop: Vec3 | null
   baseline: BodyPlacement | null
+  /** The phone's horizontal heading when pointed to the player's right. */
+  rightTop: Vec3 | null
   forward: [number, number] | null
   hand: Hand | null
   mirrorAim: boolean
@@ -45,23 +47,26 @@ export type WizardState = {
   notes: string[]
 }
 
-export const STEP_ORDER: SetupStep[] = ["stand", "phone", "forward", "up", "right", "reach", "done"]
+export const STEP_ORDER: SetupStep[] = ["phone", "stand", "upright", "right", "reach", "done"]
 
 /** How long each pose must be held. */
 export const HOLD_MS: Record<SetupStep, number> = {
-  stand: 1000,
-  phone: 300,
-  forward: 1000,
-  up: 700,
-  right: 700,
-  reach: 500,
+  phone: 0,
+  stand: 600,
+  upright: 500,
+  right: 500,
+  reach: 400,
   done: 0,
 }
 
 /** After this long with the phone right but the camera unsure, accept and note what was assumed. */
-export const CAMERA_GIVE_UP_MS = 4000
+export const CAMERA_GIVE_UP_MS = 2500
 
-const NOSE = 0
+/** Turning slower than this (degrees/s), the saber counts as held in a pose. */
+const STEADY_RATE = 120
+/** The saber hand's wrist is at least this much higher than the other (meters). */
+const RAISED_BY = 0.1
+
 const LEFT_SHOULDER = 11
 const RIGHT_SHOULDER = 12
 const LEFT_WRIST = 15
@@ -69,13 +74,13 @@ const RIGHT_WRIST = 16
 
 export function createWizard(nowMs: number): WizardState {
   return {
-    step: "stand",
+    step: "phone",
     holdSinceMs: null,
     progress: 0,
     stepStartedMs: nowMs,
     holdPlacement: null,
-    holdTop: null,
     baseline: null,
+    rightTop: null,
     forward: null,
     hand: null,
     mirrorAim: false,
@@ -123,27 +128,35 @@ export function applyCameraFix(joints: Vec3[], fix: CameraFix): Vec3[] {
   return out
 }
 
-const angleBetween = (a: Vec3, b: Vec3) =>
-  Math.acos(Math.max(-1, Math.min(1, (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (Math.hypot(...a) * Math.hypot(...b) || 1))))
-
 function advance(state: WizardState, nowMs: number, patch: Partial<WizardState>): WizardState {
   const next = STEP_ORDER[STEP_ORDER.indexOf(state.step) + 1] ?? "done"
-  return { ...state, ...patch, step: next, holdSinceMs: null, progress: 0, stepStartedMs: nowMs, holdPlacement: null, holdTop: null }
+  return { ...state, ...patch, step: next, holdSinceMs: null, progress: 0, stepStartedMs: nowMs, holdPlacement: null }
 }
 
 /** Hold logic: progress while `holding`, reset when not; true once held long enough. */
 function hold(state: WizardState, nowMs: number, holding: boolean, extra: Partial<WizardState> = {}): [WizardState, boolean] {
-  if (!holding) return [{ ...state, holdSinceMs: null, progress: 0, holdPlacement: null, holdTop: null }, false]
+  if (!holding) return [{ ...state, holdSinceMs: null, progress: 0, holdPlacement: null }, false]
   const since = state.holdSinceMs ?? nowMs
-  const progress = Math.min(1, (nowMs - since) / HOLD_MS[state.step])
+  const needed = HOLD_MS[state.step]
+  const progress = needed > 0 ? Math.min(1, (nowMs - since) / needed) : 1
   return [{ ...state, ...extra, holdSinceMs: since, progress }, progress >= 1]
 }
 
 export function tickWizard(state: WizardState, input: WizardInput): WizardState {
   const { nowMs, body, placement, phone } = input
   const waited = nowMs - state.stepStartedMs
+  const giveUp = waited > CAMERA_GIVE_UP_MS
+  // Poses are read once the saber has settled, not mid-swing.
+  const steady = phone !== null && phone.rate < STEADY_RATE
+  const level = steady && Math.abs(phone.top[2]) < 0.5
 
   switch (state.step) {
+    case "phone": {
+      // Moves on as soon as the phone streams; an already-live phone skips straight past.
+      const [held, done] = hold(state, nowMs, phone !== null)
+      return done ? advance(held, nowMs, {}) : held
+    }
+
     case "stand": {
       // Body in view and standing still, so the spot is a fair baseline.
       const start = state.holdPlacement ?? placement
@@ -155,51 +168,31 @@ export function tickWizard(state: WizardState, input: WizardInput): WizardState 
       return done ? advance(held, nowMs, { baseline: placement }) : held
     }
 
-    case "phone": {
-      const [held, done] = hold(state, nowMs, phone !== null)
-      return done ? advance(held, nowMs, {}) : held
-    }
-
-    case "forward": {
-      // Phone level, steady, pointing at the screen.
-      const start = state.holdTop ?? phone?.top ?? null
-      const steady =
-        phone !== null && start !== null &&
-        Math.abs(phone.top[2]) < 0.4 &&
-        phone.rate < 60 &&
-        angleBetween(phone.top, start) < (12 * Math.PI) / 180
-      const [held, done] = hold(state, nowMs, steady, { holdTop: start })
-      if (!done || !phone) return held
-      const h = Math.hypot(phone.top[0], phone.top[1])
-      return advance(held, nowMs, { forward: [phone.top[0] / h, phone.top[1] / h] })
-    }
-
-    case "up": {
-      // Saber raised straight up; the camera sees which hand is above the head.
-      const phoneUp = phone !== null && phone.top[2] > 0.85
+    case "upright": {
+      // Saber held upright in front, ready stance; the camera sees which hand holds it higher.
+      const phoneUp = steady && phone.top[2] > 0.8
       const raised = body ? raisedHand(body) : null
-      const giveUp = phoneUp && waited > CAMERA_GIVE_UP_MS
       const [held, done] = hold(state, nowMs, phoneUp && (raised !== null || giveUp))
       if (!done) return held
       if (raised) return advance(held, nowMs, { hand: raised })
       return advance(held, nowMs, {
         hand: "right",
-        notes: [...state.notes, "Couldn't see your raised hand — assuming you hold the saber in your right hand."],
+        notes: [...state.notes, "Couldn't tell which hand holds the saber — assuming your right."],
       })
     }
 
     case "right": {
-      // Saber out to the right: the phone's sideways reading and the camera's
-      // view of the saber wrist should both say "right". Either saying "left"
-      // means that device reads left/right backwards.
-      const sideways = phone && state.forward ? phoneInBody(phone.top, state.forward, false)[0] : 0
-      const level = phone !== null && Math.abs(phone.top[2]) < 0.5
+      // Saber out to the right, level: this is the phone's "right", and the
+      // camera's view of the saber wrist should say right too. If it says left,
+      // the camera reads left/right backwards.
       const camera = body && state.hand ? wristSideways(body, state.hand) : null
       const cameraSure = camera !== null && Math.abs(camera) > 0.12
-      const giveUp = waited > CAMERA_GIVE_UP_MS
-      const [held, done] = hold(state, nowMs, level && Math.abs(sideways) > 0.75 && (cameraSure || giveUp))
-      if (!done) return held
-      const patch: Partial<WizardState> = { mirrorAim: sideways < 0 }
+      const [held, done] = hold(state, nowMs, level && (cameraSure || giveUp))
+      if (!done || !phone) return held
+      const h = Math.hypot(phone.top[0], phone.top[1])
+      const rightTop: Vec3 = [phone.top[0] / h, phone.top[1] / h, 0]
+      // Provisional heading, a quarter turn left of "right", so the blade shows now; the thrust refines it.
+      const patch: Partial<WizardState> = { rightTop, forward: [-rightTop[1], rightTop[0]], mirrorAim: false }
       if (cameraSure && camera! < 0) {
         // Mirrored camera: left and right joints were swapped, so was the hand we picked.
         patch.cameraFix = { ...state.cameraFix, mirrorX: !state.cameraFix.mirrorX }
@@ -211,18 +204,21 @@ export function tickWizard(state: WizardState, input: WizardInput): WizardState 
     }
 
     case "reach": {
-      // Saber pushed at the screen: the wrist should come forward of the shoulders.
-      const phoneForward = phone !== null && state.forward !== null && phoneInBody(phone.top, state.forward, state.mirrorAim)[2] > 0.6
+      // Saber thrust at the screen, level and square to "right"; the wrist
+      // should come forward of the shoulders. Its heading is "toward the screen".
+      const h = phone ? Math.hypot(phone.top[0], phone.top[1]) : 0
+      const right = state.rightTop
+      const across = phone && right && h > 0 ? Math.abs(phone.top[0] * right[0] + phone.top[1] * right[1]) / h : 1
       const reach = body && state.hand ? wristForward(body, state.hand) : null
       const cameraSure = reach !== null && Math.abs(reach) > 0.25
-      const giveUp = waited > CAMERA_GIVE_UP_MS
-      const [held, done] = hold(state, nowMs, phoneForward && (cameraSure || giveUp))
-      if (!done) return held
-      if (cameraSure && reach! < 0) return advance(held, nowMs, { cameraFix: { ...state.cameraFix, flipZ: !state.cameraFix.flipZ } })
-      if (!cameraSure) {
-        return advance(held, nowMs, { notes: [...state.notes, "Couldn't see your reach — keeping the camera's depth as is."] })
-      }
-      return advance(held, nowMs, {})
+      const [held, done] = hold(state, nowMs, level && across < 0.5 && (cameraSure || giveUp))
+      if (!done || !phone || !right) return held
+      const forward: [number, number] = [phone.top[0] / h, phone.top[1] / h]
+      // "Right" read as left of the thrust means the phone mirrors its sideways axis.
+      const patch: Partial<WizardState> = { forward, mirrorAim: phoneInBody(right, forward, false)[0] < 0 }
+      if (cameraSure && reach! < 0) patch.cameraFix = { ...state.cameraFix, flipZ: !state.cameraFix.flipZ }
+      else if (!cameraSure) patch.notes = [...state.notes, "Couldn't see your reach — keeping the camera's depth as is."]
+      return advance(held, nowMs, patch)
     }
 
     case "done":
@@ -230,13 +226,11 @@ export function tickWizard(state: WizardState, input: WizardInput): WizardState 
   }
 }
 
-/** The wrist raised above the head, or null. Higher wins if both are. */
+/** The wrist clearly higher than the other, holding the saber up; null when neither is. */
 function raisedHand(body: Vec3[]): Hand | null {
-  const head = body[NOSE][1]
-  const left = body[LEFT_WRIST][1] - head
-  const right = body[RIGHT_WRIST][1] - head
-  if (Math.max(left, right) < 0.05) return null
-  return right >= left ? "right" : "left"
+  const lift = body[RIGHT_WRIST][1] - body[LEFT_WRIST][1]
+  if (Math.abs(lift) < RAISED_BY) return null
+  return lift > 0 ? "right" : "left"
 }
 
 /** How far the saber wrist is to the player's right of their shoulders' middle (meters). */
@@ -251,13 +245,12 @@ function wristForward(body: Vec3[], hand: Hand): number {
   return body[hand === "left" ? LEFT_WRIST : RIGHT_WRIST][2] - shoulders
 }
 
-/** What the player is asked to do at each step. */
+/** What the player is asked to do at each step (the phone shows it too). */
 export const INSTRUCTIONS: Record<SetupStep, string> = {
+  phone: "Scan the QR code with your phone, then tap Ignite saber.",
   stand: "Stand on your spot facing the laptop, whole upper body in view, and hold still.",
-  phone: "Scan the QR code with your iPhone and tap Ignite saber.",
-  forward: "Hold the saber level and point its top edge straight at the laptop screen. Hold still.",
-  up: "Raise your saber straight up above your head.",
-  right: "Point your saber out to your right side, level.",
-  reach: "Thrust your saber at the screen, arm out in front of you.",
-  done: "Setup complete. Swipe on your phone with your thumb to move: ↑ toward your rival, ↓ away, ← → to sidestep.",
+  upright: "Hold your phone straight out in front of you, standing upright.",
+  right: "Point your phone out to your right.",
+  reach: "Point your phone at the screen.",
+  done: "Setup complete. Swipe on your phone with your thumb to move: ↑ toward your rival, ↓ away, ← → to circle.",
 }

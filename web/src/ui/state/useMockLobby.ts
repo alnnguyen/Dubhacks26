@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { loadPilotIdentity } from '../../app/pilotIdentity';
+import { loadPilotIdentity, savePilotCallsign } from '../../app/pilotIdentity';
 import type { ChallengePhase, ConnectionStatus, LobbyViewModel, NearbyPilot, PilotProfile } from './lobbyTypes';
 
 /**
@@ -110,21 +110,7 @@ export function useMockLobby(opts: { enabled?: boolean } = {}) {
       dismiss: () => setChallenge({ kind: 'idle' }),
       launch: () => setChallenge((c) => (c.kind === 'ready' ? { kind: 'launching', opponent: c.opponent } : c)),
       setCallsign: (callsign) =>
-        setSelf((s) => {
-          const next = { ...s, callsign: callsign.toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 14) || s.callsign };
-          const identity = loadPilotIdentity();
-          if (identity) {
-            try {
-              localStorage.setItem(
-                'sd.pilot.identity.v1',
-                JSON.stringify({ ...identity, callsign: next.callsign }),
-              );
-            } catch {
-              /* ignore */
-            }
-          }
-          return next;
-        }),
+        setSelf((s) => ({ ...s, callsign: savePilotCallsign(callsign) ?? s.callsign })),
     }),
     [],
   );

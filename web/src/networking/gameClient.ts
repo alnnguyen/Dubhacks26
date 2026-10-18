@@ -16,7 +16,6 @@ import type {
   PilotLocation,
   PlayerState,
   PlayerView,
-  ProjectileLanded,
   ArenaFrame,
   BodyPose,
   SaberAim,
@@ -24,7 +23,6 @@ import type {
   SaberResolved,
   SaberStatus,
   StepDirection,
-  Weapon,
   World,
 } from "../../../server/src/contracts"
 
@@ -39,7 +37,6 @@ export type {
   PilotLocation,
   PlayerState,
   PlayerView,
-  ProjectileLanded,
   ArenaFrame,
   BodyPose,
   SaberAim,
@@ -47,7 +44,6 @@ export type {
   SaberResolved,
   SaberStatus,
   StepDirection,
-  Weapon,
   World,
 }
 
@@ -99,7 +95,6 @@ export interface GameClient {
   onStatus(listener: (status: ConnectionStatus) => void): () => void
   onLobby(listener: (lobby: LobbyView) => void): () => void
   onView(listener: (view: PlayerView | null) => void): () => void
-  onProjectileLanded(listener: (event: ProjectileLanded) => void): () => void
   /** Both players' bodies and blades in the arena, every server tick. */
   onArena(listener: (frame: ArenaFrame) => void): () => void
   onSaberResolved(listener: (event: SaberResolved) => void): () => void
@@ -108,7 +103,7 @@ export interface GameClient {
   /** Store what the laptop's guided setup measured about your phone. */
   calibrateSaber(calibration: SaberCalibration): Promise<ClientReply>
   /** A step was accepted (yours or your rival's), ahead of the next arena frame. */
-  onStepped(listener: (event: { slot: 1 | 2; cell: { q: number; r: number } }) => void): () => void
+  onStepped(listener: (event: { slot: 1 | 2; cell: { q: number; r: number }; orbitCenter?: [number, number] }) => void): () => void
   /** One step to a neighboring cell, relative to the way you face (forward is toward your rival's side). */
   step(direction: StepDirection): Promise<ClientReply>
   /**
@@ -120,23 +115,19 @@ export interface GameClient {
   setCallsign(callsign: string): Promise<ClientReply>
   /** Where you are flying in exploration, shown to other pilots. null clears it. Display only. */
   setLocation(location: PilotLocation | null): Promise<ClientReply>
-  challenge(pilotId: string): Promise<ClientReply>
+  /** Without a destination the server rolls the world itself; the override exists for tests and tools. */
+  challenge(pilotId: string, destination?: "mars" | "neptune"): Promise<ClientReply>
   acceptChallenge(challengeId: string): Promise<ClientReply>
   declineChallenge(challengeId: string): Promise<ClientReply>
   cancelChallenge(challengeId: string): Promise<ClientReply>
   /** Finished the briefing. The match starts once both players are ready. */
   ready(): Promise<ClientReply>
+  /** Give this round to your rival but stay in the match, so you can still rematch. */
+  forfeit(): Promise<ClientReply>
+  /** After the match ends: play again with the same setup. A new round counts down once both ask. */
+  rematch(): Promise<ClientReply>
   /** Back to the lobby. Before the match ends this forfeits it. */
   leaveMatch(): Promise<ClientReply>
-  /** Make a weapon active. Instant; only the active weapon can fire. */
-  gunActive(): Promise<ClientReply>
-  rockActive(): Promise<ClientReply>
-  saberActive(): Promise<ClientReply>
-  fireGun(): Promise<ClientReply>
-  throwRock(): Promise<ClientReply>
-  slash(): Promise<ClientReply>
-  startBlock(): Promise<ClientReply>
-  endBlock(): Promise<ClientReply>
   close(): void
 }
 
@@ -156,10 +147,9 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   const statusListeners = new Set<(status: ConnectionStatus) => void>()
   const lobbyListeners = new Set<(lobby: LobbyView) => void>()
   const viewListeners = new Set<(view: PlayerView | null) => void>()
-  const landedListeners = new Set<(event: ProjectileLanded) => void>()
   const arenaListeners = new Set<(frame: ArenaFrame) => void>()
   const phoneAimListeners = new Set<(aim: SaberAim) => void>()
-  const steppedListeners = new Set<(event: { slot: 1 | 2; cell: { q: number; r: number } }) => void>()
+  const steppedListeners = new Set<(event: { slot: 1 | 2; cell: { q: number; r: number }; orbitCenter?: [number, number] }) => void>()
   const resolvedListeners = new Set<(event: SaberResolved) => void>()
   // Page-load time, like command IDs, so poses after a reload are newer than any before it.
   let nextPose = now()
@@ -200,10 +190,9 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   socket.on("connect_error", () => setStatus("offline"))
   socket.on("lobby", (next: LobbyView) => setLobby(next))
   socket.on("view", (next: PlayerView | null) => setView(next))
-  socket.on("projectileLanded", (event: ProjectileLanded) => landedListeners.forEach((listener) => listener(event)))
   socket.on("arena", (frame: ArenaFrame) => arenaListeners.forEach((listener) => listener(frame)))
   socket.on("phoneAim", (aim: SaberAim) => phoneAimListeners.forEach((listener) => listener(aim)))
-  socket.on("stepped", (event: { slot: 1 | 2; cell: { q: number; r: number } }) => steppedListeners.forEach((listener) => listener(event)))
+  socket.on("stepped", (event: { slot: 1 | 2; cell: { q: number; r: number }; orbitCenter?: [number, number] }) => steppedListeners.forEach((listener) => listener(event)))
   socket.on("saberResolved", (event: SaberResolved) => resolvedListeners.forEach((listener) => listener(event)))
 
   function send(payload: Payload): Promise<ClientReply> {
@@ -258,7 +247,6 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     onStatus: (listener) => subscribe(statusListeners, listener),
     onLobby: (listener) => subscribe(lobbyListeners, listener),
     onView: (listener) => subscribe(viewListeners, listener),
-    onProjectileLanded: (listener) => subscribe(landedListeners, listener),
     onArena: (listener) => subscribe(arenaListeners, listener),
     onPhoneAim: (listener) => subscribe(phoneAimListeners, listener),
     onStepped: (listener) => subscribe(steppedListeners, listener),
@@ -274,20 +262,14 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
       return send({ type: "setCallsign", callsign })
     },
     setLocation: (location) => send({ type: "setLocation", location }),
-    challenge: (pilotId) => send({ type: "challenge", pilotId }),
+    challenge: (pilotId, destination) => send({ type: "challenge", pilotId, ...(destination ? { destination } : {}) }),
     acceptChallenge: (challengeId) => send({ type: "acceptChallenge", challengeId }),
     declineChallenge: (challengeId) => send({ type: "declineChallenge", challengeId }),
     cancelChallenge: (challengeId) => send({ type: "cancelChallenge", challengeId }),
     ready: () => send({ type: "ready" }),
+    forfeit: () => send({ type: "forfeit" }),
+    rematch: () => send({ type: "rematch" }),
     leaveMatch: () => send({ type: "leaveMatch" }),
-    gunActive: () => send({ type: "gunActive" }),
-    rockActive: () => send({ type: "rockActive" }),
-    saberActive: () => send({ type: "saberActive" }),
-    fireGun: () => send({ type: "fireGun" }),
-    throwRock: () => send({ type: "throwRock" }),
-    slash: () => send({ type: "slash" }),
-    startBlock: () => send({ type: "startBlock" }),
-    endBlock: () => send({ type: "endBlock" }),
     close: () => {
       socket.disconnect()
       setStatus("offline")

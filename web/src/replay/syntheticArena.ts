@@ -22,7 +22,7 @@ export function syntheticFrame(t: number): ArenaFrame {
     const direction: Vec3 = slot === 1 ? [Math.sin(angle), .15, Math.cos(angle)] : [.12, .9, -.1];
     const norm = Math.hypot(...direction);
     return { slot, cell: { q: slot === 1 && step > .5 ? 1 : 0, r: slot === 1 ? -1 : 1 }, facing: [0, slot === 1 ? 1 : -1], joints,
-      blade: { hilt, tip: hilt.map((v, i) => v + direction[i] / norm * .9) as Vec3 }, swinging: slot === 1 };
+      blade: { hilt, tip: hilt.map((v, i) => v + direction[i] / norm * .9) as Vec3 }, swinging: slot === 1, stamina: 100, winded: false, stunned: false };
   }) };
 }
 export function syntheticRecording(): ArenaRecording {

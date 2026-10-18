@@ -1,8 +1,10 @@
-import type { ArenaFrame, MatchResult, PlayerSlot, PlayerView, SaberResolved, Weapon } from '../../../server/src/contracts';
+import type { ArenaFrame, MatchResult, PlayerSlot, PlayerView, SaberResolved } from '../../../server/src/contracts';
 import { blendFrames } from '../arena3d/arenaBuffer';
 
+type RecordedWeapon = "saber" | "rock" | "gun"; // legacy replay labels only
+
 export interface RecordedFrame { at: number; frame: ArenaFrame }
-export interface RecordedImpact { at: number; event: SaberResolved; weapon?: Weapon }
+export interface RecordedImpact { at: number; event: SaberResolved; weapon?: RecordedWeapon }
 export interface ArenaRecording {
   frames: RecordedFrame[];
   impacts: RecordedImpact[];
@@ -49,7 +51,7 @@ export function createArenaRecording() {
       add(frame, at);
       return data.finishedAt !== null;
     },
-    impact(event: SaberResolved, receivedMs: number, weapon: Weapon = 'saber') {
+    impact(event: SaberResolved, receivedMs: number, weapon: RecordedWeapon = 'saber') {
       if (!active || epoch === null || data.finishedAt !== null) return;
       const at = Math.max(0, (receivedMs - epoch) / 1000);
       const last = data.impacts.at(-1);
