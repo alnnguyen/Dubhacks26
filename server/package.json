@@ -1,0 +1,23 @@
+{
+  "name": "@jedi/server",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "dev": "tsc && concurrently -k -n tsc,node \"tsc --watch --preserveWatchOutput\" \"node --env-file-if-exists=.env --watch dist/index.js\"",
+    "test": "tsc && node --test \"dist/**/*.test.js\""
+  },
+  "dependencies": {
+    "socket.io": "4.8.4"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "concurrently": "10.0.6",
+    "socket.io-client": "4.8.4",
+    "typescript": "7.0.2"
+  }
+}
