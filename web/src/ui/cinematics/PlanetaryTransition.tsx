@@ -5,8 +5,7 @@ import type { PlanetarySound } from './PlanetarySound';
 import './planetary-transition.css';
 import { preloadMarsTerrain } from '../../arena/mars/MarsEnvironment';
 import { gameAudio } from '../../audio/gameAudio';
-
-const VIDEO_URL = '/cinematics/spacetomars.mp4';
+import VIDEO_URL from './assets/spacetomars.mp4';
 
 const PLANET_NAMES: Record<PlanetId, string> = {
   mercury: 'Mercury',
