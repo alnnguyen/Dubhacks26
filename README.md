@@ -41,13 +41,19 @@ docs/                      Team, interface, QA, deployment and evidence notes
 
 ## Current status
 
-Planning scaffold for lobby/server remains. Role C added a temporary camera debug harness under `web/`:
+**Server (B / Justin):** first runnable slice with demo match + rock events. Verified commands in [server/README.md](server/README.md):
+
+```bash
+cd server && npm install && npm test
+```
+
+**Web (A cockpit + C camera):** Ally’s spaceship lobby is the default app; Alan’s camera harness is at `/?debug=camera`.
 
 ```bash
 cd web && npm install && npm test && npm run dev
 ```
 
-Open the HTTPS URL Vite prints (accept the self-signed cert). For phones, tunnel that HTTPS origin (see `web/README.md`). Full lobby/server tooling is still A/B-owned and not initialized at the repo root.
+Open the HTTPS URL Vite prints (accept the self-signed cert). For phones, tunnel that origin (see `web/README.md`).
 
 Target: mobile HTTPS website, two selected demo phones, rear-camera overlays and server-authoritative combat. Native Swift/ARKit, campus GPS, planet ownership and offline armies are outside this MVP.
 
