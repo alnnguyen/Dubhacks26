@@ -6,6 +6,8 @@ import { normalizeAvatarConfig } from './avatarConfig';
  * face image (a PNG blob) goes to IndexedDB so localStorage never holds base64.
  */
 
+export const AVATAR_SAVED_EVENT = 'avatar-saved';
+
 const CONFIG_KEY = 'jsd.avatar.v1';
 const DB_NAME = 'jsd-avatar';
 const STORE = 'faces';
@@ -22,6 +24,7 @@ export function loadAvatarConfig(): AvatarConfig {
 export function saveAvatarConfig(config: AvatarConfig): boolean {
   try {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(normalizeAvatarConfig(config)));
+    window.dispatchEvent(new Event(AVATAR_SAVED_EVENT));
     return true;
   } catch {
     return false;

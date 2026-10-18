@@ -65,7 +65,7 @@ function SelfieCamera({ onCapture, onError }: { onCapture: (frame: HTMLCanvasEle
   );
 }
 
-/** Take or upload a photo, then crop it into the helmet oval. Everything stays on this device. */
+/** Take or upload a photo, then crop it into the helmet oval. The saved crop can be shared as your face in live matches. */
 export function PhotoFaceEditor({ start, onPreview, onConfirm, onCancel }: PhotoFaceEditorProps) {
   const [step, setStep] = useState<Step | null>(start === 'camera' ? { kind: 'camera' } : null);
   const [busy, setBusy] = useState<string | null>(start === 'camera' ? null : 'Reading photo…');

@@ -19,6 +19,7 @@ import {
   tickWizard,
   type WizardState,
 } from "./setupWizard"
+import { useAvatarSync } from "../features/avatars/hooks/useAvatarSync"
 import "./arena3d.css"
 
 // The full model's 3D world landmarks are steadier than lite's, and a laptop can afford it.
@@ -89,6 +90,7 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
   /** Back to the cockpit; before the end this forfeits. */
   onLeave: () => void
 }) {
+  useAvatarSync(client)
   const videoRef = useRef<HTMLVideoElement>(null)
   const frameRef = useRef<ArenaFrame | null>(null)
   const flashRef = useRef<ImpactFlash | null>(null)
@@ -303,7 +305,7 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
 
   return (
     <main className="arena-duel">
-      <ArenaScene frameRef={frameRef} flashRef={flashRef} mySlot={you.slot} />
+      <ArenaScene frameRef={frameRef} flashRef={flashRef} mySlot={you.slot} appearances={{ [you.slot]: you.avatar, [rival.slot]: rival.avatar }} />
 
       <div className="arena-hud">
         <div className="arena-bars">

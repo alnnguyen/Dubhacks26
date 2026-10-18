@@ -2,6 +2,7 @@ import { gameServerUrl } from "./gameEndpoint"
 import { io } from "socket.io-client"
 // Temporary cross-folder import until server/src/contracts.ts moves to packages/contracts.
 import type {
+  AvatarAppearance,
   ChallengeView,
   CopilotSessionReply,
   CopilotContextReply,
@@ -106,6 +107,7 @@ export interface GameClient {
   sendBodyPose(pose: Omit<BodyPose, "seq">): void
   /** Stored on the phone and sent on every join, so it survives reloads. */
   setCallsign(callsign: string): Promise<ClientReply>
+  setAvatar(avatar: AvatarAppearance): Promise<ClientReply>
   challenge(pilotId: string): Promise<ClientReply>
   acceptChallenge(challengeId: string): Promise<ClientReply>
   declineChallenge(challengeId: string): Promise<ClientReply>
@@ -232,6 +234,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
       if (status !== "online" || !socket.connected) return
       socket.volatile.emit("bodyPose", { ...pose, seq: nextPose++ })
     },
+    setAvatar: (avatar) => send({ type: "setAvatar", avatar }),
     setCallsign: (callsign) => {
       writeStorage(storage, CALLSIGN_KEY, callsign)
       return send({ type: "setCallsign", callsign })

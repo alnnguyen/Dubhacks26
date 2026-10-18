@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SpaceshipHome } from '../ui/screens/SpaceshipHome';
 import { ArenaDuel } from '../arena3d/ArenaDuel';
 import { useServerLobby } from '../lobby/useServerLobby';
@@ -14,12 +14,9 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const pairCode = useGameLobby(client)?.pairCode ?? '';
   // The match this phone engaged into. A reload lands back in the cockpit with the match ready to re-engage.
   const [entered, setEntered] = useState<string | null>(null);
-  const [voiceWorld, setVoiceWorld] = useState('');
   const [entering, setEntering] = useState(false);
   const [note, setNote] = useState('');
   const [travelDestination, setTravelDestination] = useState<'mars' | null>(null);
-  const frame = useRef<HTMLIFrameElement>(null);
-  const launchTimer = useRef<number | undefined>(undefined);
 
   const beginBriefing = useCallback((destination: 'mars') => {
     setNote('Travel complete. Connecting to the Mars match…');
@@ -38,26 +35,10 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       setNote(`The server selected ${view.world.name}, not Mars. This arena flow requires Mars.`);
       return;
     }
-    setVoiceWorld('');
     setNote('');
     setEntered(view.matchId);
     setTravelDestination(null);
   }, [travelDestination, view]);
-
-  const ready = useCallback(() => {
-    clearTimeout(launchTimer.current); setEntering(false);
-    void client.ready().then(reply => reply.status === 'rejected' && setNote(rejectionNote(reply)));
-  }, [client]);
-
-  useEffect(() => {
-    function message(event: MessageEvent) {
-      if (event.origin !== location.origin || event.source !== frame.current?.contentWindow) return;
-      if (event.data?.type === 'COPILOT_WORLD') setVoiceWorld(event.data.world);
-      if (event.data?.type === 'COPILOT_STOPPED') ready();
-    }
-    window.addEventListener('message', message);
-    return () => { window.removeEventListener('message', message); clearTimeout(launchTimer.current); };
-  }, [ready]);
 
   useEffect(() => client.onSaberResolved(event => {
     const mine = event.attackerSlot === client.view()?.you.slot;
@@ -70,13 +51,18 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const finishedUnseen = view?.phase === 'finished' && entered !== view.matchId;
   useEffect(() => { if (finishedUnseen) void client.leaveMatch(); }, [client, finishedUnseen]);
 
-  function launch() {
+  async function launch() {
+    if (entering) return;
     setEntering(true);
-    frame.current?.contentWindow?.postMessage({ type: 'COPILOT_STOP' }, location.origin);
-    launchTimer.current = window.setTimeout(ready, 1500);
+    try {
+      const reply = await client.ready();
+      if (reply.status === 'rejected') setNote(rejectionNote(reply));
+    } finally {
+      setEntering(false);
+    }
   }
   function leave() {
-    clearTimeout(launchTimer.current); setEntering(false); setVoiceWorld(''); setNote('');
+    setEntering(false); setNote('');
     setEntered(null);
     void client.leaveMatch();
   }
@@ -105,17 +91,15 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     {screen === 'briefing' && <>
       <section className="flight-panel">
         <p className="flight-eyebrow">JUMP COORDINATES CONFIRMED · VS {rival.callsign}</p>
-        <h1>The server picked {world.name}. Listen to the briefing.</h1>
+        <h1>The server picked {world.name}. Prepare for the duel.</h1>
         <p><strong>{world.gravityMps2} m/s²</strong> surface gravity (rounded <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/" target="_blank" rel="noreferrer">NASA</a> value) · lightsaber duel</p>
-        <p>Your laptop camera tracks your body and your iPhone is your lightsaber. Swing fast through your rival to hit; put your blade in the way of theirs to block. Step to move in the arena.</p>
-        <p className="flight-muted">Both pilots got the same world. Your copilot announces it automatically. If sound is paused by your browser, tap Play briefing below. Ask the copilot is optional for follow-up questions.</p>
-        <p role="status">{voiceWorld === world.id ? `Copilot state synced: ${world.name}.` : 'Connecting briefing state… If unavailable, start the local Voice server; the duel still works.'}</p>
+        <p>Your laptop camera tracks your body and your iPhone is your lightsaber. Swing fast through your rival to hit; put your blade in the way of theirs to block. Pinch and nudge your free hand, or use WASD / arrow keys to move.</p>
+        <p className="flight-muted">Both pilots got the same world. Press Ready to open the arena, then start your camera and pair your phone.</p>
         <p role="status">{rival.ready ? `${rival.callsign} is ready.` : `${rival.callsign} is still in the briefing.`}</p>
-        <button className="flight-primary" disabled={entering} onClick={launch}>{entering ? 'Stopping microphone…' : 'Ready — enter the arena'}</button>
+        <button className="flight-primary" disabled={entering} onClick={launch}>{entering ? 'Entering arena…' : 'Ready — enter the arena'}</button>
         {note && <p className="flight-muted">{note}</p>}
-        <p className="flight-muted">Entering combat stops the briefing microphone and audio. Start camera explicitly on the next screen. The round begins when both pilots are ready.</p>
+        <p className="flight-muted">The round begins when both pilots are ready. Saber hits remain disabled until both players finish camera and phone setup.</p>
       </section>
-      <iframe key={world.id} ref={frame} className="flight-voice" title="Grok Voice briefing" allow="microphone; autoplay" src={`/copilot/?world=${world.id}`} />
     </>}
     {screen === 'duel' && (
       <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} />

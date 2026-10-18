@@ -5,6 +5,17 @@
 
 export type PlayerSlot = 1 | 2;
 
+// Appearance is sent on join/update and in match views, never at pose frequency.
+export interface AvatarAppearance {
+  suit: "white" | "orange" | "blue" | "red" | "purple" | "black";
+  accent: "cyan" | "orange" | "green" | "magenta" | "gold" | "white";
+  saber: "blue" | "red" | "green" | "purple" | "yellow";
+  accessories: ("antenna" | "cape" | "patch" | "jetpack")[];
+  // Processed 128 × 160 PNG, not the source photo or a device-local storage ID.
+  face: string | null;
+}
+
+
 // "attacking" covers a weapon's wind-up after firing (rock only, for now).
 export type PlayerAction = "idle" | "attacking" | "blocking";
 
@@ -153,6 +164,7 @@ export interface World {
 }
 
 export interface PlayerState {
+  avatar?: AvatarAppearance;
   slot: PlayerSlot;
   // The public pilot ID from the lobby, not the phone's private playerId.
   pilotId: string;
@@ -255,6 +267,7 @@ export type Command =
   | { commandId: string; type: MatchCommandType }
   | { commandId: string; type: "challenge"; pilotId: string }
   | { commandId: string; type: "acceptChallenge" | "declineChallenge" | "cancelChallenge"; challengeId: string }
+  | { commandId: string; type: "setAvatar"; avatar: AvatarAppearance }
   | { commandId: string; type: "setCallsign"; callsign: string }
   | { commandId: string; type: "calibrateSaber"; calibration: SaberCalibration };
 

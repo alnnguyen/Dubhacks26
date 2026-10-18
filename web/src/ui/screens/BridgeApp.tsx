@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { clearPilotIdentity, loadPilotIdentity, type PilotIdentity } from '../../app/pilotIdentity';
 import { FlightApp } from '../../app/FlightApp';
 import { createGameClient, useGameLobby, useGameStatus, useGameView, type GameClient } from '../../networking';
@@ -8,6 +8,8 @@ import { SpaceshipHome } from './SpaceshipHome';
 import './bridge-mode.css';
 import { gameServerUrl } from '../../networking/gameEndpoint';
 
+const ArenaPreview = lazy(() => import('../../arena3d/ArenaPreview').then(m => ({default: m.ArenaPreview})));
+
 type LobbyMode = 'demo' | 'live';
 const MODE_KEY = 'sd.lobby.mode.v1';
 
@@ -16,13 +18,15 @@ function savedMode(): LobbyMode {
   catch { return 'live'; }
 }
 
-function ModeControls({mode, identity, locked = false, connection, onMode, onReset}: {
+function ModeControls({mode, identity, locked = false, connection, onMode, onReset, onPlayground}: {
   mode: LobbyMode;
   identity: PilotIdentity;
   locked?: boolean;
   connection?: string;
   onMode: (mode: LobbyMode) => void;
   onReset: () => void;
+  /** Demo only: open the arena with synthetic fighters wearing your avatar. */
+  onPlayground?: () => void;
 }) {
   const serverName = new URL(gameServerUrl() || location.origin).host;
   const status = locked ? 'Finish or cancel challenge to switch' : mode === 'demo' ? 'Demo: simulated pilots, no multiplayer' : connection === 'online' ? `Live: shared server ${serverName}` : connection === 'offline' ? 'Server offline; switch to Demo' : 'Connecting to game server';
@@ -35,6 +39,9 @@ function ModeControls({mode, identity, locked = false, connection, onMode, onRes
       </div>
       <span className="bridge-mode__status" role="status">{status}</span>
     </div>
+    {onPlayground && <button className="sd-shortcut" type="button" onClick={onPlayground} aria-label="Open playground" title="Try your avatar in the arena (no server needed)">
+      <span className="sd-shortcut__text"><span className="sd-shortcut__label">Playground</span><span className="sd-shortcut__meta">Arena</span></span>
+    </button>}
     <button className="sd-shortcut bridge-mode__reset" type="button" disabled={locked} onClick={onReset} aria-label="Reset pilot" title={`Reset ${identity.callsign}'s pilot`}>
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
     </button>
@@ -77,6 +84,7 @@ function LiveSession({client, identity, onMode, onReset}: {
 export function BridgeApp() {
   const [identity, setIdentity] = useState<PilotIdentity | null>(() => loadPilotIdentity());
   const [mode, setMode] = useState<LobbyMode>(savedMode);
+  const [playground, setPlayground] = useState(false);
   function changeMode(next: LobbyMode) {
     setMode(next);
     try { localStorage.setItem(MODE_KEY, next); } catch { /* private mode */ }
@@ -84,5 +92,6 @@ export function BridgeApp() {
   function reset() { clearPilotIdentity(); setIdentity(null); }
   if (!identity) return <OnboardingFlow onComplete={setIdentity} />;
   if (mode === 'live') return <LiveBridge identity={identity} onMode={changeMode} onReset={reset} />;
-  return <SpaceshipHome cockpitControls={<ModeControls mode="demo" identity={identity} onMode={changeMode} onReset={reset} />} />;
+  if (playground) return <Suspense fallback={<p className="bridge-mode__loading">Loading arena…</p>}><ArenaPreview onExit={() => setPlayground(false)} /></Suspense>;
+  return <SpaceshipHome cockpitControls={<ModeControls mode="demo" identity={identity} onMode={changeMode} onReset={reset} onPlayground={() => setPlayground(true)} />} />;
 }

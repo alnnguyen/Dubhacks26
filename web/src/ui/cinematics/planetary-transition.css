@@ -25,8 +25,8 @@
   right: auto;
   bottom: auto;
   left: 50%;
-  width: min(100vw, calc(100vh * 464 / 688));
-  height: min(100vh, calc(100vw * 688 / 464));
+  width: min(100vw, calc(100vh * 736 / 400));
+  height: min(100vh, calc(100vw * 400 / 736));
   transform: translate(-50%, -50%);
   object-fit: cover;
   opacity: 0;
@@ -36,8 +36,8 @@
 
 @supports (height: 100dvh) {
   .planetary-transition__video {
-    width: min(100vw, calc(100dvh * 464 / 688));
-    height: min(100dvh, calc(100vw * 688 / 464));
+    width: min(100vw, calc(100dvh * 736 / 400));
+    height: min(100dvh, calc(100vw * 400 / 736));
   }
 }
 

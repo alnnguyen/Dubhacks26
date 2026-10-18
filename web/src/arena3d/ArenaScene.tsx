@@ -2,10 +2,12 @@ import { Suspense, use, useMemo, useRef, type RefObject } from "react"
 import * as THREE from "three"
 import { Canvas, useFrame } from "@react-three/fiber"
 import { Bloom, EffectComposer } from "@react-three/postprocessing"
-import type { ArenaFrame, PlayerSlot, Vec3 } from "../../../server/src/contracts"
+import type { ArenaFrame, AvatarAppearance, PlayerSlot, Vec3 } from "../../../server/src/contracts"
 import { MarsEnvironment, loadTerrainSampler } from "../arena/mars/MarsEnvironment"
 import { ArenaAstronaut } from "./ArenaAstronaut"
-import type { AvatarLook } from "../features/avatars/components/AstronautAvatar"
+import { DEFAULT_AVATAR } from "../features/avatars/types/avatar"
+import { SABER_PALETTES } from "../features/avatars/utils/palette"
+import { useRemoteFace } from "../features/avatars/hooks/useRemoteFace"
 import { useSavedAvatar } from "../features/avatars/hooks/useSavedAvatar"
 
 /**
@@ -21,22 +23,8 @@ export const toThree = (v: Vec3): THREE.Vector3 => new THREE.Vector3(v[0], v[1],
 
 export type ImpactFlash = { kind: "blocked" | "hit"; at: Vec3; startedMs: number }
 
-const COLORS: Record<"you" | "rival", string> = { you: "#4cc3ff", rival: "#ff4b3a" }
-
-// The rival's saved avatar isn't sent over the wire yet, so they get a fixed red look.
-const RIVAL_LOOK: AvatarLook = { suit: "red", accent: "orange", saber: "red", accessories: [] }
-// Your own astronaut is ghosted so the shoulder camera can see the rival through it.
-const OWN_OPACITY = 0.4
-
-// MediaPipe pose bones drawn as limbs.
-const BONES: [number, number][] = [
-  [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
-  [11, 23], [12, 24], [23, 24],
-  [23, 25], [25, 27], [24, 26], [26, 28],
-]
-const LIMB_RADIUS = 0.045
-const HEAD_RADIUS = 0.11
-const NOSE = 0
+// Light ghosting keeps your own suit from hiding the opponent at main's camera distance.
+const OWN_OPACITY = 0.22
 
 const UP = new THREE.Vector3(0, 1, 0)
 
@@ -52,61 +40,6 @@ function placeBetween(mesh: THREE.Object3D, a: THREE.Vector3, b: THREE.Vector3) 
   mesh.position.copy(a).addScaledVector(dir, 0.5)
   mesh.quaternion.setFromUnitVectors(UP, dir.divideScalar(len))
   mesh.scale.set(1, len, 1)
-}
-
-function Avatar({ frameRef, slot, color, flashRef }: {
-  frameRef: RefObject<ArenaFrame | null>
-  slot: PlayerSlot
-  color: string
-  flashRef: RefObject<ImpactFlash | null>
-}) {
-  const limbs = useRef<(THREE.Mesh | null)[]>([])
-  const head = useRef<THREE.Mesh>(null)
-  const material = useMemo(
-    () => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6, transparent: true, opacity: 0.85 }),
-    [color],
-  )
-  const base = useMemo(() => new THREE.Color(color), [color])
-  const hurt = useMemo(() => new THREE.Color("#ffffff"), [])
-
-  useFrame(() => {
-    const player = frameRef.current?.players.find((p) => p.slot === slot)
-    const joints = player?.joints?.map(toThree) ?? null
-    BONES.forEach(([i, j], k) => {
-      const mesh = limbs.current[k]
-      if (!mesh) return
-      if (!joints) mesh.visible = false
-      else placeBetween(mesh, joints[i], joints[j])
-    })
-    if (head.current) {
-      head.current.visible = Boolean(joints)
-      if (joints) head.current.position.copy(joints[NOSE])
-    }
-    // A hit flashes the avatar white for a moment.
-    const flash = flashRef.current
-    const age = flash ? performance.now() - flash.startedMs : Infinity
-    const hitMe = flash?.kind === "hit" && age < 300 && player?.joints && isNear(flash.at, player.joints)
-    material.emissive.copy(hitMe ? hurt : base)
-    material.emissiveIntensity = hitMe ? 2.5 : 0.6
-  })
-
-  return (
-    <group>
-      {BONES.map((_, k) => (
-        <mesh key={k} ref={(m) => void (limbs.current[k] = m)} material={material} castShadow>
-          <cylinderGeometry args={[LIMB_RADIUS, LIMB_RADIUS, 1, 10]} />
-        </mesh>
-      ))}
-      <mesh ref={head} material={material} castShadow>
-        <sphereGeometry args={[HEAD_RADIUS, 20, 14]} />
-      </mesh>
-    </group>
-  )
-}
-
-function isNear(at: Vec3, joints: Vec3[]): boolean {
-  const chest = joints[11]
-  return Math.hypot(at[0] - chest[0], at[1] - chest[1], at[2] - chest[2]) < 0.8
 }
 
 function Blade({ frameRef, slot, color }: { frameRef: RefObject<ArenaFrame | null>; slot: PlayerSlot; color: string }) {
@@ -199,9 +132,9 @@ function ShoulderCamera({ frameRef, mySlot, groundY }: {
       : toThree([0, 1, mySlot === 1 ? 0 : 1.3])
     // The camera isn't inside the arena's ground group, so it adds the ground height itself.
     hips.y += groundY
-    const desired = hips.clone().addScaledVector(forward, -3.4).addScaledVector(right, 0.9).add(new THREE.Vector3(0, 1.3, 0))
+    const desired = hips.clone().addScaledVector(forward, -2.3).addScaledVector(right, 0.55).add(new THREE.Vector3(0, 0.95, 0))
     camera.position.lerp(desired, 0.12)
-    target.current.lerp(hips.clone().addScaledVector(forward, 1.3).add(new THREE.Vector3(0, 0.55, 0)), 0.12)
+    target.current.lerp(hips.clone().addScaledVector(forward, 1.4).add(new THREE.Vector3(0, 0.45, 0)), 0.12)
     camera.lookAt(target.current)
   })
   return null
@@ -211,6 +144,7 @@ type FightersProps = {
   frameRef: RefObject<ArenaFrame | null>
   flashRef: RefObject<ImpactFlash | null>
   mySlot: PlayerSlot
+  appearances?: Partial<Record<PlayerSlot, AvatarAppearance>>
 }
 
 /** Stands the arena on the Mars terrain at its center. */
@@ -219,21 +153,30 @@ function MarsFighters(props: FightersProps) {
   return <Fighters {...props} groundY={sampler.heightAt(0, -0.65)} />
 }
 
-function Fighters({ frameRef, flashRef, mySlot, groundY }: FightersProps & { groundY: number }) {
+function SuitedFighter({ frameRef, flashRef, slot, appearance, local = false }: {
+  frameRef: RefObject<ArenaFrame | null>
+  flashRef: RefObject<ImpactFlash | null>
+  slot: PlayerSlot
+  appearance?: AvatarAppearance
+  local?: boolean
+}) {
+  const saved = useSavedAvatar()
+  const remoteFace = useRemoteFace(appearance?.face)
+  const look = appearance ?? (local ? saved.look : DEFAULT_AVATAR)
+  const face = appearance ? remoteFace : local ? saved.faceTexture : null
+  return <>
+    <ArenaAstronaut frameRef={frameRef} flashRef={flashRef} slot={slot} look={look} faceTexture={face} opacity={local ? OWN_OPACITY : 1} />
+    <Blade frameRef={frameRef} slot={slot} color={SABER_PALETTES[look.saber].glow} />
+  </>
+}
+
+function Fighters({ frameRef, flashRef, mySlot, groundY, appearances }: FightersProps & { groundY: number }) {
   const rivalSlot: PlayerSlot = mySlot === 1 ? 2 : 1
-  const mine = useSavedAvatar()
   return (
     <group position={[0, groundY, 0]}>
       <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} />
-      {/* Astronauts; the stick figure stands in while the model loads. */}
-      <Suspense fallback={<Avatar frameRef={frameRef} slot={mySlot} color={COLORS.you} flashRef={flashRef} />}>
-        <ArenaAstronaut frameRef={frameRef} flashRef={flashRef} slot={mySlot} look={mine.look} faceTexture={mine.faceTexture} opacity={OWN_OPACITY} />
-      </Suspense>
-      <Suspense fallback={<Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} />}>
-        <ArenaAstronaut frameRef={frameRef} flashRef={flashRef} slot={rivalSlot} look={RIVAL_LOOK} />
-      </Suspense>
-      <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} />
-      <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} />
+      <SuitedFighter frameRef={frameRef} flashRef={flashRef} slot={mySlot} appearance={appearances?.[mySlot]} local />
+      <SuitedFighter frameRef={frameRef} flashRef={flashRef} slot={rivalSlot} appearance={appearances?.[rivalSlot]} />
       <Impact flashRef={flashRef} />
       {/* The two calibrated spots. */}
       {[0, 1.3].map((z) => (
@@ -246,10 +189,11 @@ function Fighters({ frameRef, flashRef, mySlot, groundY }: FightersProps & { gro
   )
 }
 
-export function ArenaScene({ frameRef, flashRef, mySlot }: {
+export function ArenaScene({ frameRef, flashRef, mySlot, appearances }: {
   frameRef: RefObject<ArenaFrame | null>
   flashRef: RefObject<ImpactFlash | null>
   mySlot: PlayerSlot
+  appearances?: Partial<Record<PlayerSlot, AvatarAppearance>>
 }) {
   return (
     <Canvas
@@ -266,12 +210,12 @@ export function ArenaScene({ frameRef, flashRef, mySlot }: {
             <color attach="background" args={["#1b0f0b"]} />
             <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
             <gridHelper args={[10, 20, "#a8643c", "#4a2a1a"]} />
-            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} groundY={0} />
+            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} groundY={0} appearances={appearances} />
           </>
         }
       >
         <MarsEnvironment quality="low" obstacles={[]} />
-        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} />
+        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} appearances={appearances} />
       </Suspense>
       <EffectComposer multisampling={0} enableNormalPass={false}>
         <Bloom mipmapBlur intensity={0.9} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.55} />

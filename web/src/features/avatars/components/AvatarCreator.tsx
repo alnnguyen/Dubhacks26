@@ -80,7 +80,7 @@ export function AvatarCreator({ onContinue, onBack, defaultName }: AvatarCreator
             </button>
           )}
         </div>
-        <p className="face-summary__privacy">Photos are processed and stored only on this device.</p>
+        <p className="face-summary__privacy">Photos are processed on this device. Your cropped avatar face is shared with your opponent during live matches.</p>
       </div>
       <input
         ref={fileInput}
