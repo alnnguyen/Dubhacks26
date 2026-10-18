@@ -69,6 +69,7 @@ const GRAVITY: Record<WorldId, { name: string; gravityMps2: number }> = {
   earth: { name: "Earth", gravityMps2: 9.8 },
   mars: { name: "Mars", gravityMps2: 3.7 },
   moon: { name: "Moon", gravityMps2: 1.6 },
+  neptune: { name: "Neptune", gravityMps2: 11.2 },
 };
 
 export const WORLD_IDS = Object.keys(GRAVITY) as WorldId[];

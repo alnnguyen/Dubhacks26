@@ -137,3 +137,10 @@ Shared music/effects mixer and supplied audio pack integrated into alex-dev work
 - Goal: lightsaber-only combat, as requested by Justin. Removed rock/gun server commands, state, events and rules; matching web client API; the old phone-camera duel (LiveDuel, CameraDebugPage, DevMars, vision, overlay, gun model) and its routes. See docs/contracts.md. Excludes D's Grok briefing fixtures, shared manifests/dependencies and deployment.
 - Validation: server build plus 70 game/session/socket tests passed; web typecheck, 94 tests (one opt-in live test skipped) and production build passed. No device check yet.
 - Status: Integration; staged on saber-duel for Justin to commit. No new environment variables, external messages or deployment.
+## Neptune destination — `feature/neptune-arena` (not merged)
+
+- Goal: Neptune as a second selectable destination beside Mars. Cockpit destination picker → roulette locks the chosen planet → Neptune cinematic (`web/public/assets/neptune/spacetosaturn.mp4`) → live 3D floating station is compiled behind the video, crossfades in over the last 0.6 s, camera eases toward the platform → server-backed briefing/arena. Mars flow unchanged.
+- Interface: `challenge` command gains optional `destination` (see `docs/contracts.md`); `WorldId` gains `neptune`. Affects B (server/contracts) and A (cockpit/cinematics).
+- Checks run: web `tsc --noEmit`, `vitest run` (100 passed / 1 skipped), `vite build`; server `npm test` (76 passed). Not yet exercised in a browser on real devices or in a live two-client match.
+- Review routes: `/?arena=neptune` (orbit the station), `/?journey=neptune` (cinematic → live handoff), `/?dev=arena&destination=neptune` (synthetic fighters).
+- Deploy server and client together before using Neptune in real matches. Not deployed or pushed.

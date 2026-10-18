@@ -1,3 +1,5 @@
+import { NeptuneEnvironment } from '../arena/neptune/NeptuneEnvironment';
+import type { DestinationId } from '../destinations/config';
 import { Suspense, use, useMemo, useRef, type RefObject } from "react"
 import * as THREE from "three"
 import { Canvas, useFrame } from "@react-three/fiber"
@@ -371,7 +373,8 @@ function FrameSampler({ getFrame, frameRef }: { getFrame: () => ArenaFrame | nul
   return null
 }
 
-export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false }: {
+export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false, destination = 'mars' }: {
+  destination?: DestinationId;
   basicGraphics?: boolean
   /** The arena to draw right now: blended server frames, with your own fighter drawn locally. */
   getFrame: () => ArenaFrame | null
@@ -385,11 +388,14 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
       className="arena-canvas"
       dpr={[1, 1.5]}
       shadows
-      camera={{ fov: 55, near: 0.05, far: 400, position: [0, 2, 2.5] }}
+      camera={{ fov: 55, near: 0.05, far: 2400, position: [0, 2, 2.5] }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
       <FrameSampler getFrame={getFrame} frameRef={frameRef} />
-      {basicGraphics ? <>
+      {destination==='neptune'?<>
+        <NeptuneEnvironment/>
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0}/>
+      </>:basicGraphics ? <>
         <color attach="background" args={["#1b0f0b"]} />
         <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
         <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>

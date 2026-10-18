@@ -452,7 +452,7 @@ function Planet({
     const nextAppearance = finalSelection ? (selected ? 2 : 3) : selected ? 1 : 0;
     if (appearance.current !== nextAppearance) {
       markerMaterial.color.copy(
-        nextAppearance === 2 ? MARKER_LOCKED : nextAppearance === 1 ? MARKER_SELECTED : MARKER_CYAN,
+        nextAppearance === 2 ? (definition.id==='neptune' ? MARKER_CYAN : MARKER_LOCKED) : nextAppearance === 1 ? MARKER_SELECTED : MARKER_CYAN,
       );
       material.color.copy(nextAppearance === 3 ? PLANET_DIM : PLANET_WHITE);
       appearance.current = nextAppearance;
@@ -466,7 +466,7 @@ function Planet({
       <group ref={surface}>
         <mesh geometry={geometry} material={material} />
         {definition.id === 'earth' && <EarthLayers geometry={geometry} sunDirection={earthSunDirection.current} />}
-        {definition.id === 'mars' && (
+        {(definition.id === 'mars' || definition.id === 'neptune') && (
           <MarsAtmosphere geometry={geometry} phase={phase} reducedMotion={reducedMotion} color={definition.glow} />
         )}
       </group>
@@ -723,7 +723,7 @@ export function PlanetaryRoulette({
           geometry={geometry}
           selected={planet.id === selectedPlanet}
           phase={phase}
-          marsTarget={planet.id === 'mars' ? marsTarget : undefined}
+          marsTarget={planet.id === selectedPlanet ? marsTarget : undefined}
           registerPlanet={registerPlanet}
           reducedMotion={reducedMotion}
         />

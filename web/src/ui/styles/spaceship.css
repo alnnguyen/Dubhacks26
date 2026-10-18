@@ -1491,3 +1491,4 @@ body,
   animation: none;
   opacity: 1;
 }
+.sd-destination{pointer-events:auto;color:#9ad9e8;font:10px monospace;letter-spacing:.08em;display:flex;align-items:center;gap:8px}.sd-destination select{color:#dff9ff;background:#102a3c;border:1px solid #41788c;padding:8px;font:12px monospace}.sd-destination select:focus-visible{outline:2px solid #8ef2ff}@media(max-width:650px){.sd-destination{position:absolute;top:76px;left:20px}}

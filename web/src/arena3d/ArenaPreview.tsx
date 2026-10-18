@@ -1,3 +1,4 @@
+import { destinationFromWorld } from '../destinations/config';
 import { useEffect, useRef, useState } from "react"
 import type { ArenaFrame, PlayerSlot, Vec3 } from "../../../server/src/contracts"
 import { ArenaScene, type ImpactFlash } from "./ArenaScene"
@@ -76,7 +77,7 @@ export function ArenaPreview() {
 
   return (
     <main className="arena-duel">
-      <ArenaScene getFrame={() => frameRef.current} flashRef={flashRef} mySlot={view} board={{ cellSize: 0.65, rows: 3 }} />
+      <ArenaScene destination={destinationFromWorld(new URLSearchParams(location.search).get("destination")??"mars")} getFrame={() => frameRef.current} flashRef={flashRef} mySlot={view} board={{ cellSize: 0.65, rows: 3 }} />
       <div className="arena-hud">
         <p className="arena-note">Dev preview: synthetic fighters (blue = the viewing player). Not a match.</p>
         <button type="button" className="arena-leave" onClick={() => setView(view === 1 ? 2 : 1)}>

@@ -11,7 +11,10 @@ const saberCode = search.get('saber');
 const devArena = search.get('dev') === 'arena';
 
 const soundCheck = search.get('audio') === 'check';
-const Screen = soundCheck
+const neptunePreview=search.get('arena')==='neptune'||search.get('journey')==='neptune';
+const Screen = neptunePreview
+  ? lazy(async()=>{const m=await import('./arena/neptune/NeptunePreview');return {default:m.NeptunePreview};})
+  : soundCheck
   ? lazy(async () => { const m = await import('./audio/SoundCheck'); return { default: m.SoundCheck }; })
   : devArena
   ? lazy(async () => {

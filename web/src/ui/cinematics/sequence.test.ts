@@ -57,3 +57,13 @@ describe('rendered cinematic clock', () => {
     expect(advanceCinematicFrame(steps, cursor.index, 0, 10)).toEqual(cursor);
   });
 });
+
+it('locks and zooms the chosen destination while retaining all eight roulette stops',()=>{
+ for(const destination of ['mars','neptune'] as const){
+  const steps=buildPlanetarySequence(false,destination);
+  const stops=steps.filter(s=>s.state.phase==='roulette');
+  expect(new Set(stops.map(s=>s.state.selectedPlanet)).size).toBe(8);
+  expect(stops.at(-1)?.state.selectedPlanet).toBe(destination);
+  expect(steps.filter(s=>['locked','zooming','flash','video'].includes(s.state.phase)).every(s=>s.state.selectedPlanet===destination)).toBe(true);
+ }
+});

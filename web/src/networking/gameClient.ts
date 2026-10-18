@@ -107,7 +107,7 @@ export interface GameClient {
   sendBodyPose(pose: Omit<BodyPose, "seq">): void
   /** Stored on the phone and sent on every join, so it survives reloads. */
   setCallsign(callsign: string): Promise<ClientReply>
-  challenge(pilotId: string): Promise<ClientReply>
+  challenge(pilotId: string, destination?: "mars" | "neptune"): Promise<ClientReply>
   acceptChallenge(challengeId: string): Promise<ClientReply>
   declineChallenge(challengeId: string): Promise<ClientReply>
   cancelChallenge(challengeId: string): Promise<ClientReply>
@@ -235,7 +235,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
       writeStorage(storage, CALLSIGN_KEY, callsign)
       return send({ type: "setCallsign", callsign })
     },
-    challenge: (pilotId) => send({ type: "challenge", pilotId }),
+    challenge: (pilotId, destination) => send({ type: "challenge", pilotId, ...(destination ? { destination } : {}) }),
     acceptChallenge: (challengeId) => send({ type: "acceptChallenge", challengeId }),
     declineChallenge: (challengeId) => send({ type: "declineChallenge", challengeId }),
     cancelChallenge: (challengeId) => send({ type: "cancelChallenge", challengeId }),

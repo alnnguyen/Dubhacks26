@@ -135,3 +135,17 @@ Follow-up: new in-match command `forfeit` (`GameClient.forfeit()`): gives the ro
 Follow-up: every round now has the countdown, not just rematches. `RULES.rematchCountdownMs` → `RULES.countdownMs` (3000). The countdown starts on the first server tick of an `active` round where both players are armed (body calibrated, phone live, setup done), so `startsInMs` stays null during the first round's setup. After a rematch the players are usually still armed, so it starts on the next tick. Swings never count before it ends. Steps are refused only while it is running (still allowed during setup). Wire shapes unchanged.
 
 Follow-up: `SaberStatus.match.startsInMs` added (same value as the laptop's `PlayerView.startsInMs`), so the paired phone shows the 3-2-1-FIGHT countdown with a chime per number. Laptop and phone share `web/src/arena3d/useCountdown.ts`.
+
+## Neptune destination — feature/neptune-arena, user-authorized integration
+
+The existing authenticated, deduplicated `challenge` command gains optional
+`destination: "mars" | "neptune"`. The server rejects other values, stores the
+request on that challenge, and chooses the match world once on acceptance.
+Omitting it preserves the existing server `pickWorld` behavior (Mars by default).
+`WorldId` gains `neptune`, with 11.2 m/s² reference gravity; the arena is a
+fictional floating station, not solid Neptune terrain. Saber timing/damage are
+unchanged. Both clients route travel/environment from the authoritative view,
+including after reconnect. No new events, ready semantics, controller changes,
+or provider calls. A/B/C handoff is recorded here and in the task board; no
+external messages or deployment were sent. Deploy both updated server and client
+together before using Neptune in real matches.

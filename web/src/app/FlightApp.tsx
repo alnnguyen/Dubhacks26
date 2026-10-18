@@ -1,3 +1,4 @@
+import { destinationFromWorld, DESTINATIONS, type DestinationId } from '../destinations/config';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { SpaceshipHome } from '../ui/screens/SpaceshipHome';
 import { ArenaDuel } from '../arena3d/ArenaDuel';
@@ -9,7 +10,8 @@ import { useAudioScene } from '../audio/useAudioScene';
 // Every match number below comes from the game server's view; this screen only displays it.
 export function FlightApp({client: providedClient, cockpitControls}: {client?: GameClient; cockpitControls?: ReactNode} = {}) {
   const client = providedClient ?? getGameClient();
-  const lobby = useServerLobby(client);
+  const [chosenDestination,setChosenDestination]=useState<DestinationId>('mars');
+  const lobby = useServerLobby(client,chosenDestination);
   const view = useGameView(client);
   // Private pair code: a phone opening /?saber=<code> becomes this pilot's lightsaber.
   const pairCode = useGameLobby(client)?.pairCode ?? '';
@@ -18,14 +20,14 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const [voiceWorld, setVoiceWorld] = useState('');
   const [entering, setEntering] = useState(false);
   const [note, setNote] = useState('');
-  const [travelDestination, setTravelDestination] = useState<'mars' | null>(null);
+  const [travelDestination, setTravelDestination] = useState<DestinationId | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const launchTimer = useRef<number | undefined>(undefined);
   const audioScene = !view || entered !== view.matchId ? null : view.phase === 'finished' ? 'result' : view.phase === 'waiting' && !view.you.ready ? 'briefing' : 'battle';
   useAudioScene(audioScene);
 
-  const beginBriefing = useCallback((destination: 'mars') => {
-    setNote('Travel complete. Connecting to the Mars match…');
+  const beginBriefing = useCallback((destination: DestinationId) => {
+    setNote(`Travel complete. Connecting to ${DESTINATIONS[destination].displayName}…`);
     setTravelDestination(destination);
   }, []);
 
@@ -38,7 +40,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     }
     if (view.world.id !== travelDestination) {
       setTravelDestination(null);
-      setNote(`The server selected ${view.world.name}, not Mars. This arena flow requires Mars.`);
+      setNote(`The server selected ${view.world.name}, not the arrival destination. Return to the cockpit and try again.`);
       return;
     }
     setVoiceWorld('');
@@ -104,6 +106,8 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       <>
         <SpaceshipHome
           lobby={lobby}
+          destination={view?destinationFromWorld(view.world.id):chosenDestination}
+          onDestinationChange={setChosenDestination}
           onTravelComplete={beginBriefing}
           cockpitControls={cockpitControls}
           copilotClient={client}

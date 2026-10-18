@@ -17,7 +17,7 @@ import type { ChallengePhase, LobbyViewModel, NearbyPilot, PilotProfile } from '
  * server's room. Only `launching` (the Engage transition) and dismissed
  * declined banners are local UI state.
  */
-export function useServerLobby(client: GameClient = getGameClient()): LobbyViewModel {
+export function useServerLobby(client: GameClient = getGameClient(), destination: "mars" | "neptune" = "mars"): LobbyViewModel {
   const connection = useGameStatus(client);
   const lobby = useGameLobby(client);
   const view = useGameView(client);
@@ -30,7 +30,7 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
 
   const actions = useMemo<LobbyViewModel['actions']>(
     () => ({
-      challenge: (pilotId) => void client.challenge(pilotId),
+      challenge: (pilotId) => void client.challenge(pilotId, destination),
       cancelChallenge: () => challengeId && void client.cancelChallenge(challengeId),
       accept: () => challengeId && void client.acceptChallenge(challengeId),
       decline: () => challengeId && void client.declineChallenge(challengeId),
@@ -46,7 +46,7 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
         if (saved) void client.setCallsign(saved);
       },
     }),
-    [client, challengeId],
+    [client, challengeId, destination],
   );
 
   return {

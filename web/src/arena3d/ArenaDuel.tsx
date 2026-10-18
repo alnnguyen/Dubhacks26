@@ -1,3 +1,4 @@
+import { destinationFromWorld } from '../destinations/config';
 import { Component, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import QRCode from "qrcode";
@@ -470,6 +471,7 @@ export function ArenaDuel({
     <main className="arena-duel">
       <ArenaRenderBoundary key={renderAttempt} onLeave={onLeave} onBasic={() => { setBasicGraphics(true); setRenderAttempt((n) => n + 1); }}>
       <ArenaScene
+        destination={destinationFromWorld(view.world.id)}
         basicGraphics={basicGraphics}
         getFrame={getFrame}
         flashRef={flashRef}

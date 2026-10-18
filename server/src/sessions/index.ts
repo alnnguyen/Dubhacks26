@@ -45,6 +45,7 @@ interface PilotRecord {
 }
 
 interface ChallengeRecord {
+  destination?: "mars" | "neptune";
   id: string;
   challenger: PilotRecord;
   defender: PilotRecord;
@@ -257,13 +258,14 @@ export class Lobby {
 
       case "challenge": {
         if (typeof command.pilotId !== "string") return "invalid_command";
+        if (command.destination !== undefined && command.destination !== "mars" && command.destination !== "neptune") return "invalid_command";
         if (pilot.match) return "in_match";
         if (this.pendingChallengeOf(pilot)) return "busy";
         const defender = [...this.pilots.values()].find((p) => p.id === command.pilotId);
         if (!defender || defender === pilot || !defender.connected || defender.match || this.pendingChallengeOf(defender)) {
           return "pilot_unavailable";
         }
-        this.open(pilot, defender);
+        this.open(pilot, defender, command.destination);
         return null;
       }
 
@@ -277,7 +279,7 @@ export class Lobby {
 
         if (command.type === "acceptChallenge") {
           this.close(challenge, "accepted");
-          this.startMatch(challenge.challenger, challenge.defender);
+          this.startMatch(challenge.challenger, challenge.defender, challenge.destination);
         } else {
           this.close(challenge, command.type === "declineChallenge" ? "declined" : "cancelled");
         }
@@ -301,11 +303,12 @@ export class Lobby {
     }
   }
 
-  private open(challenger: PilotRecord, defender: PilotRecord): void {
+  private open(challenger: PilotRecord, defender: PilotRecord, destination?: "mars" | "neptune"): void {
     const challenge: ChallengeRecord = {
       id: `ch${this.nextChallenge++}`,
       challenger,
       defender,
+      destination,
       status: "pending",
       expiresAt: Date.now() + RULES.challengeExpiryMs,
     };
@@ -328,11 +331,11 @@ export class Lobby {
     return challenge?.status === "pending" ? challenge : undefined;
   }
 
-  private startMatch(challenger: PilotRecord, defender: PilotRecord): void {
+  private startMatch(challenger: PilotRecord, defender: PilotRecord, destination?: "mars" | "neptune"): void {
     const seats = { 1: challenger, 2: defender } as const;
     const match = new Match(
       `m${this.nextMatch++}`,
-      this.pickWorld(),
+      destination ?? this.pickWorld(),
       {
         1: { pilotId: challenger.id, callsign: challenger.callsign },
         2: { pilotId: defender.id, callsign: defender.callsign },
