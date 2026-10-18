@@ -9,6 +9,8 @@ export interface CameraControllerProps {
   parallax: boolean;
   /** A HUD panel is open: reframe so the focused console isn't hidden behind it. */
   panelOpen: boolean;
+  /** Main cockpit view: let turning the phone look around widely. */
+  lookAround: boolean;
 }
 
 /** Vertical FOV that keeps ~64° horizontally on portrait phones, capped for landscape. */
@@ -18,11 +20,15 @@ function fovForAspect(aspect: number) {
   return THREE.MathUtils.clamp(vfov, 50, 96);
 }
 
+/** Free look range (degrees) from turning the phone: wide on the main cockpit, a nudge elsewhere. */
+const LOOK_RANGE = { open: { yaw: 40, pitch: 22 }, focused: { yaw: 5, pitch: 3 } } as const;
+
 /**
- * Pilot camera: eases between console poses, adds a slow idle drift and a
- * limited pointer/touch parallax. Never lets the user free-look.
+ * Pilot camera: eases between console poses, adds a slow idle drift, a
+ * limited pointer/touch parallax, and turn-to-look from the phone's gyroscope
+ * (wide on the main cockpit view only).
  */
-export function CameraController({ pose, reducedMotion, parallax, panelOpen }: CameraControllerProps) {
+export function CameraController({ pose, reducedMotion, parallax, panelOpen, lookAround }: CameraControllerProps) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const gl = useThree((s) => s.gl);
   const pos = useRef(new THREE.Vector3(...pose.position));
@@ -30,6 +36,8 @@ export function CameraController({ pose, reducedMotion, parallax, panelOpen }: C
   const desiredPos = useMemo(() => new THREE.Vector3(), []);
   const desiredTgt = useMemo(() => new THREE.Vector3(), []);
   const pointer = useRef({ x: 0, y: 0, tx: 0, ty: 0 });
+  /** Raw phone-turn angles (deg) and their smoothed values (rad). */
+  const gyro = useRef({ yaw: 0, pitch: 0, sy: 0, sp: 0 });
   const fov = useRef(camera.fov);
   const look = useMemo(() => new THREE.Vector3(), []);
   const right = useMemo(() => new THREE.Vector3(), []);
@@ -54,33 +62,29 @@ export function CameraController({ pose, reducedMotion, parallax, panelOpen }: C
     const onUp = (e: PointerEvent) => {
       if (e.pointerType !== 'mouse') {
         touchStart = null;
-        pointer.current.tx = tilt.x;
-        pointer.current.ty = tilt.y;
+        pointer.current.tx = 0;
+        pointer.current.ty = 0;
       }
     };
 
-    // Phone tilt: lean relative to how the phone is being held. The baseline
-    // slowly follows the current pose, so holding still recenters the view.
-    const tilt = { x: 0, y: 0 };
-    let base: { a: number; b: number } | null = null;
-    const TILT_RANGE = 18; // degrees of tilt for a full lean
+    // Phone turn: yaw from compass heading (alpha), pitch from front/back tilt
+    // (beta, or gamma in landscape). Angles are relative to where the phone was
+    // first held; the baseline drifts slowly so a changed posture re-settles.
+    let base: { alpha: number; pitch: number } | null = null;
+    const RECENTER = 0.0008;
     const onOrient = (e: DeviceOrientationEvent) => {
       if (e.beta == null || e.gamma == null) return;
       const angle = screen.orientation?.angle ?? (window as { orientation?: number }).orientation ?? 0;
-      // Map device axes to screen axes for the current orientation.
-      let a = e.gamma; // left/right
-      let b = e.beta; // toward/away
-      if (angle === 90) [a, b] = [e.beta, -e.gamma];
-      else if (angle === -90 || angle === 270) [a, b] = [-e.beta, e.gamma];
-      if (!base) base = { a, b };
-      base.a += (a - base.a) * 0.01;
-      base.b += (b - base.b) * 0.01;
-      tilt.x = THREE.MathUtils.clamp((a - base.a) / TILT_RANGE, -1, 1);
-      tilt.y = THREE.MathUtils.clamp((b - base.b) / TILT_RANGE, -1, 1);
-      if (!touchStart) {
-        pointer.current.tx = tilt.x;
-        pointer.current.ty = tilt.y;
-      }
+      let pitch = e.beta;
+      if (angle === 90) pitch = -e.gamma;
+      else if (angle === -90 || angle === 270) pitch = e.gamma;
+      const alpha = e.alpha ?? 0;
+      if (!base) base = { alpha, pitch };
+      const dAlpha = ((alpha - base.alpha + 540) % 360) - 180;
+      base.alpha += dAlpha * RECENTER;
+      base.pitch += (pitch - base.pitch) * RECENTER;
+      gyro.current.yaw = dAlpha;
+      gyro.current.pitch = pitch - base.pitch;
     };
     const resetBase = () => (base = null);
     const startTilt = () => window.addEventListener('deviceorientation', onOrient);
@@ -152,6 +156,16 @@ export function CameraController({ pose, reducedMotion, parallax, panelOpen }: C
     camera.position.copy(pos.current).addScaledVector(right, sx + p.x * 0.07).addScaledVector(up, sy + p.y * 0.04);
     look.copy(tgt.current).addScaledVector(right, p.x * 0.38 + sx * 2).addScaledVector(up, p.y * 0.24 + sy * 2);
     camera.lookAt(look);
+
+    // Turn-to-look: yaw about world up, then pitch about the camera's own X axis.
+    const g = gyro.current;
+    const range = lookAround ? LOOK_RANGE.open : LOOK_RANGE.focused;
+    const yaw = parallax ? THREE.MathUtils.clamp(g.yaw, -range.yaw, range.yaw) : 0;
+    const pitch = parallax ? THREE.MathUtils.clamp(g.pitch, -range.pitch, range.pitch) : 0;
+    g.sy = THREE.MathUtils.damp(g.sy, THREE.MathUtils.degToRad(yaw), 7, dt);
+    g.sp = THREE.MathUtils.damp(g.sp, THREE.MathUtils.degToRad(pitch), 7, dt);
+    camera.rotateOnWorldAxis(up, g.sy);
+    camera.rotateX(g.sp);
     if (idle) camera.rotateZ(Math.sin(t * 0.17) * 0.0035);
 
     const desiredFov = fovForAspect(size.width / size.height) * pose.fovScale;
