@@ -201,6 +201,9 @@
 
 .duel-stage--immersive .overlay {
   z-index: 2;
+  /* Matches the cutout's zoom so thrown rocks still land on the opponent. */
+  transform: scale(var(--mars-zoom, 1.35));
+  transform-origin: var(--mars-zoom-origin, 50% 55%);
 }
 
 .duel-stage--immersive .lock-banner {
@@ -305,4 +308,14 @@
   align-items: center;
   gap: 6px;
   min-height: 32px;
+}
+
+.mars-dev__zoom {
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: 2px !important;
+}
+
+.mars-dev__zoom input {
+  width: 100%;
 }

@@ -13,8 +13,11 @@ import { CameraStartError, type CameraDevices } from "./openRearCamera"
 import { openDebugCamera, type DebugCameraKind } from "./openDebugCamera"
 import {
   createVisionBundle,
+  DEEPLAB_PERSON,
   handsFromLandmarker,
+  poseCenter,
   poseFromLandmarker,
+  selectOpponentIndex,
   type PoseOverlay,
   type VisionBundle,
 } from "./mediapipeVision"
@@ -22,6 +25,7 @@ import { drawCameraOverlay } from "./drawOverlay"
 import { PersonMask } from "../arena/segmentation"
 import { useDeviceAim } from "../arena/mars/useDeviceAim"
 import type { ArenaObstacle } from "../arena/mars/obstacles"
+import { arenaDev } from "../arena/devFlags"
 
 // Immersive Mars arena (3D scene + segmented opponent). Lazy so other routes don't load it.
 const MarsDuelBackdrop = lazy(() => import("../arena/MarsDuelBackdrop"))
@@ -29,6 +33,7 @@ const MarsDuelBackdrop = lazy(() => import("../arena/MarsDuelBackdrop"))
 const SESSION_ID = "debug-pilot"
 const MATCH_ID = "debug-match"
 const POSE_EVERY_N_FRAMES = 2
+const SCENE_EVERY_N_FRAMES = 3
 const idleTouch: TouchInput = { lift: false, throw: false, block: false, cancel: false }
 
 type LogLine = { at: string; text: string }
@@ -89,6 +94,7 @@ export function CameraDebugPage({
   const visionRef = useRef<VisionBundle | null>(null)
   const stopCameraRef = useRef<(() => void) | null>(null)
   const poseRef = useRef<PoseOverlay | null>(null)
+  const opponentCenterRef = useRef<{ x: number; y: number } | null>(null)
   const frameRef = useRef(0)
   const rafRef = useRef(0)
   const lastVideoTimeRef = useRef(-1)
@@ -147,7 +153,8 @@ export function CameraDebugPage({
     setError(null)
     setStatus("Loading MediaPipe…")
     try {
-      const vision = await createVisionBundle({ segmentation: immersive })
+      // Immersive arena: track up to 3 people so bystanders don't steal the opponent.
+      const vision = await createVisionBundle({ segmentation: immersive, numPoses: immersive ? 3 : 1, sceneSegmentation: immersive })
       if (generation !== cameraGenerationRef.current) {
         vision.close()
         return
@@ -242,8 +249,25 @@ export function CameraDebugPage({
 
       if (frameRef.current % POSE_EVERY_N_FRAMES === 0) {
         const poseResult = vision.poseLandmarker.detectForVideo(video, nowMs + 0.001)
-        poseRef.current = poseFromLandmarker(poseResult)
+        if (immersive) arenaDev.stats.people = poseResult.landmarks.length
+        if (poseResult.landmarks.length > 1) {
+          const index = selectOpponentIndex(poseResult.landmarks, opponentCenterRef.current)
+          poseRef.current = index >= 0 ? poseFromLandmarker(poseResult, index) : null
+        } else {
+          poseRef.current = poseFromLandmarker(poseResult)
+        }
+        opponentCenterRef.current = poseRef.current ? poseCenter(poseRef.current.landmarks) : null
         if (vision.segmentation) personMask.update(poseResult.segmentationMasks, nowMs)
+      }
+
+      // Scene segmentation (all people in view) on alternate frames, immersive arena only.
+      if (vision.sceneSegmenter && arenaDev.sceneSegmentation && frameRef.current % SCENE_EVERY_N_FRAMES === 1) {
+        const scene = vision.sceneSegmenter.segmentForVideo(video, nowMs + 0.002)
+        try {
+          personMask.updateScene(scene.categoryMask, DEEPLAB_PERSON, nowMs)
+        } finally {
+          scene.close()
+        }
       }
 
       const lock = tickHandLock(lockRef.current, { nowMs, hands })

@@ -4,7 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import type { PersonMask } from './segmentation'
 import type { PoseOverlay } from '../camera/mediapipeVision'
 import { bindUniforms } from '../three/bindUniforms'
-import { arenaDev } from './devFlags'
+import { applyArenaZoomCss, arenaDev, arenaView } from './devFlags'
 
 /**
  * Screen-space pass that draws the real opponent (camera pixels where the
@@ -28,11 +28,13 @@ uniform vec3 uWrap;       // ambient sky color for edge light-wrap
 uniform vec3 uShadow;     // xy = feet position (video uv), z = width (0 = none)
 uniform float uMirror;
 uniform float uDebug;
+uniform vec3 uZoom;      // xy = anchor (screen uv, bottom-up), z = zoom
 uniform float uGhost;    // 0..1 raw camera shown under/around the cutout
 varying vec2 vUv;
 
 void main() {
-  vec2 uv = vUv * uCover.xy + uCover.zw;            // bottom-up, like the video texture (flipY)
+  vec2 sv = (vUv - uZoom.xy) / uZoom.z + uZoom.xy;   // same zoom as the CSS on the rock overlay
+  vec2 uv = sv * uCover.xy + uCover.zw;              // bottom-up, like the video texture (flipY)
   if (uMirror > 0.5) uv.x = 1.0 - uv.x;
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) discard;
   vec2 uvT = vec2(uv.x, 1.0 - uv.y);                 // top-down: mask rows and MediaPipe landmarks
@@ -110,11 +112,13 @@ export function OpponentCutout({
       uShadow: { value: new THREE.Vector3(0, 0, 0) },
       uMirror: { value: mirror ? 1 : 0 },
       uGhost: { value: 0 },
+      uZoom: { value: new THREE.Vector3(0.5, 0.45, 1) },
       uDebug: { value: import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('cutoutDebug') ?? 0) : 0 },
     }),
     [videoTex, mask, wrapColor, mirror],
   )
 
+  useEffect(() => applyArenaZoomCss(), [])
   const lastVideoTime = useRef(-1)
   const mountedAt = useRef(performance.now())
   const urlDebug = useMemo(() => uniforms.uDebug.value, [uniforms])
@@ -136,6 +140,7 @@ export function OpponentCutout({
     mask.tick(performance.now(), Boolean(pose.current))
     uniforms.tMask.value = mask.texture
     uniforms.uPresence.value = mask.presence
+    uniforms.uZoom.value.set(arenaView.anchor.x, 1 - arenaView.anchor.y, arenaView.zoom)
     const searching = performance.now() - mountedAt.current > 1200 && mask.presence < 0.05
     const ghostTarget = mask.failed || arenaDev.showCamera ? 1 : searching ? 0.42 : 0
     uniforms.uDebug.value = arenaDev.showMask ? 1 : urlDebug
