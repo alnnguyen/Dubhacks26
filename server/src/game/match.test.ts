@@ -188,20 +188,17 @@ describe("rematch", () => {
     assert.equal(match.toView(1).phase, "finished");
   });
 
-  test("both requests start a fresh round after a countdown", () => {
+  test("both requests start a fresh round", () => {
     finishWithBothPresent();
     send(1, "rematch");
     send(2, "rematch");
     const view = match.toView(1);
     assert.equal(view.phase, "active");
     assert.equal(view.result, null);
-    assert.equal(view.startsInMs, RULES.rematchCountdownMs);
+    // The countdown waits for both players to be armed (see the saber tests).
+    assert.equal(view.startsInMs, null);
     assert.deepEqual([view.you.health, view.rival.health], [RULES.startingHealth, RULES.startingHealth]);
     assert.deepEqual([view.you.rematch, view.rival.rematch], [false, false]);
-    assert.equal(match.step(1, "forward"), "match_not_active");
-    mock.timers.tick(RULES.rematchCountdownMs);
-    assert.equal(match.toView(1).startsInMs, null);
-    assert.equal(match.step(1, "forward"), null);
   });
 
   test("keeps the phone pairing and saber calibration", () => {

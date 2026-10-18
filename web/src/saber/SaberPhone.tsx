@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { SetupStep, StepDirection, Vec3 } from "../../../server/src/contracts"
 import { INSTRUCTIONS } from "../arena3d/setupWizard"
+import { useCountdown } from "../arena3d/useCountdown"
 import { angularSpeed, smoothDirection, topEdgeDirection, type DirectionFilter } from "./aimMath"
 import { createSaberAudio } from "./saberAudio"
 import { createSaberClient, type SaberClient } from "./saberClient"
@@ -156,6 +157,15 @@ export function SaberPhone({ code }: { code: string }) {
   const connectionError = client?.error() ?? null
   const match = status?.match ?? null
   const setup = match?.setup ?? null
+  const countdown = useCountdown(match?.startsInMs ?? null)
+  const countdownLabel =
+    countdown === null || match?.phase !== "active" ? null : countdown > 0 ? String(Math.ceil(countdown / 1000)) : "FIGHT"
+  // A chime on each number and on FIGHT, so the player can keep their eyes on the arena.
+  const lastLabelRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (countdownLabel && countdownLabel !== lastLabelRef.current) audio.chime()
+    lastLabelRef.current = countdownLabel
+  }, [countdownLabel, audio])
 
   return (
     <main className="saber-phone">
@@ -184,7 +194,20 @@ export function SaberPhone({ code }: { code: string }) {
         <section className="saber-health">
           <span>You {match.health}</span>
           <span>Rival {match.rivalHealth}</span>
-          <p>{match.phase === "finished" ? "Duel over" : match.armed ? "Armed — swing!" : "Setting up"}</p>
+          <p>
+            {match.phase === "finished"
+              ? "Duel over"
+              : countdown !== null && countdown > 0
+                ? "Get ready…"
+                : match.armed
+                  ? "Armed — swing!"
+                  : "Setting up"}
+          </p>
+          {countdownLabel ? (
+            <p className="saber-countdown" aria-live="assertive">
+              {countdownLabel}
+            </p>
+          ) : null}
         </section>
       ) : connection === "paired" ? (
         <p className="saber-note">Linked. Challenge someone from your laptop.</p>

@@ -5,8 +5,8 @@ export const RULES = {
   startingHealth: 100,
   reconnectGraceMs: 15000,
   challengeExpiryMs: 30000,
-  // A rematch round starts after this countdown, with both players' setup kept.
-  rematchCountdownMs: 3000,
+  // Every round (the first and each rematch) counts down this long once both players are set up.
+  countdownMs: 3000,
 };
 
 // Saber duel in the shared 3D arena, meters and seconds. Placeholders to tune

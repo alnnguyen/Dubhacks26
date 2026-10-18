@@ -169,6 +169,7 @@ export class Lobby {
         health: view.you.health,
         rivalHealth: view.rival.health,
         armed: view.you.saber.bodyReady && view.you.saber.saberReady,
+        startsInMs: view.startsInMs,
         setup: pilot.match.match.setupProgress(pilot.match.slot),
       },
     };

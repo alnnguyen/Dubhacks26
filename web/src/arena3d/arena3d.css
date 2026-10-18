@@ -348,7 +348,7 @@
   color: #8dffc2;
 }
 
-/* Rematch countdown: 3, 2, 1, FIGHT. */
+/* Round countdown (first round and rematches): 3, 2, 1, FIGHT. */
 .arena-countdown {
   position: absolute;
   top: 50%;

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, mock, test } from "node:test";
 import type { ArenaFrame, Hand, PlayerSlot, SaberResolved, Vec3 } from "../contracts.js";
 import { bodyDirection, Match } from "./match.js";
-import { SABER } from "./rules.js";
+import { RULES, SABER } from "./rules.js";
 import { bodyToWorld, resolveSweep, segmentDistance, worldToDirection } from "./saber3d.js";
 import { CELL_SIZE, cellToWorld, inReach, orbitStep, interpolateStep } from "./grid.js";
 
@@ -103,6 +103,9 @@ describe("saber duel in the arena", () => {
     assert.equal(match.step(1, "forward"), null);
     assert.equal(match.step(2, "forward"), null);
     mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    // Both set up: the round counts down, then fighting starts.
+    step();
+    mock.timers.tick(RULES.countdownMs);
   });
 
   afterEach(() => {
@@ -544,6 +547,48 @@ describe("saber duel in the arena", () => {
       for (let k = 0; k < SABER.swingCooldownMs / SABER.tickMs + 1; k++) step(slash(60));
     }
     assert.deepEqual(match.toSnapshot().result, { winner: 1, reason: "knockout" });
+  });
+
+  test("the first round counts down once both players are set up, not before", () => {
+    match.dispose();
+    match = new Match("fresh", "mars", PILOTS, {
+      changed: () => {},
+      saberResolved: (e) => resolved.push(e),
+      arenaFrame: () => {},
+      stepped: () => {},
+      finished: () => {},
+    });
+    match.setSaberPaired(1, true);
+    match.setSaberPaired(2, true);
+    match.handleCommand(1, { commandId: "r1", type: "ready" });
+    match.handleCommand(2, { commandId: "r2", type: "ready" });
+    // Stepping is allowed during setup, so they can already be engaged.
+    match.step(1, "forward");
+    match.step(2, "forward");
+    mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    assert.equal(match.toView(1).startsInMs, null, "no countdown while setting up");
+    step({}, { setupDone: false });
+    assert.equal(match.toView(1).startsInMs, null, "or while one player is still setting up");
+    step();
+    assert.equal(match.toView(1).startsInMs, RULES.countdownMs);
+    swingAcross();
+    assert.deepEqual(resolved, [], "swings during the countdown don't count");
+  });
+
+  test("a rematch counts down; no steps or swings count until it ends", () => {
+    match.handleCommand(1, { commandId: "f", type: "forfeit" });
+    match.handleCommand(1, { commandId: "re1", type: "rematch" });
+    match.handleCommand(2, { commandId: "re2", type: "rematch" });
+    step();
+    assert.equal(match.toView(2).startsInMs, RULES.countdownMs);
+    assert.equal(match.step(1, "forward"), "match_not_active");
+    mock.timers.tick(RULES.countdownMs);
+    assert.equal(match.toView(2).startsInMs, null);
+    assert.equal(match.step(1, "forward"), null);
+    assert.equal(match.step(2, "forward"), null);
+    mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    swingAcross();
+    assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "hit", damage: SABER.damage }]);
   });
 });
 

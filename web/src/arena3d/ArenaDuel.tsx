@@ -28,6 +28,7 @@ import {
   tickWizard,
   type WizardState,
 } from "./setupWizard";
+import { FIGHT_FLASH_MS, useCountdown } from "./useCountdown";
 import "./arena3d.css";
 
 /** Keep renderer failures from taking down the match controls. */
@@ -87,8 +88,6 @@ const STEP_KEYS: Record<string, StepDirection> = {
   arrowright: "right",
 };
 const TOAST_MS = 900;
-// How long "FIGHT" stays up once a rematch countdown ends.
-const FIGHT_FLASH_MS = 800;
 
 // Setup steps shown as a checklist (the final "done" isn't a step to do).
 const CHECKLIST: SetupStep[] = STEP_ORDER.filter((step) => step !== "done");
@@ -502,7 +501,7 @@ export function ArenaDuel({
             : finished
               ? "Duel over."
               : countingDown
-                ? "Rematch — get ready…"
+                ? "Get ready…"
                 : view.phase === "waiting"
               ? `Waiting for ${rival.callsign} to finish the briefing…`
               : wizard.step === "done"
@@ -663,33 +662,6 @@ export function ArenaDuel({
       />
     </main>
   );
-}
-
-/**
- * Milliseconds left on the server's rematch countdown (negative just after it
- * ends, so "FIGHT" can linger), or null when there is none. Measured from when
- * each view arrived, since phone and server clocks don't match.
- */
-function useCountdown(startsInMs: number | null): number | null {
-  const endsAtRef = useRef<number | null>(null);
-  const [left, setLeft] = useState<number | null>(null);
-  useEffect(() => {
-    if (startsInMs !== null) endsAtRef.current = performance.now() + startsInMs;
-    const endsAt = endsAtRef.current;
-    if (endsAt === null) return;
-    const update = () => {
-      const remaining = endsAt - performance.now();
-      setLeft(remaining > -FIGHT_FLASH_MS ? remaining : null);
-      if (remaining <= -FIGHT_FLASH_MS) {
-        endsAtRef.current = null;
-        window.clearInterval(timer);
-      }
-    };
-    const timer = window.setInterval(update, 100);
-    update();
-    return () => window.clearInterval(timer);
-  }, [startsInMs]);
-  return left;
 }
 
 function resultTitle({ result, you, rival }: PlayerView): string {

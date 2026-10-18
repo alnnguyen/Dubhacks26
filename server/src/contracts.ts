@@ -134,6 +134,8 @@ export interface SaberStatus {
     health: number;
     rivalHealth: number;
     armed: boolean;
+    // The round's countdown, as on the laptop's view.
+    startsInMs: number | null;
     // The laptop's current setup step, so the phone can show it too.
     setup: SetupProgress | null;
   } | null;
@@ -179,7 +181,8 @@ export interface MatchResult {
 export interface MatchSnapshot {
   matchId: string;
   phase: MatchPhase;
-  // Counts down before a rematch round; swings and steps don't count until it ends.
+  // Counts down once both players are set up, before each round (the first and each rematch);
+  // swings and steps don't count until it ends. null before both are set up, and after.
   startsInMs: number | null;
   world: World;
   players: PlayerState[];

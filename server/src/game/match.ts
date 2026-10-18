@@ -124,7 +124,8 @@ export class Match {
   private players = new Map<PlayerSlot, Player>();
   private phase: MatchPhase = "waiting";
   private result: MatchResult | null = null;
-  // A rematch round's countdown: no swings or steps until then.
+  // When the round's fighting starts: set (a countdown ahead) once both players are armed.
+  // null until then; stays set for the rest of the round.
   private startsAt: number | null = null;
   private countdownTimer?: Timer;
   // Reply already sent for each "slot:commandId", so retries repeat it.
@@ -440,10 +441,10 @@ export class Match {
     return null;
   }
 
-  // A fresh round in the same match after a countdown: health, positions, stamina and swings
-  // reset, while pairing, calibration and the live body and phone streams carry over.
+  // A fresh round in the same match: health, positions, stamina and swings reset, while
+  // pairing, calibration and the live body and phone streams carry over, so the countdown
+  // usually starts on the next tick.
   private startRematch(): void {
-    const now = Date.now();
     for (const p of this.players.values()) {
       const { body, aim, paired, calibration } = p.saber;
       p.saber = { ...newSaber(START_CELLS[p.slot]), body, aim, paired, calibration };
@@ -453,11 +454,18 @@ export class Match {
     }
     this.result = null;
     this.phase = "active";
-    this.startsAt = now + RULES.rematchCountdownMs;
+    this.startsAt = null;
     this.lastTickAt = null;
     this.ticker = this.startTicker();
-    // The views carry the countdown; resend them when it ends.
-    this.countdownTimer = setTimeout(() => this.events.changed(), RULES.rematchCountdownMs);
+  }
+
+  // The first tick with the round on and both players armed starts its countdown.
+  private startCountdown(players: Player[], now: number): void {
+    if (this.phase !== "active" || this.startsAt !== null || !players.every((p) => this.armed(p, now))) return;
+    this.startsAt = now + RULES.countdownMs;
+    // The views carry the countdown; resend them now and when it ends.
+    this.countdownTimer = setTimeout(() => this.events.changed(), RULES.countdownMs);
+    this.events.changed();
   }
 
   private countingDown(now: number): boolean {
@@ -472,7 +480,9 @@ export class Match {
     this.lastTickAt = now;
     const players = [...this.players.values()].sort((a, b) => a.slot - b.slot);
     // Swings count only between fully set-up players within reach on the board.
-    const fighting = this.phase === "active" && !this.countingDown(now) && this.engaged && players.every((p) => this.armed(p, now));
+    this.startCountdown(players, now);
+    const started = this.startsAt !== null && now >= this.startsAt;
+    const fighting = this.phase === "active" && started && this.engaged && players.every((p) => this.armed(p, now));
     const blades = new Map(players.map((p) => [p.slot, this.blade(p, now)]));
     const previous = new Map(players.map((p) => [p.slot, p.saber.lastBlade]));
 
