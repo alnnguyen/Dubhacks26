@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>D — Ship copilot proof</title>
+<style>body{font:16px system-ui;background:#111827;color:#f1f5f9;max-width:760px;margin:40px auto;padding:20px}h1{font-size:28px}button,select{font:inherit;padding:12px;margin:6px 8px 6px 0}label{display:block;margin:18px 0}pre{white-space:pre-wrap;background:#1f2937;padding:16px}#log{min-height:100px}.note{color:#cbd5e1}</style>
+</head><body><h1>Ship copilot — D integration proof</h1><p><strong>FIXTURE DEMO. This is not connected to B's live duel.</strong></p>
+<p class="note">Your copilot announces the selected world automatically. If your browser pauses sound, press Play briefing. You can optionally connect voice to ask follow-up questions; your microphone is used only for that conversation.</p>
+<section><p id="briefing-status" role="status">Preparing your briefing…</p><p id="briefing-text"></p><audio id="briefing-audio" controls></audio><p><button id="briefing-play" disabled>Play briefing</button></p></section>
+<label>Fixture world <select id="world"><option value="mars">Mars</option><option value="moon">Moon</option><option value="earth">Earth</option></select></label>
+<pre id="state">Loading fixture…</pre>
+<button id="connect">Ask the copilot</button><button id="record" disabled>Start speaking</button><button id="stop" disabled>Disconnect / stop mic</button>
+<p id="status" role="status">Disconnected.</p><h2>Tool result / transcript</h2><pre id="log" aria-live="polite"></pre>
+<script type="module" src="./client.mjs"></script></body></html>
