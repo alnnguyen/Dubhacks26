@@ -4,14 +4,14 @@ import { NAME_MAX_LENGTH, type AvatarConfig } from '../types/avatar';
 import { normalizeAvatarConfig } from '../utils/avatarConfig';
 import { deleteFaceImage, loadAvatarConfig, loadFaceImage, newFaceId, saveAvatarConfig, saveFaceImage } from '../utils/avatarStorage';
 
-function faceTextureFrom(canvas: HTMLCanvasElement) {
+export function faceTextureFrom(canvas: HTMLCanvasElement) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
   return texture;
 }
 
-async function canvasFromBlob(blob: Blob) {
+export async function canvasFromBlob(blob: Blob) {
   const bitmap = await createImageBitmap(blob);
   const canvas = document.createElement('canvas');
   canvas.width = bitmap.width;

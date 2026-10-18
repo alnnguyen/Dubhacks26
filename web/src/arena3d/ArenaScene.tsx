@@ -4,6 +4,9 @@ import { Canvas, useFrame } from "@react-three/fiber"
 import { Bloom, EffectComposer } from "@react-three/postprocessing"
 import type { ArenaFrame, PlayerSlot, Vec3 } from "../../../server/src/contracts"
 import { MarsEnvironment, loadTerrainSampler } from "../arena/mars/MarsEnvironment"
+import { ArenaAstronaut } from "./ArenaAstronaut"
+import type { AvatarLook } from "../features/avatars/components/AstronautAvatar"
+import { useSavedAvatar } from "../features/avatars/hooks/useSavedAvatar"
 
 /**
  * The shared saber arena as this laptop sees it: both players as glowing
@@ -19,6 +22,11 @@ export const toThree = (v: Vec3): THREE.Vector3 => new THREE.Vector3(v[0], v[1],
 export type ImpactFlash = { kind: "blocked" | "hit"; at: Vec3; startedMs: number }
 
 const COLORS: Record<"you" | "rival", string> = { you: "#4cc3ff", rival: "#ff4b3a" }
+
+// The rival's saved avatar isn't sent over the wire yet, so they get a fixed red look.
+const RIVAL_LOOK: AvatarLook = { suit: "red", accent: "orange", saber: "red", accessories: [] }
+// Your own astronaut is ghosted so the shoulder camera can see the rival through it.
+const OWN_OPACITY = 0.4
 
 // MediaPipe pose bones drawn as limbs.
 const BONES: [number, number][] = [
@@ -191,9 +199,9 @@ function ShoulderCamera({ frameRef, mySlot, groundY }: {
       : toThree([0, 1, mySlot === 1 ? 0 : 1.3])
     // The camera isn't inside the arena's ground group, so it adds the ground height itself.
     hips.y += groundY
-    const desired = hips.clone().addScaledVector(forward, -2.3).addScaledVector(right, 0.55).add(new THREE.Vector3(0, 0.95, 0))
+    const desired = hips.clone().addScaledVector(forward, -3.4).addScaledVector(right, 0.9).add(new THREE.Vector3(0, 1.3, 0))
     camera.position.lerp(desired, 0.12)
-    target.current.lerp(hips.clone().addScaledVector(forward, 1.4).add(new THREE.Vector3(0, 0.45, 0)), 0.12)
+    target.current.lerp(hips.clone().addScaledVector(forward, 1.3).add(new THREE.Vector3(0, 0.55, 0)), 0.12)
     camera.lookAt(target.current)
   })
   return null
@@ -213,11 +221,17 @@ function MarsFighters(props: FightersProps) {
 
 function Fighters({ frameRef, flashRef, mySlot, groundY }: FightersProps & { groundY: number }) {
   const rivalSlot: PlayerSlot = mySlot === 1 ? 2 : 1
+  const mine = useSavedAvatar()
   return (
     <group position={[0, groundY, 0]}>
       <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} />
-      <Avatar frameRef={frameRef} slot={mySlot} color={COLORS.you} flashRef={flashRef} />
-      <Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} />
+      {/* Astronauts; the stick figure stands in while the model loads. */}
+      <Suspense fallback={<Avatar frameRef={frameRef} slot={mySlot} color={COLORS.you} flashRef={flashRef} />}>
+        <ArenaAstronaut frameRef={frameRef} flashRef={flashRef} slot={mySlot} look={mine.look} faceTexture={mine.faceTexture} opacity={OWN_OPACITY} />
+      </Suspense>
+      <Suspense fallback={<Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} />}>
+        <ArenaAstronaut frameRef={frameRef} flashRef={flashRef} slot={rivalSlot} look={RIVAL_LOOK} />
+      </Suspense>
       <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} />
       <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} />
       <Impact flashRef={flashRef} />

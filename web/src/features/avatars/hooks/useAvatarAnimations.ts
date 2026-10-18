@@ -109,12 +109,13 @@ export function useAvatarAnimations(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actions, mixer, specs]);
 
+  // The mixer is created per rig and discarded with it, so only stop the actions here.
+  // Uncaching the root would break StrictMode's remount, which replays the same actions.
   useEffect(
     () => () => {
       mixer.stopAllAction();
-      mixer.uncacheRoot(rig.root);
     },
-    [mixer, rig],
+    [mixer],
   );
 
   useFrame((_, dt) => mixer.update(Math.min(dt, 0.1)));

@@ -1,10 +1,10 @@
 import { createPortal, type ThreeElements } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type MutableRefObject } from 'react';
 import * as THREE from 'three';
 import { useAvatarAnimations } from '../hooks/useAvatarAnimations';
 import type { AvatarAction, AvatarConfig } from '../types/avatar';
-import { ASTRONAUT_MODEL_URL, atlasOf, createAstronautRig, recoloredAtlas } from '../utils/astronautModel';
+import { ASTRONAUT_MODEL_URL, atlasOf, createAstronautRig, recoloredAtlas, type AstronautRig } from '../utils/astronautModel';
 import { ACCENT_PALETTES, SABER_PALETTES, SUIT_PALETTES } from '../utils/palette';
 import { Helmet } from './Helmet';
 import { Lightsaber } from './Lightsaber';
@@ -31,6 +31,10 @@ export interface AstronautAvatarProps {
   saberLight?: boolean;
   /** Freeze the action at this time in seconds (static poses, thumbnails). */
   poseTime?: number;
+  /** Receives this avatar's rig so a host scene can pose bones after the animation runs. */
+  rigRef?: MutableRefObject<AstronautRig | null>;
+  /** Hide the avatar's own saber when the host scene draws the blade itself. Default true. */
+  showSaber?: boolean;
 }
 
 /**
@@ -50,10 +54,19 @@ export function AstronautAvatar({
   saberIgnited = true,
   saberLight = true,
   poseTime,
+  rigRef,
+  showSaber = true,
 }: AstronautAvatarProps) {
   const gltf = useGLTF(ASTRONAUT_MODEL_URL);
   const rig = useMemo(() => createAstronautRig(gltf), [gltf]);
   useEffect(() => () => rig.dispose(), [rig]);
+  useEffect(() => {
+    if (!rigRef) return;
+    rigRef.current = rig;
+    return () => {
+      if (rigRef.current === rig) rigRef.current = null;
+    };
+  }, [rig, rigRef]);
   useAvatarAnimations(rig, gltf.animations, action, actionTrigger, onActionComplete, poseTime);
 
   const suit = SUIT_PALETTES[look.suit];
@@ -73,7 +86,7 @@ export function AstronautAvatar({
         <Helmet radius={R} shellColor={suit.main} accentColor={accent} faceTexture={faceTexture} antenna={has('antenna')} />,
         rig.helmetAnchor,
       )}
-      {createPortal(<Lightsaber color={SABER_PALETTES[look.saber].glow} ignited={saberIgnited} castLight={saberLight} hiltScale={1.7} />, rig.saberWrist)}
+      {showSaber && createPortal(<Lightsaber color={SABER_PALETTES[look.saber].glow} ignited={saberIgnited} castLight={saberLight} hiltScale={1.7} />, rig.saberWrist)}
       {createPortal(
         <>
           {has('jetpack') ? (
