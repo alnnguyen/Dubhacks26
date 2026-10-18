@@ -10,8 +10,22 @@ const marsPreview = search.get('arena') === 'mars';
 const devMars = search.get('dev') === 'mars';
 // Older same-link duel rehearsal (Alex): /?pvp=1
 const live = search.has('pvp');
+// Phone lightsaber controller, opened from the laptop's pair code: /?saber=CODE
+const saberCode = search.get('saber');
+// The saber arena with synthetic fighters, no camera/phone/server: /?dev=arena
+const devArena = search.get('dev') === 'arena';
 
-const Screen = devMars
+const Screen = devArena
+  ? lazy(async () => {
+      const m = await import('./arena3d/ArenaPreview');
+      return { default: m.ArenaPreview };
+    })
+  : saberCode
+  ? lazy(async () => {
+      const m = await import('./saber/SaberPhone');
+      return { default: () => <m.SaberPhone code={saberCode} /> };
+    })
+  : devMars
   ? lazy(async () => {
       const m = await import('./arena/DevMars');
       return { default: m.DevMars };
@@ -34,7 +48,7 @@ const Screen = devMars
             return { default: m.LiveDuel };
           })
         : lazy(async () => {
-            // Onboarding → cockpit; FlightApp (real lobby + Mars duel) is next wiring step.
+            // Onboarding → cockpit; FlightApp (real lobby + duel) is next wiring step.
             const m = await import('./ui/screens/BridgeApp');
             return { default: m.BridgeApp };
           });

@@ -1,0 +1,263 @@
+/* Laptop saber duel: full-window 3D arena with HUD, setup card and a self-view. */
+.arena-duel {
+  position: fixed;
+  inset: 0;
+  background: #120a07;
+  color: #e8f0ff;
+  overflow: hidden;
+}
+
+.arena-canvas {
+  position: absolute !important;
+  inset: 0;
+}
+
+.arena-hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 20px;
+  background: linear-gradient(180deg, rgba(4, 8, 16, 0.75), transparent);
+  pointer-events: none;
+}
+
+.arena-leave {
+  position: absolute;
+  top: 14px;
+  right: 20px;
+  pointer-events: auto;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: rgba(8, 16, 32, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.arena-bars {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: min(900px, calc(100% - 180px));
+}
+
+.arena-bar {
+  display: grid;
+  grid-template-columns: auto 1fr 2.4rem;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+}
+
+.arena-bar-track {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+
+.arena-bar-fill {
+  height: 100%;
+  transition: width 0.25s;
+}
+
+.arena-bar-fill.you {
+  background: linear-gradient(90deg, #1b6fa8, #4cc3ff);
+}
+
+.arena-bar-fill.rival {
+  background: linear-gradient(90deg, #a3281c, #ff4b3a);
+}
+
+.arena-note {
+  margin: 10px 0 0;
+  font-size: 16px;
+  color: #d6e3f7;
+}
+
+.arena-setup {
+  position: absolute;
+  left: 20px;
+  bottom: 20px;
+  width: min(520px, calc(100% - 40px));
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: rgba(6, 12, 24, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.arena-setup h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.arena-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #ffb4a8;
+}
+
+.arena-check.ok {
+  color: #8dffc2;
+}
+
+.arena-instruction {
+  margin: 0;
+}
+
+.arena-steps {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: 8px;
+  color: #7f95b5;
+}
+
+.arena-steps li.now {
+  color: #ffe0a8;
+  font-weight: 600;
+}
+
+.arena-steps li.done {
+  color: #8dffc2;
+}
+
+.arena-steps li.done::marker {
+  content: "✓  ";
+}
+
+.arena-progress {
+  margin-top: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.arena-progress div {
+  height: 100%;
+  background: #3dff9a;
+}
+
+.arena-pair {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.arena-pair img {
+  border-radius: 8px;
+  background: #fff;
+}
+
+.arena-pair p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.arena-pair strong {
+  color: #ffe0a8;
+  word-break: break-all;
+}
+
+.arena-warning {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: #ffd27a;
+}
+
+.arena-setup-actions {
+  margin-top: 14px;
+}
+
+.arena-setup-actions button {
+  font: inherit;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 0;
+  color: #08130d;
+  background: #3dff9a;
+  cursor: pointer;
+}
+
+.arena-setup-actions button.secondary {
+  color: inherit;
+  background: rgba(255, 255, 255, 0.1);
+  font-weight: 500;
+}
+
+.arena-setup-actions button:disabled {
+  background: #4d5a66;
+  color: #c9d7ef;
+  cursor: not-allowed;
+}
+
+.arena-error {
+  margin: 10px 0 0;
+  color: #ffb4a8;
+}
+
+/* Mirrored self-view, so moving left moves left. */
+.arena-self {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  width: 220px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transform: scaleX(-1);
+}
+
+.arena-self.hidden {
+  visibility: hidden;
+}
+
+/* Pinch-and-nudge joystick: where the pinched hand is relative to where the pinch began. */
+.arena-stick {
+  position: absolute;
+  left: 50%;
+  bottom: 56px;
+  width: 96px;
+  height: 96px;
+  margin-left: -48px;
+  border-radius: 50%;
+  border: 2px solid rgba(76, 195, 255, 0.6);
+  background: rgba(6, 12, 24, 0.45);
+  pointer-events: none;
+}
+
+.arena-stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 50%;
+  background: #4cc3ff;
+  box-shadow: 0 0 16px rgba(76, 195, 255, 0.9);
+}
+
+.arena-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(6, 12, 24, 0.7);
+  font-size: 13px;
+  color: #c9d7ef;
+  pointer-events: none;
+}
+

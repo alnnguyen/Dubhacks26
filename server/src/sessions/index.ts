@@ -9,12 +9,19 @@ import type {
   PlayerView,
   ProjectileLanded,
   RejectReason,
+  ArenaFrame,
+  SaberAim,
+  SaberResolved,
+  SaberStatus,
   WorldId,
 } from "../contracts.js";
 import { COMMAND_ID_PATTERN, IN_MATCH_COMMAND_TYPES, Match, type InMatchCommandType } from "../game/match.js";
 import { RULES } from "../game/rules.js";
 
 const PLAYER_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+// Pair codes avoid look-alike characters (0/O, 1/I) since people type them on a phone.
+const PAIR_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const PAIR_CODE_LENGTH = 6;
 const CALLSIGN_PATTERN = /^[A-Z0-9][A-Z0-9 _-]{0,13}$/;
 
 type Timer = ReturnType<typeof setTimeout>;
@@ -32,6 +39,9 @@ interface PilotRecord {
   challengeId: string | null;
   // Reply already sent for each lobby commandId, so retries repeat it.
   replies: Map<string, CommandReply>;
+  // A phone opening /?saber=<pairCode> becomes this pilot's lightsaber.
+  pairCode: string;
+  saberPaired: boolean;
 }
 
 interface ChallengeRecord {
@@ -47,6 +57,9 @@ export interface LobbyEvents {
   // Any lobby or match change; the server re-sends views to connected players.
   changed: () => void;
   projectileLanded: (playerIds: string[], event: ProjectileLanded) => void;
+  saberResolved: (playerIds: string[], event: SaberResolved) => void;
+  // Both players in the arena, every server tick, to both laptops.
+  arenaFrame: (playerIds: string[], frame: ArenaFrame) => void;
 }
 
 export interface LobbyOptions {
@@ -89,6 +102,8 @@ export class Lobby {
         match: null,
         challengeId: null,
         replies: new Map(),
+        pairCode: this.newPairCode(),
+        saberPaired: false,
       };
       this.pilots.set(playerId, pilot);
     }
@@ -110,6 +125,66 @@ export class Lobby {
     if (challenge) this.close(challenge, "cancelled");
     if (pilot.match) pilot.match.match.disconnect(pilot.match.slot);
     this.events.changed();
+  }
+
+  // Streamed inputs have no reply; input from a pilot outside a match is dropped.
+  handleBodyPose(playerId: string, pose: unknown): void {
+    const pilot = this.pilots.get(playerId);
+    if (pilot?.match) pilot.match.match.handleBodyPose(pilot.match.slot, pose);
+  }
+
+  // Returns the accepted reading so the server can relay it to the pilot's laptop.
+  handleSaberAim(playerId: string, aim: unknown): SaberAim | null {
+    const pilot = this.pilots.get(playerId);
+    return pilot?.match ? pilot.match.match.handleSaberAim(pilot.match.slot, aim) : null;
+  }
+
+  // A phone presents a pair code; returns the pilot's private playerId it now controls.
+  pairSaber(code: unknown): string | null {
+    if (typeof code !== "string") return null;
+    const normalized = code.trim().toUpperCase();
+    const pilot = [...this.pilots.values()].find((p) => p.pairCode === normalized);
+    if (!pilot) return null;
+    this.setSaberPaired(pilot, true);
+    return pilot.playerId;
+  }
+
+  // The pilot's phone disconnected (or was replaced and the new one is already paired).
+  unpairSaber(playerId: string): void {
+    const pilot = this.pilots.get(playerId);
+    if (pilot) this.setSaberPaired(pilot, false);
+  }
+
+  saberStatus(playerId: string): SaberStatus | null {
+    const pilot = this.pilots.get(playerId);
+    if (!pilot) return null;
+    if (!pilot.match) return { callsign: pilot.callsign, match: null };
+    const view = pilot.match.match.toView(pilot.match.slot);
+    return {
+      callsign: pilot.callsign,
+      match: {
+        slot: pilot.match.slot,
+        phase: view.phase,
+        health: view.you.health,
+        rivalHealth: view.rival.health,
+        armed: view.you.saber.bodyReady && view.you.saber.saberReady,
+        setup: pilot.match.match.setupProgress(pilot.match.slot),
+      },
+    };
+  }
+
+  private setSaberPaired(pilot: PilotRecord, paired: boolean): void {
+    pilot.saberPaired = paired;
+    if (pilot.match) pilot.match.match.setSaberPaired(pilot.match.slot, paired);
+    this.events.changed();
+  }
+
+  private newPairCode(): string {
+    for (;;) {
+      const bytes = randomBytes(PAIR_CODE_LENGTH);
+      const code = [...bytes].map((b) => PAIR_ALPHABET[b % PAIR_ALPHABET.length]).join("");
+      if (![...this.pilots.values()].some((p) => p.pairCode === code)) return code;
+    }
   }
 
   handleCommand(playerId: string, command: unknown): CommandReply {
@@ -141,7 +216,12 @@ export class Lobby {
     const pilot = this.pilots.get(playerId)!;
     const pilots = [...this.pilots.values()].filter((p) => p !== pilot && p.connected).map(publicPilot);
     const challenge = pilot.challengeId === null ? undefined : this.challenges.get(pilot.challengeId);
-    return { you: publicPilot(pilot), pilots, challenge: challenge ? challengeView(challenge, pilot) : null };
+    return {
+      you: publicPilot(pilot),
+      pilots,
+      challenge: challenge ? challengeView(challenge, pilot) : null,
+      pairCode: pilot.pairCode,
+    };
   }
 
   matchView(playerId: string): PlayerView | null {
@@ -157,6 +237,11 @@ export class Lobby {
 
   private apply(pilot: PilotRecord, command: Record<string, unknown>): RejectReason | null {
     switch (command.type) {
+      // From the laptop's guided setup; retries repeat the first reply like other lobby commands.
+      case "calibrateSaber": {
+        if (!pilot.match) return "not_in_match";
+        return pilot.match.match.setSaberCalibration(pilot.match.slot, command.calibration);
+      }
       case "setCallsign": {
         const callsign = normalizeCallsign(command.callsign);
         if (!callsign) return "invalid_command";
@@ -249,6 +334,8 @@ export class Lobby {
       {
         changed: () => this.events.changed(),
         projectileLanded: (event) => this.events.projectileLanded([challenger.playerId, defender.playerId], event),
+        saberResolved: (event) => this.events.saberResolved([challenger.playerId, defender.playerId], event),
+        arenaFrame: (frame) => this.events.arenaFrame([challenger.playerId, defender.playerId], frame),
         finished: (result) => {
           if (result.winner === null) return;
           seats[result.winner].wins += 1;
@@ -259,6 +346,9 @@ export class Lobby {
     this.matches.add(match);
     challenger.match = { match, slot: 1 };
     defender.match = { match, slot: 2 };
+    // A phone paired in the lobby is already this pilot's saber.
+    match.setSaberPaired(1, challenger.saberPaired);
+    match.setSaberPaired(2, defender.saberPaired);
   }
 }
 

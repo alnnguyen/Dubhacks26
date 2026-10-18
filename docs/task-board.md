@@ -4,7 +4,8 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 
 ## Doing
 
-- C (Alan): live duel gestures — rock palm→fist→fling; gun fist-hold then index+middle fire. Still on `createGameClient`. Phone QA in `docs/qa-checklist.md`. Saber / lobby / Photon deferred.
+- B (Justin): **laptop + iPhone lightsaber duel in a shared 3D arena** merged via `main`/`saber-duel` into `alex-dev`. Server 3D collision/pairing, laptop arena (`web/src/arena3d`), phone saber (`web/src/saber`, `/?saber=CODE`). Scripted socket proof done; real laptop/iPhone QA still open — check `/?dev=arena` first.
+- C (Alan): rock/gun CV still on harness (`/?camera=1`); FlightApp live duel path is now saber arena. Phone QA in `docs/qa-checklist.md`.
 - D (Alex): Grok Bot planning bonus **claimed** (`docs/sponsor-evidence.md`). Remaining: Photon live-challenge binding + physical-phone LYRA mic QA.
 - A (Ally): **pull `alex-dev`** — Alan’s latest camera is merged; cockpit default + turn-to-look remain on ally paths. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
 
