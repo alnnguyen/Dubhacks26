@@ -61,3 +61,10 @@ The title plate and laser sweep animate on task changes; reduced motion disables
 Review the exact production component with labelled synthetic telemetry at `/?dev=initiation`. It intentionally does not request camera/phone access or connect to a server. To physically verify: start a normal live match with the updated frontend/backend, start both cameras, pair both saber phones, perform each measured pose, confirm the actual avatar stays inside the square, then verify shared 3–2–1 changes to full Mars combat. Confirm tracking loss and Restart setup still recover. Physical validation requires those devices.
 
 Latest validation: production build/typecheck passed; 32 focused calibration/countdown/frame/local-fighter/glide/swipe tests passed. Browser review of the labelled synthetic route confirmed pairing, measured-feedback presentation, square canvas/frame alignment, movement-help open/close, waiting readiness, countdown to full Mars, and phone tracking loss recovery, without console warnings/errors. Physical two-device validation remains pending.
+
+
+## Top progress and LYRA cues
+
+The six measured calibration checks now appear as slim rectangular segments across the top, using actual hold progress for the current segment and filled previous checks. Movement help and narration never advance or gate setup. LYRA now leads each task with a written cue from `INITIATION_CUES`, her portrait, and a brief visual halo/waveform animation. Replay repeats the animation. This release has no spoken audio or voice API calls; it works without a provider key or credits. A future server-side speech adapter can use the same cue text and drive the visual activity from actual audio playback.
+
+Top-progress/LYRA validation: production build/typecheck passed; 32 focused tests passed; browser checked matching per-task cue/segment updates and progress visibility in movement help, with no console errors. Device QA remains pending.

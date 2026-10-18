@@ -15,6 +15,17 @@ const COPY: Record<SetupStep, { lead: string; word: string; label: string; confi
   done: { lead: "BATTLE", word: "READY", label: "Ready", confirmed: "Initiation complete" },
 };
 
+// Shared written cue text, ready for a future server-side voice adapter.
+export const INITIATION_CUES: Record<SetupStep, string> = {
+  stand: "Find your position. Face your laptop and hold still.",
+  phone: "Link your saber. Scan the code, then tap Ignite.",
+  forward: "Point your saber forward. Hold it steady.",
+  up: "Raise your saber. Hold it above your head.",
+  right: "Point your saber to your right. Keep it level.",
+  reach: "Reach forward. Extend your saber toward the screen.",
+  done: "All systems aligned. Stay ready, pilot.",
+};
+
 export interface SaberInitiationProps {
   step: SetupStep;
   progress: number;
@@ -66,27 +77,33 @@ export function SaberInitiation(p: SaberInitiationProps) {
       : !p.rivalReady ? `You're ready. ${p.rivalName} is finishing initiation. Keep your camera and saber connected.`
       : "Both pilots are ready. Hold position for the shared countdown."
     : INSTRUCTIONS[p.step];
+  const cue = movement ? "Quick swipes move you. Swipe up to close in, down to back away, or left and right to circle."
+    : !p.running ? "Ready, pilot? Start your camera and let's bring your systems online."
+    : p.loading ? "Bringing your camera online. One moment, pilot."
+    : recovering ? "Let's restore your link. Keep your body in view and your saber phone awake."
+    : p.step === "done" ? description : INITIATION_CUES[p.step];
+  const progress = p.running && !p.loading ? Math.max(0, Math.min(1, p.progress)) : 0;
   const missingStart = p.step === "done" && p.youReady && p.rivalReady && p.serverFresh && !p.start;
 
   return <section className="si-overlay" aria-label="Saber initiation" data-step={p.step} data-movement={movement}>
     <div className="si-shade" aria-hidden="true" />
     <div className="si-brand">✦ SPACE BATTLES <span>/ SABER INITIATION</span></div>
+    <nav className="si-top-progress" aria-label="Initiation progress">
+      <div className="si-meta"><span>SABER INITIATION</span><span>{!p.running ? "READY TO BEGIN" : p.step === "done" ? "06 / 06 COMPLETE" : `${String(index + 1).padStart(2, "0")} / 06`}</span></div>
+      <ol className="si-rail" aria-label="Setup progress">{STEPS.map((s, i) => <li key={s} data-done={i < index} aria-current={s === p.step ? "step" : undefined}><i role={i === index ? "progressbar" : undefined} aria-label={i === index ? `Current task hold: ${COPY[s].label}` : undefined} aria-valuemin={i === index ? 0 : undefined} aria-valuemax={i === index ? 100 : undefined} aria-valuenow={i === index ? Math.round(progress * 100) : undefined}><b style={{width:`${i < index ? 100 : i === index ? Math.round(progress * 100) : 0}%`}} /></i><span className="si-sr-only">{COPY[s].label}</span></li>)}</ol>
+    </nav>
     <div className="si-content">
+    <LyraSetupCue text={cue} />
     <header key={`${p.running}-${p.step}-${recovering}-${movement}`} className="si-prompt si-slide">
       <p className="si-eyebrow">{movement ? "PHONE / MOVEMENT CONTROLS" : recovering ? "LIVE LINK / RECOVERY" : !p.running ? "FLIGHT DECK / PRE-COMBAT" : p.step === "done" ? "INITIATION COMPLETE" : `${String(index + 1).padStart(2, "0")} / ${copy.label.toUpperCase()}`}</p>
       <h1 className="si-title" data-long={title.lead.length + title.word.length > 20}><span>{title.lead}</span><strong>{title.word}</strong></h1>
       <p className="si-description">{description}</p>
     </header>
     {movement && <SwipeLesson />}
-      <div className="si-meta"><span>MARS / SABER INITIATION</span><span>{String(Math.min(index + 1, 6)).padStart(2, "0")} / 06</span></div>
-      <ol className="si-rail" aria-label="Setup progress">{STEPS.map((s, i) => <li key={s} data-done={i < index} aria-current={s === p.step ? "step" : undefined}><i /> <span>{COPY[s].label}</span></li>)}</ol>
       <div className="si-feedback" role="status" aria-live="polite">
         {confirmed ? <span className="si-confirmed" key={confirmed}>✓ {confirmed}</span> : <span>{!p.running ? "AWAITING CAMERA" : p.loading ? "STARTING TRACKING" : !p.serverFresh ? "CONNECTING ARENA LINK" : p.step === "done" ? p.youReady ? "YOUR SYSTEMS READY" : "CONFIRMING SYSTEMS" : holding ? "POSE DETECTED · HOLD STEADY" : p.step === "phone" ? "WAITING FOR IGNITION" : !p.bodySeen ? "BRING YOUR UPPER BODY INTO VIEW" : "TRACKING LIVE · FOLLOW THE PROMPT"}</span>}
       </div>
-      {p.running && !p.loading && p.step !== "done" && <div className="si-hold">
-        <div className="si-hold__track" role="progressbar" aria-label="Current task hold" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(p.progress * 100)}><i style={{width:`${Math.round(p.progress * 100)}%`}} /></div>
-        <span>{holding ? `${Math.round(p.progress * 100)}% · KEEP HOLDING` : "WAITING FOR THE POSE"}</span>
-      </div>}
+      {p.running && !p.loading && p.step !== "done" && <p className="si-hold-text">{holding ? `${Math.round(progress * 100)}% · KEEP HOLDING` : "WAITING FOR THE POSE"}</p>}
       <div className="si-sensors" aria-label="Live device feedback">
         <Sensor ok={p.running && p.bodySeen} label="Camera" detail={!p.running ? "Off" : p.loading ? "Starting" : p.bodySeen ? "Body tracked" : "Find your body"} />
         <Sensor ok={p.phonePaired} label="Phone" detail={p.phonePaired ? "Paired" : "Not linked"} />
@@ -102,12 +119,30 @@ export function SaberInitiation(p: SaberInitiationProps) {
       {missingStart && <p className="si-error" role="alert">The match host needs the updated countdown server. Rejoin after the host updates.</p>}
       {p.error && <p className="si-error" role="alert">{p.error}</p>}
       <div className="si-actions"><button type="button" className="si-redo" onClick={() => setMovementOpen(v => !v)}>{movementOpen ? "Back to setup" : "Movement controls"}</button>{!p.running ? <button type="button" className="si-primary" onClick={p.onStart}>{p.error ? "Retry camera" : "Start camera"}<span>↗</span></button> : <button type="button" className="si-redo" onClick={p.onRedo} disabled={p.loading}>↶ Restart setup</button>}</div>
-      <div className="si-lyra"><img src={lyraPortrait} alt="LYRA hologram" /><p><span>LYRA / SHIP COPILOT</span>{movement ? "Swipe up to close in, down to back away, or left and right to circle your rival." : description}</p></div>
+
       <p className="si-next">{p.step === "done" ? "NEXT / COUNTDOWN → DUEL" : `NEXT / ${COPY[STEP_ORDER[Math.min(index + 1, STEP_ORDER.length - 1)]].label.toUpperCase()}`}</p>
     </div>
     <div className="si-live-window"><span>YOU / {p.yourName}</span>{(!p.running || !p.bodySeen) && <div className="si-avatar-empty">{p.loading ? "STARTING CAMERA…" : p.running ? "STEP INTO VIEW" : "YOUR AVATAR APPEARS HERE"}<small>{p.running ? "Face your laptop and show your upper body." : "Start your camera to see your movements."}</small></div>}<b>{p.running && p.bodySeen ? "● BODY TRACKED" : "○ AWAITING BODY"} <em>{p.phoneLive ? "SABER ONLINE" : "SABER STANDBY"}</em></b></div>
     <div key={`${p.step}-${movement}`} className="si-laser" aria-hidden="true" />
   </section>;
+}
+
+/** Silent visual guidance for now: no network or speech API calls. */
+function LyraSetupCue({ text }: { text: string }) {
+  const [replay, setReplay] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  useEffect(() => {
+    setAnimating(true);
+    const timer = window.setTimeout(() => setAnimating(false), Math.min(4000, Math.max(1800, text.length * 35)));
+    return () => window.clearTimeout(timer);
+  }, [text, replay]);
+  return <aside className="si-lyra" data-guiding={animating} aria-label="LYRA setup guidance">
+    <div className="si-lyra-portrait"><img src={lyraPortrait} alt="LYRA hologram" /></div>
+    <div className="si-lyra-dialogue"><div className="si-lyra-tag"><span>LYRA / SHIP COPILOT</span><b>{animating ? "GUIDING YOU" : "YOUR TURN"}</b></div>
+      <p role="status" aria-live="polite">{text}</p>
+      <div className="si-lyra-controls"><div className="si-lyra-wave" aria-hidden="true">{Array.from({length:18}, (_,i)=><i key={i} />)}</div><button type="button" onClick={()=>setReplay(n=>n+1)} aria-label="Replay LYRA cue animation">↻ Replay cue</button></div>
+    </div>
+  </aside>;
 }
 
 /** Instructions only: the real phone retains its existing validated swipe input. */
