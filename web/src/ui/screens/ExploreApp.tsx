@@ -4,10 +4,12 @@ import { ExploreBoundary } from '../components/explore/ExploreBoundary';
 import { useProgress } from '@react-three/drei';
 import { isLocalDestination, type LocalZoomCommand, type LocalZoomRequest } from '../components/explore/localNavigation';
 import { ExploreHud, type ExploreMode } from '../components/explore/ExploreHud';
+import { MissionBanner, type Mission } from '../components/explore/MissionBanner';
 import { DESTINATIONS, destinationById, type ExploreDestination } from '../components/explore/destinations';
 import type { FlightInput, FlightTelemetry } from '../components/explore/ShipFlightController';
 import { planetFacts, scienceForBodyId, type BodyScience } from '../components/explore/bodiesScience';
 import { PlanetPanel, type PlanetPanelTab } from '../components/explore/PlanetPanel';
+import { ObjectPanel } from '../components/explore/ObjectPanel';
 import { ChallengeModal } from '../components/hud/ChallengeModal';
 import { HoloButton } from '../components/hud/primitives';
 import { destinationForBody } from '../components/explore/destinations';
@@ -19,6 +21,7 @@ import { useMockLobby } from '../state/useMockLobby';
 import type { ExploreLocation, LobbyViewModel, NearbyPilot, SceneSettings } from '../state/lobbyTypes';
 import '../styles/spaceship.css';
 import '../styles/explore.css';
+import '../styles/galaxyBrand.css';
 import '../../onboarding/onboarding.css';
 import { gameAudio } from '../../audio/gameAudio';
 import { useAudioScene } from '../../audio/useAudioScene';
@@ -85,7 +88,12 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
   );
 
   const [destination, setDestination] = useState<ExploreDestination>(initialDestination);
+  const [mission, setMission] = useState<Mission | null>(null);
+  const missionSeq = useRef(0);
+  const announce = useCallback((m: Omit<Mission, 'id'>) => setMission({ ...m, id: ++missionSeq.current }), []);
+  const clearMission = useCallback(() => setMission(null), []);
   const [mode, setMode] = useState<ExploreMode>(initialMode);
+  const entered = useRef(false);
   useEffect(() => { try { localStorage.setItem(MODE_KEY, mode); } catch { /* private mode */ } }, [mode]);
   // Peaceful explore: other pilots' ships and contacts are hidden, and you stop sharing your location.
   const peaceful = mode === 'explore';
@@ -150,17 +158,19 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       setZoomRequest(undefined);
       if (isLocalDestination(destination) && isLocalDestination(dest)) {
         setNavOpen(false); setLearn(null); setDestination(dest); setResetToken(n => n+1);
+        announce({ eyebrow: 'Course plotted / local flight', lead: 'Approaching', word: dest.label, holdMs: 2200 });
         const url = new URL(window.location.href);
         if (url.searchParams.has('explore')) { url.searchParams.set('dest', dest.id); window.history.replaceState({}, '', url); }
         return;
       }
       jumpPending.current = dest;
+      announce({ eyebrow: 'Hyperspace / confirmed', lead: 'Destination', word: 'Locked', detail: dest.label, laser: true, holdMs: 2100 });
       setNavOpen(false);
       setLearn(null);
       setPendingJump(dest);
       setJumping(true);
     },
-    [destination, jumping],
+    [destination, jumping, announce],
   );
 
   const openNav = useCallback(() => {
@@ -172,6 +182,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
     const pending = jumpPending.current;
     if (!pending) return;
     jumpPending.current = null;
+    announce({ eyebrow: 'Hyperspace / complete', lead: 'Arriving', word: pending.label, detail: pending.briefing, holdMs: 2400 });
     setDestination(pending);
     setResetToken(n => n + 1);
     setSceneReady(false);
@@ -182,7 +193,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       url.searchParams.set('dest', pending.id);
       window.history.replaceState({}, '', url);
     }
-  }, []);
+  }, [announce]);
 
   useEffect(() => {
     if (!jumping) return;
@@ -203,11 +214,11 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       setInspectId(bodyId);
       return;
     }
-    const s = scienceForBodyId(bodyId);
-    if (s) {
-      setInspectId(null);
+    // Every other cataloged object opens the same side view (the camera frames it when it's in the local view).
+    if (scienceForBodyId(bodyId)) {
+      setLearn(null);
       setCutawayOpen(false);
-      setLearn(s);
+      setInspectId(bodyId);
     }
   }, [destination]);
 
@@ -240,6 +251,11 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
   }, [closeInspect]);
   const requestZoom = (command: LocalZoomCommand) => { setInput(EMPTY_INPUT); setZoomRequest({ sequence: ++zoomSequence.current, command }); };
   const sceneKey = isLocalDestination(destination) ? 'local' : destination.id;
+  useEffect(() => {
+    if (!sceneReady || entered.current) return;
+    entered.current = true;
+    announce({ eyebrow: 'Flight deck / free flight', lead: 'Choose your', word: 'Destination', detail: 'Press N to search the real catalogs · scroll to zoom', holdMs: 2800 });
+  }, [sceneReady, announce]);
 
   // Tell other pilots roughly where you are (debounced; only real changes are sent).
   const setLocation = actions.setLocation;
@@ -290,7 +306,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
 
   return (
     <div
-      className="sd-root ex-root"
+      className="sd-root ex-root galaxy-exploration"
       data-quality={settings.quality}
       data-reduced-motion={settings.reducedMotion}
       data-ready={sceneReady}
@@ -364,7 +380,16 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       />
 
       <AnimatePresence>
-      {inspectId && (
+      {inspectId && !planetFacts(inspectId) && (
+        <ObjectPanel
+          key={`object-${inspectId}`}
+          bodyId={inspectId}
+          reducedMotion={settings.reducedMotion}
+          onClose={closeInspect}
+          onVisit={(id) => { closeInspect(); startJump(id); }}
+        />
+      )}
+      {inspectId && planetFacts(inspectId) && (
         <PlanetPanel
           key="planet-inspector"
           bodyId={inspectId}
@@ -392,6 +417,8 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
         onDismiss={actions.dismiss}
         onLaunch={onBattleLaunch ?? actions.launch}
       />
+
+      <MissionBanner mission={mission} onDone={clearMission} />
 
       <ExploreCopilot
         snapshot={snapshot}

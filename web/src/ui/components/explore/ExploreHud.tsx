@@ -7,6 +7,10 @@ import type { FlightInput, FlightTelemetry } from './ShipFlightController';
 import type { NearbyPilot } from '../../state/lobbyTypes';
 import { scienceForBodyId, type BodyScience } from './bodiesScience';
 import { HoloButton } from '../hud/primitives';
+import { AnimatePresence, motion } from 'motion/react';
+import { OrbitTimeControl } from './OrbitTimeControl';
+import { formatSceneDistance } from './cosmicScale';
+import { DestinationsPanel } from './DestinationsPanel';
 
 /** Flight: multiplayer-visible free flight. Explore: peaceful sightseeing with the scale/zoom controls. */
 export type ExploreMode = 'flight' | 'explore';
@@ -116,16 +120,6 @@ export function ExploreHud({
   onLearnClose,
   onOpenArena,
 }: ExploreHudProps) {
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('Highlights');
-  const filteredDestinations = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return DESTINATIONS.filter(d => {
-      if (category !== 'Highlights' && (d.category ?? 'Solar system') !== category) return false;
-      if (!q && category === 'Highlights') return ['sol','nearby-stars','galaxy-atlas','galaxy','visit-moon','visit-mars','visit-jupiter','visit-saturn','visit-uranus','visit-neptune','visit-sat-25544','visit-sb-1000036'].includes(d.id) || /Sirius|Proxima|TRAPPIST-1 e|Andromeda|Whirlpool|Halley|Ceres|Bennu/.test(d.label);
-      return !q || `${d.label} ${d.briefing}`.toLowerCase().includes(q);
-    });
-  }, [query, category]);
   const relatedHost = learn ? (PLANET_INDEX.get(learn.id)?.host ?? (learn.id.startsWith('host:') ? learn.id.slice(5) : null)) : null;
   const relatedPlanets = relatedHost ? HOST_PLANETS.get(relatedHost) ?? [] : [];
   const learnDestination = learn ? catalogDestination(learn.id) ?? DESTINATIONS.find(d => d.bodyId === learn.id) : null;
@@ -137,12 +131,12 @@ export function ExploreHud({
   return (
     <div className="ex-hud">
       <header className="ex-topbar">
-        <div className="ex-topbar__left">
-          <button type="button" className="ex-bridge" onClick={onBridge}>
-            <span className="ex-bridge__arrow" aria-hidden>‹</span>
-            <span className="ex-bridge__text"><strong>Return to bridge</strong><small>Cockpit · lobby · duels</small></span>
-          </button>
-        </div>
+        <p className="gx-mark">
+          <span className="gx-mark__star" aria-hidden>✦</span>
+          <strong>Space Battles</strong>
+          <span className="gx-mark__slash" aria-hidden>/</span>
+          <span className="gx-mark__sector">{destination.label} · {telemetry.scaleLabel}</span>
+        </p>
         <div className="ex-modes" role="tablist" aria-label="Flight mode">
           <button type="button" role="tab" aria-selected={mode === 'flight'} onClick={() => onMode('flight')}>
             <strong>Flight</strong><small>Pilots can find you</small>
@@ -152,6 +146,9 @@ export function ExploreHud({
           </button>
         </div>
         <div className="ex-topbar__actions">
+          <span className="gx-status" data-state={!ready ? 'loading' : assetErrors ? 'caution' : 'ready'} role="status">
+            <i aria-hidden />{!ready ? 'Starting universe' : loadingAssets ? `Artwork ${Math.round(assetProgress)}%` : assetErrors ? 'Basic shapes active' : 'Universe ready'}
+          </span>
           <HoloButton size="sm" onClick={onToggleCredits}>
             Data
           </HoloButton>
@@ -161,24 +158,32 @@ export function ExploreHud({
         </div>
       </header>
 
-      <button type="button" className="ex-telemetry" onClick={onLearnNearest} aria-label="Learn about nearest body" disabled={!ready || !nearestScience}>
-        <p className="sd-eyebrow">{catalogMode || telemetry.localNavigation ? 'Navigation focus' : 'Nearest'} · tap to learn</p>
-        <p className="ex-telemetry__name">{telemetry.nearestName}</p>
-        <p className="ex-telemetry__meta">
-          {telemetry.nearestDistance.toFixed(0)} u · {telemetry.speed.toFixed(0)} u/s
-          {telemetry.boosting ? ' · BOOST' : ''}
+      <section className="ex-telemetry gx-world" aria-label="Destination in focus" data-ready={ready}>
+        <p className="gx-eyebrow">Destination / {catalogMode || telemetry.localNavigation ? 'in focus' : 'nearest'}</p>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={ready ? telemetry.nearestId : 'loading'} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }} transition={{ duration: .22, ease: [.18, .92, .24, 1] }}>
+            <h2 className="gx-world__name">{ready ? telemetry.nearestName : 'Loading…'}</h2>
+            {ready && nearestScience && <p className="gx-world__blurb">{nearestScience.blurb}</p>}
+            {ready && !nearestScience && <p className="gx-world__blurb">No catalog record for this object yet.</p>}
+          </motion.div>
+        </AnimatePresence>
+        <dl className="gx-world__data">
+          <div><dt>Range</dt><dd>{formatSceneDistance(telemetry.nearestDistance).value} <small>{formatSceneDistance(telemetry.nearestDistance).unit}</small></dd></div>
+          <div><dt>Speed</dt><dd>{telemetry.speed.toFixed(0)} <small>u/s</small>{telemetry.boosting ? ' · boost' : ''}</dd></div>
+          {nearestScience?.gravityMps2 != null && <div><dt>Gravity</dt><dd>{nearestScience.gravityMps2} <small>m/s²</small></dd></div>}
+          {nearestScience?.meanTempC != null && <div><dt>Mean temp</dt><dd>{nearestScience.meanTempC} <small>°C</small></dd></div>}
+        </dl>
+        <p className="gx-world__effect">
+          <span>Arena effect</span>
+          {telemetry.nearestId === 'mars' || telemetry.nearestId === 'mars-surface' ? 'Live duels are fought on Mars' : 'Exploration only · no duel arena'}
         </p>
-        <p className="ex-telemetry__dest">{destination.label} · {telemetry.scaleLabel}</p>
-        {nearestScience?.gravityMps2 != null && (
-          <p className="ex-telemetry__science">g {nearestScience.gravityMps2} m/s² · NASA Fact Sheet</p>
-        )}
-      </button>
+        {onZoom && (telemetry.nearestId === 'earth' || telemetry.nearestId.startsWith('sat-')) && <OrbitTimeControl compact />}
+        <p className="gx-world__source">{nearestScience ? nearestScience.source : 'Visual units are compressed for navigation'}</p>
+        <button type="button" className="gx-primary" onClick={onLearnNearest} disabled={!ready || !nearestScience}>
+          <span>Inspect {ready ? telemetry.nearestName : ''}</span><b aria-hidden>↗</b>
+        </button>
+      </section>
 
-
-      <div className="ex-flight-status" role="status">
-        {!ready || loadingAssets || assetErrors ? <strong>{!ready ? 'Starting universe…' : loadingAssets ? `Artwork loading ${Math.round(assetProgress)}%` : 'Some artwork unavailable · basic shapes active'}</strong> : null}
-        <span>{!flightEnabled ? 'Flight paused' : telemetry.localNavigation?.inTransit ? `Approaching ${telemetry.localNavigation.focus}` : telemetry.localNavigation?.zooming ? 'Zooming smoothly' : telemetry.speed > 0.1 ? 'Flying' : 'Stopped · press W or Cruise'}</span>
-      </div>
       {mode === 'explore' && !onZoom && (
         <section className="ex-local-zoom" aria-label="Explore mode">
           <p className="sd-eyebrow">Peaceful explore</p>
@@ -187,7 +192,7 @@ export function ExploreHud({
         </section>
       )}
       {mode === 'explore' && onZoom && <section className="ex-local-zoom" aria-label="Local zoom controls">
-        <p className="sd-eyebrow">Peaceful explore · Earth → system → stars</p>
+        <p className="sd-eyebrow">Peaceful explore · Earth → stars → galaxies</p>
         <div className="ex-local-zoom__buttons">
           <HoloButton size="sm" disabled={!flightEnabled} onClick={() => onZoom('in')}>Zoom in +</HoloButton>
           <HoloButton size="sm" disabled={!flightEnabled} onClick={() => onZoom('out')}>Zoom out −</HoloButton>
@@ -196,15 +201,30 @@ export function ExploreHud({
           <button type="button" disabled={!flightEnabled} onClick={() => onZoom('system')}>System view</button>
           <button type="button" disabled={!flightEnabled} onClick={() => onZoom('stars')}>Nearby stars view</button>
         </div>
-        <p>Gentle scroll for precision · scroll faster to zoom out · + / −</p>
-        <p data-testid="local-zoom-range">{telemetry.localNavigation ? telemetry.localNavigation.inTransit ? `Approaching ${telemetry.localNavigation.focus}` : `${telemetry.localNavigation.range.toFixed(0)} visual units from ${telemetry.localNavigation.focus}` : 'Preparing local view'}</p>
+        <div className="ex-local-zoom__buttons">
+          <button type="button" disabled={!flightEnabled} onClick={() => onZoom('milkyway')}>Milky Way view</button>
+          <button type="button" disabled={!flightEnabled} onClick={() => onZoom('galaxies')}>Galaxy view</button>
+        </div>
+        <p>Scroll to zoom continuously · hover stars, craft and galaxies for names</p>
+        <OrbitTimeControl />
+        <p data-testid="local-zoom-range">{telemetry.localNavigation ? telemetry.localNavigation.inTransit ? `Approaching ${telemetry.localNavigation.focus}` : `${formatSceneDistance(telemetry.localNavigation.range).value} ${formatSceneDistance(telemetry.localNavigation.range).unit} from ${telemetry.localNavigation.focus}` : 'Preparing local view'}</p>
       </section>}
-      <div className="ex-flight-actions">
-        <HoloButton disabled={!flightEnabled} variant={input.cruise ? 'accent' : 'primary'} aria-pressed={!!input.cruise}
-          onClick={() => onInput({ cruise: !input.cruise, brake: false })}>{input.cruise ? 'Cruise on' : 'Cruise'}</HoloButton>
-        <HoloButton disabled={!ready} onClick={() => onInput({ thrust: 0, strafe: 0, pitch: 0, yaw: 0, cruise: false, brake: true })}>Stop</HoloButton>
-        <HoloButton onClick={() => onJump('sol')}>Return to Earth</HoloButton>
-      </div>
+      <footer className="gx-rail">
+        <button type="button" className="ex-bridge" onClick={onBridge}>
+          <span className="ex-bridge__arrow" aria-hidden>‹</span>
+          <span className="ex-bridge__text"><strong>Return to bridge</strong><small>Cockpit · lobby · duels</small></span>
+        </button>
+        <div className="ex-flight-actions">
+          <HoloButton disabled={!flightEnabled} variant={input.cruise ? 'accent' : 'ghost'} aria-pressed={!!input.cruise}
+            onClick={() => onInput({ cruise: !input.cruise, brake: false })}>{input.cruise ? 'Cruise on' : 'Cruise'}</HoloButton>
+          <HoloButton disabled={!ready} onClick={() => onInput({ thrust: 0, strafe: 0, pitch: 0, yaw: 0, cruise: false, brake: true })}>Stop</HoloButton>
+          <HoloButton onClick={() => onJump('sol')}>Return to Earth</HoloButton>
+        </div>
+        <p className="gx-rail__status" role="status">
+          {!flightEnabled ? 'Flight paused' : telemetry.localNavigation?.inTransit ? `Approaching ${telemetry.localNavigation.focus}` : telemetry.localNavigation?.zooming ? 'Zooming smoothly' : telemetry.speed > 0.1 ? 'Flying' : 'Stopped · press W or Cruise'}
+          {!isTouch && <small>W/S thrust · A/D strafe · arrows or drag steer · Q/E rise · Shift boost · Space stop · N destinations</small>}
+        </p>
+      </footer>
 
       {mode === 'flight' && <details className="ex-contacts" aria-label="Nearby pilots">
         <summary className="sd-eyebrow">Pilot contacts</summary>
@@ -260,45 +280,18 @@ export function ExploreHud({
         </div>
       )}
 
-      {!isTouch && (
-        <p className="ex-hints">
-          W/S forward / reverse · A/D strafe · arrows or drag to steer · Q/E rise / descend · Shift boost · Space stop · N destinations
-        </p>
-      )}
 
-      {navOpen && (
-        <div className="ex-nav" role="dialog" aria-modal="true" aria-labelledby="ex-nav-title">
-          <div className="ex-nav__card">
-            <p className="sd-eyebrow">Hyperspace</p>
-            <h2 id="ex-nav-title">Explore and learn</h2>
-            <p className="ex-nav__blurb">Explore real catalog objects. Jump between solar, stellar and galaxy scales, then fly locally. Object sizes and system layouts are illustrative.</p>
-            <div className="ex-categories" aria-label="Catalog categories">
-              {['Highlights','Solar system','Satellites','Asteroids','Comets','Stars','Exoplanets','Galaxies'].map(c => <button key={c} type="button" aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}
-            </div>
-            <input className="ex-search" aria-label="Search destinations" placeholder="ISS, Starlink, Saturn, Halley, Ceres, Sirius…" value={query} onChange={e => setQuery(e.target.value)} autoFocus />
-            <p className="ex-nav__blurb">{category === 'Highlights' && query ? 'All catalogs · ' : category + ' · '}{filteredDestinations.length.toLocaleString()} results{filteredDestinations.length > 50 ? ' · showing the first 50; search to narrow' : ''}</p>
-            <ul className="ex-nav__list">
-              {filteredDestinations.slice(0,50).map((d) => (
-                <li key={d.id}>
-                  <button
-                    type="button"
-                    className={`ex-nav__item${d.id === destination.id ? ' is-here' : ''}`}
-                    onClick={() => onJump(d.id)}
-                  >
-                    <span className="ex-nav__label">Visit {d.label}</span>
-                    <span className="ex-nav__brief">{d.briefing}</span>
-                  </button>
-                  {d.bodyId && <button type="button" className="ex-learn-link" onClick={() => { onCloseNav(); onLearnBody(d.bodyId!); }}>Learn about {d.label}</button>}
-                </li>
-              ))}
-            </ul>
-            {filteredDestinations.length === 0 && <div><p>No matches in {category === 'Highlights' ? 'the imported catalogs' : category}.</p>
-              {category !== 'Highlights' && <HoloButton onClick={() => setCategory('Highlights')}>Search all catalogs</HoloButton>}
-            </div>}
-            <HoloButton onClick={onCloseNav}>Close</HoloButton>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {navOpen && (
+          <DestinationsPanel
+            key="destinations"
+            current={destination}
+            onJump={onJump}
+            onLearn={(id) => { onCloseNav(); onLearnBody(id); }}
+            onClose={onCloseNav}
+          />
+        )}
+      </AnimatePresence>
 
       {learn && (
         <div className="ex-learn" role="dialog" aria-modal="true" aria-labelledby="ex-learn-title">

@@ -10,6 +10,7 @@ import type { GraphicsQuality, SceneSettings } from '../../state/lobbyTypes';
 import type { ExploreDestination } from './destinations';
 import { ExploreUniverse } from './SolarSystem';
 import { LocalUniverseScene } from './LocalUniverseScene';
+import { planetFacts } from './bodiesScience';
 import type { NearbyPilot } from '../../state/lobbyTypes';
 import { LocalFlightController } from './LocalFlightController';
 import { LocalNavigation, isLocalDestination, type LocalZoomRequest } from './localNavigation';
@@ -186,7 +187,7 @@ export function ExploreScene({
       {high && !drive && <BakeShadows />}
       <group ref={worldRef}>
         <group ref={contentRef}>
-          {local ? <LocalUniverseScene navigation={navigation} inspecting={!!inspectId} quality={settings.quality} onLearn={onLearn ?? (() => {})} rivals={rivals} onSelectRival={onSelectRival} /> : <ExploreUniverse
+          {local ? <LocalUniverseScene navigation={navigation} inspecting={!!inspectId} inspectId={inspectId} quality={settings.quality} onLearn={onLearn ?? (() => {})} rivals={rivals} onSelectRival={onSelectRival} /> : <ExploreUniverse
             destination={destination}
             environment={destination.environment}
             quality={settings.quality as GraphicsQuality}
@@ -194,7 +195,7 @@ export function ExploreScene({
             onLearn={onLearn}
             showMilkyWay={showMilkyWay}
           />}
-          {inspectId && inspectId !== 'sun' && inspectId !== 'moon' && (
+          {inspectId && inspectId !== 'sun' && inspectId !== 'moon' && planetFacts(inspectId) && (
             <PlanetCutaway key={inspectId} bodyId={inspectId} open={cutawayOpen} highlight={highlightLayer} reducedMotion={settings.reducedMotion} />
           )}
         </group>

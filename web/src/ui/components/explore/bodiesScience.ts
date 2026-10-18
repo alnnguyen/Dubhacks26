@@ -60,7 +60,7 @@ export function planetFactsEarth(): PlanetFacts {
 export interface BodyScience {
   id: string;
   name: string;
-  kind: 'star' | 'planet' | 'moon' | 'surface' | 'exo' | 'galaxy' | 'satellite' | 'asteroid' | 'comet';
+  kind: 'star' | 'planet' | 'moon' | 'surface' | 'exo' | 'galaxy' | 'satellite' | 'asteroid' | 'comet' | 'probe';
   gravityMps2: number | null;
   escapeKmS: number | null;
   dayHours: number | null;

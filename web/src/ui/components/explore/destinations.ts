@@ -16,7 +16,7 @@ export interface ExploreDestination {
   yaw: number;
   pitch?: number;
   bodyId?: string;
-  category?: 'Solar system' | 'Stars' | 'Exoplanets' | 'Galaxies' | 'Satellites' | 'Asteroids' | 'Comets';
+  category?: 'Solar system' | 'Stars' | 'Exoplanets' | 'Galaxies' | 'Satellites' | 'Asteroids' | 'Comets' | 'Spacecraft';
   host?: string;
 }
 
