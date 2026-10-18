@@ -1,6 +1,7 @@
 import { StrictMode, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { SoundShell } from "./audio/SoundShell";
+import "./ui/styles/brand.css";
 import "./ui/styles/button-feedback.css";
 
 const search = new URLSearchParams(window.location.search);
@@ -16,6 +17,7 @@ const devReplay = search.get("dev") === "replay";
 const initiationPreview = search.get("dev") === "initiation";
 const explore = search.has("explore");
 const soundCheck = search.get("audio") === "check";
+const marsJourney = search.get("journey") === "mars";
 const neptunePreview =
   search.get("arena") === "neptune" || search.get("journey") === "neptune";
 const hudPreview = search.get("dev") === "hud";
@@ -24,6 +26,11 @@ const Screen = hudPreview
       const m = await import("./arena3d/HudPreview");
       return { default: m.HudPreview };
     })
+  : marsJourney
+    ? lazy(async () => {
+        const m = await import("./arena/mars/MarsJourneyPreview");
+        return { default: m.MarsJourneyPreview };
+      })
   : neptunePreview
     ? lazy(async () => {
         const m = await import("./arena/neptune/NeptunePreview");
