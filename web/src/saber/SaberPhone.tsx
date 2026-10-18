@@ -42,6 +42,12 @@ export function SaberPhone({ code }: { code: string }) {
   const holdStartRef = useRef(0)
   const holdRafRef = useRef(0)
   const ignitingRef = useRef(false)
+  // The hold filled; releasing the finger ignites. iOS only shows the motion prompt
+  // from a release/tap handler, never from the hold's timer.
+  const holdReadyRef = useRef(false)
+  const [holdReady, setHoldReady] = useState(false)
+  const holdButtonRef = useRef<HTMLButtonElement>(null)
+  const endHoldRef = useRef<() => void>(() => {})
   // The last swipe, for a quick arrow flash: refused swipes flash red.
   const [swipeFlash, setSwipeFlash] = useState<{ direction: StepDirection; blocked: boolean; key: number } | null>(null)
   const wakeLockRef = useRef<WakeLock | null>(null)
@@ -154,15 +160,18 @@ export function SaberPhone({ code }: { code: string }) {
     ignitingRef.current = true
     setError(null)
     try {
-      // iOS asks for motion permission only from a user gesture. Ask for both before any other await.
+      // iOS asks for motion permission and starts audio only from a user gesture, so this
+      // must be called straight from the release handler and start all three before any await.
       const orientation = (DeviceOrientationEvent as unknown as WithPermission).requestPermission
       const motion = (DeviceMotionEvent as unknown as WithPermission).requestPermission
-      const [orientationResult] = await Promise.all([
-        orientation ? orientation() : Promise.resolve<PermissionResult>("granted"),
-        motion ? motion().catch(() => "denied" as const) : Promise.resolve("granted"),
+      const permissions = Promise.all([
+        orientation ? orientation.call(DeviceOrientationEvent) : Promise.resolve<PermissionResult>("granted"),
+        motion ? motion.call(DeviceMotionEvent).catch(() => "denied" as const) : Promise.resolve("granted"),
       ])
+      const audioStarted = audio.start()
+      const [orientationResult] = await permissions
       if (orientationResult !== "granted") throw new Error("Motion access was denied. Reload the page and allow it.")
-      await audio.start()
+      await audioStarted
       try {
         wakeLockRef.current =
           (await (navigator as Navigator & { wakeLock?: { request(type: "screen"): Promise<WakeLock> } }).wakeLock?.request("screen")) ?? null
@@ -199,8 +208,36 @@ export function SaberPhone({ code }: { code: string }) {
       cancelAnimationFrame(holdRafRef.current)
       holdRafRef.current = 0
     }
+    holdReadyRef.current = false
+    setHoldReady(false)
     setHoldProgress(0)
   }
+
+  function endHold() {
+    const ready = holdReadyRef.current
+    clearHold()
+    if (ready) void enable()
+  }
+
+  endHoldRef.current = endHold
+
+  // iOS counts touchend as a user gesture but not always pointerup, so a finger release
+  // ignites from a native touchend listener; pointerup covers mouse and pen.
+  useEffect(() => {
+    const button = holdButtonRef.current
+    if (enabled || !button) return
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault()
+      endHoldRef.current()
+    }
+    const onTouchCancel = () => clearHold()
+    button.addEventListener("touchend", onTouchEnd, { passive: false })
+    button.addEventListener("touchcancel", onTouchCancel)
+    return () => {
+      button.removeEventListener("touchend", onTouchEnd)
+      button.removeEventListener("touchcancel", onTouchCancel)
+    }
+  }, [enabled])
 
   function beginHold() {
     if (enabled || ignitingRef.current) return
@@ -215,7 +252,9 @@ export function SaberPhone({ code }: { code: string }) {
     holdTimerRef.current = window.setTimeout(() => {
       holdTimerRef.current = null
       setHoldProgress(1)
-      void enable()
+      holdReadyRef.current = true
+      setHoldReady(true)
+      navigator.vibrate?.(15)
     }, HOLD_MS)
   }
 
@@ -283,33 +322,29 @@ export function SaberPhone({ code }: { code: string }) {
             <i /><i /><i /><b />
           </span>
         </div>
-        {!enabled ? (
-          <p className="saber-hold-cue">
-            <span className="saber-hold-cue__arrow" aria-hidden>↑</span>
-            HOLD TO IGNITE
-          </p>
-        ) : null}
       </div>
 
       {!enabled ? (
         <div className="saber-ignite">
+          <p className="saber-hold-cue">HOLD TO IGNITE</p>
           <button
+            ref={holdButtonRef}
             type="button"
             className="saber-hold"
             aria-label="Hold to ignite saber"
             onPointerDown={(e) => {
               if (e.button !== 0) return
-              e.currentTarget.setPointerCapture(e.pointerId)
               beginHold()
             }}
-            onPointerUp={() => clearHold()}
+            onPointerUp={(e) => {
+              if (e.pointerType !== "touch") endHold()
+            }}
             onPointerCancel={() => clearHold()}
-            onLostPointerCapture={() => clearHold()}
             onContextMenu={(e) => e.preventDefault()}
           >
             <span className="saber-hold__fill" style={{ transform: `scaleX(${holdProgress})` }} />
-            <span className="saber-hold__label">IGNITE SABER</span>
-            <span className="saber-hold__hint">HOLD ›</span>
+            <span className="saber-hold__label">{holdReady ? "RELEASE TO IGNITE" : "IGNITE SABER"}</span>
+            <span className="saber-hold__hint">{holdReady ? "LET GO ›" : "HOLD ›"}</span>
           </button>
           <p className="saber-ignite-note">Also turns on motion for aiming.</p>
         </div>
