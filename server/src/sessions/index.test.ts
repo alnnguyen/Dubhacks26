@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, mock, test } from "node:test";
 import { RULES } from "../game/rules.js";
-import { Lobby } from "./index.js";
+import { Lobby, pickArenaWorld } from "./index.js";
 
 const ALICE = "player-alice";
 const BOB = "player-bob";
@@ -227,4 +227,13 @@ describe('destination selection',()=>{
   send(BOB,{type:'acceptChallenge',challengeId:lobby.lobbyView(BOB).challenge!.id});
   assert.equal(lobby.matchView(BOB)!.world.id,'mars');
  });
+});
+
+describe('arena world roll', () => {
+  test('splits Mars and Neptune evenly', () => {
+    assert.equal(pickArenaWorld(() => 0), 'mars');
+    assert.equal(pickArenaWorld(() => 0.49), 'mars');
+    assert.equal(pickArenaWorld(() => 0.5), 'neptune');
+    assert.equal(pickArenaWorld(() => 0.99), 'neptune');
+  });
 });

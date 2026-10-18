@@ -10,8 +10,7 @@ import { useAudioScene } from '../audio/useAudioScene';
 // Every match number below comes from the game server's view; this screen only displays it.
 export function FlightApp({client: providedClient, cockpitControls}: {client?: GameClient; cockpitControls?: ReactNode} = {}) {
   const client = providedClient ?? getGameClient();
-  const [chosenDestination,setChosenDestination]=useState<DestinationId>('mars');
-  const lobby = useServerLobby(client,chosenDestination);
+  const lobby = useServerLobby(client);
   const view = useGameView(client);
   // Private pair code: a phone opening /?saber=<code> becomes this pilot's lightsaber.
   const pairCode = useGameLobby(client)?.pairCode ?? '';
@@ -106,8 +105,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       <>
         <SpaceshipHome
           lobby={lobby}
-          destination={view?destinationFromWorld(view.world.id):chosenDestination}
-          onDestinationChange={setChosenDestination}
+          destination={view ? destinationFromWorld(view.world.id) : undefined}
           onTravelComplete={beginBriefing}
           cockpitControls={cockpitControls}
           copilotClient={client}

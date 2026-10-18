@@ -23,7 +23,6 @@ const SpaceshipScene = lazy(() => import('../components/spaceship/SpaceshipScene
 
 export interface SpaceshipHomeProps {
   destination?: DestinationId;
-  onDestinationChange?: (destination:DestinationId)=>void;
   /** Real lobby adapter from the multiplayer module. Uses local mocks when omitted. */
   lobby?: LobbyViewModel;
   /** Development-only local rehearsal callback; normal gameplay uses onTravelComplete. */
@@ -49,8 +48,9 @@ function initialSettings(): SceneSettings {
   return { quality: 'high', reducedMotion: !!reduced, parallax: true, ...saved };
 }
 
-export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete, cockpitModelUrl, cockpitControls, copilotClient, destination:providedDestination, onDestinationChange }: SpaceshipHomeProps) {
-  const [localDestination,setLocalDestination]=useState<DestinationId>('mars');
+export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete, cockpitModelUrl, cockpitControls, copilotClient, destination:providedDestination }: SpaceshipHomeProps) {
+  // The server rolls the world; local rehearsals (no server) roll 50/50 here.
+  const [localDestination]=useState<DestinationId>(()=>Math.random()<0.5?'mars':'neptune');
   const destination=providedDestination??localDestination;
   const mock = useMockLobby({ enabled: !external });
   const lobby = external ?? mock.lobby;
@@ -202,7 +202,6 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
 
       <div className="sd-hud" aria-hidden={travelActive}>
         <header className="sd-topbar">
-          <label className="sd-destination">Destination <select aria-label="Battle destination" value={destination} disabled={busy} onChange={e=>{const next=e.target.value as DestinationId;setLocalDestination(next);onDestinationChange?.(next);}}>{Object.values(DESTINATIONS).map(d=><option key={d.id} value={d.id}>{d.displayName}</option>)}</select></label>
           <p className="sd-brand">
             <span>Jedi Space Duels</span>
             <span className="sd-brand__sub">Bridge // Lobby</span>

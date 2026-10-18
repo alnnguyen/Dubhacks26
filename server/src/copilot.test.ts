@@ -25,7 +25,7 @@ test('copilot context is bound to the joined player and the actual running match
     const pending = await request(b, 'copilot:context', {});
     await request(b, 'command', {type: 'acceptChallenge', challengeId: pending.context.lobby.challenge.id, commandId: 'copilot-accept'});
     const real = await request(a, 'copilot:context', {});
-    assert.equal(real.context.match.world.id, 'mars');
+    assert.ok(['mars', 'neptune'].includes(real.context.match.world.id));
     assert.equal(real.context.match.you.pilotId, aj.lobby.you.id);
     assert.equal(real.context.match.rival.pilotId, bj.lobby.you.id);
     assert.equal(real.context.match.phase, 'waiting');

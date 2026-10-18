@@ -73,6 +73,11 @@ export type JoinResult = { ok: true } | { ok: false; reason: "invalid_request" }
 
 // One shared demo room: pilots, challenges between them, and the matches accepted challenges start.
 // Every player action, from the app or a provider adapter, goes through handleCommand.
+/** The two built arenas, equally likely. */
+export function pickArenaWorld(random: () => number = Math.random): WorldId {
+  return random() < 0.5 ? "mars" : "neptune";
+}
+
 export class Lobby {
   private pilots = new Map<string, PilotRecord>();
   private challenges = new Map<string, ChallengeRecord>();
@@ -82,8 +87,8 @@ export class Lobby {
   private pickWorld: () => WorldId;
 
   constructor(private events: LobbyEvents, options: LobbyOptions = {}) {
-    // Every match is on Mars (the only built arena). Tests can still inject a world.
-    this.pickWorld = options.pickWorld ?? (() => "mars");
+    // Each accepted challenge lands on Mars or Neptune, 50/50, chosen once here. Tests can still inject a world.
+    this.pickWorld = options.pickWorld ?? (() => pickArenaWorld());
   }
 
   join(playerId: unknown, callsign?: unknown): JoinResult {

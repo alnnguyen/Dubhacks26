@@ -149,3 +149,8 @@ including after reconnect. No new events, ready semantics, controller changes,
 or provider calls. A/B/C handoff is recorded here and in the task board; no
 external messages or deployment were sent. Deploy both updated server and client
 together before using Neptune in real matches.
+
+
+## Random arena world — feature/neptune-arena
+
+With no `destination` on the challenge, the server now rolls Mars or Neptune 50/50 when the challenge is accepted (`pickArenaWorld`), once per match; both pilots and reconnects see the same world. The web client no longer sends `destination` (the cockpit picker is removed); the optional field stays for tests and tools.
