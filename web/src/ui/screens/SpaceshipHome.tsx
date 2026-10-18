@@ -15,6 +15,8 @@ import { PlanetaryTransition } from '../cinematics/PlanetaryTransition';
 import { PlanetarySound } from '../cinematics/PlanetarySound';
 import type { PlanetaryCinematicState } from '../cinematics/sequence';
 import '../styles/spaceship.css';
+import { gameAudio } from '../../audio/gameAudio';
+import { useAudioScene } from '../../audio/useAudioScene';
 
 const SpaceshipScene = lazy(() => import('../components/spaceship/SpaceshipScene').then((m) => ({ default: m.SpaceshipScene })));
 
@@ -74,6 +76,9 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
   const sound = useMemo(() => new PlanetarySound(), []);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [audioUnavailable, setAudioUnavailable] = useState(false);
+  useAudioScene(travelActive ? 'travel' : 'cockpit');
+  const matchupPilot = challenge.kind === 'accepted' || challenge.kind === 'ready' ? challenge.opponent.id : null;
+  useEffect(() => matchupPilot ? gameAudio.play('clash') : undefined, [matchupPilot]);
 
   useEffect(() => {
     try {

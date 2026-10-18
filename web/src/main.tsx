@@ -1,5 +1,6 @@
 import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
+import { SoundShell } from './audio/SoundShell';
 
 const search = new URLSearchParams(window.location.search);
 // Alan's camera harness: /?camera=1 or /?debug=camera.
@@ -15,7 +16,10 @@ const saberCode = search.get('saber');
 // The saber arena with synthetic fighters, no camera/phone/server: /?dev=arena
 const devArena = search.get('dev') === 'arena';
 
-const Screen = devArena
+const soundCheck = search.get('audio') === 'check';
+const Screen = soundCheck
+  ? lazy(async () => { const m = await import('./audio/SoundCheck'); return { default: m.SoundCheck }; })
+  : devArena
   ? lazy(async () => {
       const m = await import('./arena3d/ArenaPreview');
       return { default: m.ArenaPreview };
@@ -58,7 +62,7 @@ if (!root) throw new Error('Missing #root');
 createRoot(root).render(
   <StrictMode>
     <Suspense fallback={<p>Loading flight systems…</p>}>
-      <Screen />
+      <SoundShell enabled={!saberCode}><Screen /></SoundShell>
     </Suspense>
   </StrictMode>,
 );

@@ -4,6 +4,7 @@ import { ArenaDuel } from '../arena3d/ArenaDuel';
 import { useServerLobby } from '../lobby/useServerLobby';
 import { getGameClient, useGameLobby, useGameView, type ClientReply, type GameClient, type PlayerView } from '../networking';
 import './flight.css';
+import { useAudioScene } from '../audio/useAudioScene';
 
 // Every match number below comes from the game server's view; this screen only displays it.
 export function FlightApp({client: providedClient, cockpitControls}: {client?: GameClient; cockpitControls?: ReactNode} = {}) {
@@ -20,6 +21,8 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const [travelDestination, setTravelDestination] = useState<'mars' | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const launchTimer = useRef<number | undefined>(undefined);
+  const audioScene = !view || entered !== view.matchId ? null : view.phase === 'finished' ? 'result' : view.phase === 'waiting' && !view.you.ready ? 'briefing' : 'battle';
+  useAudioScene(audioScene);
 
   const beginBriefing = useCallback((destination: 'mars') => {
     setNote('Travel complete. Connecting to the Mars match…');

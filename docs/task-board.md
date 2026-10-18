@@ -70,10 +70,13 @@ Full text: `server/src/integrations/HANDOFF.md`.
 
 - Demo/Live switch, dock controls, hologram Voice: see `docs/hologram-copilot.md` and BridgeApp. Grok Bot planning bonus claimed in `docs/sponsor-evidence.md`.
 
-
 ## Live connected to Justin shared server — October 18
 
 Alex: configured the merged frontend to Justin’s public Cloudflare multiplayer server; phone QR and saber client routing now use that same backend. Real test join + controller pairing passed; the shared roster saw the merged preview pilot. Build and 156 frontend tests pass (one opt-in skipped). No game/server rules changed. Justin’s running server lacks copilot RPC replies, so shared Voice still needs his backend updated. Physical two-player saber testing remains. Changes prepared on alex-dev for team integration; `.env.local` stays ignored. Handoff: `docs/shared-live-server.md`.
+
+## Audio presentation — Alex, October 18
+
+Shared music/effects mixer and supplied audio pack integrated into alex-dev working tree: onboarding, bridge jump, cockpit bed/hum, accepted-match impact, preserved map-wheel synth, travel engine/jump/arrival, and low Mars arena music/wind. LYRA panel ducks background while listening/speaking. SOUND / MIX controls and `/?audio=check` listening room added; no new dependencies, keys, server contracts, or endpoints. Build passes; full frontend suite 165 passed / one opt-in skipped; nine mixer lifecycle tests pass. Local browser buffers/scene beds verified. Physical iPhone, two-laptop speaker mix, and full live flow remain QA. Not deployed or pushed by this task. Handoff: `docs/audio-integration.md`.
 
 ## Mars intro and arena rendering recovery — October 18
 
@@ -112,7 +115,6 @@ Alex: configured the merged frontend to Justin’s public Cloudflare multiplayer
 
 - User requested reverting timing increases: normal activation restored to 700 ms; original eight roulette stops total 1600 ms (65–475 ms each), for a 3.6-second normal intro. Preserved preloading/readiness, rendered-frame clock, highlight/reticle fixes and all-eight-stop reduced-motion content.
 - Owned paths: sequence, timing tests and board. No contracts, backend or environment changes. Five cinematic tests passed; production build/typecheck passed. Device visual playback remains unverified.
-
 
 ## Opponent-relative orbital movement — October 18
 

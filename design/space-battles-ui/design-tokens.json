@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "status": "Handoff names newly consolidated from cinematic source; not installed in game",
+  "source": "reference/saber-cinematic-preview/style.css",
+  "color": {
+    "void": "#020711",
+    "ink": "#e9f6ff",
+    "hero": "#f4fbff",
+    "blue": "#175dff",
+    "cyan": "#87dcff",
+    "rival": "#ff727f",
+    "muted": "#6f96b8",
+    "body": "#a0b7d1",
+    "label": "#7ba8cd",
+    "surface": "#0a192b",
+    "border": "#2b4766",
+    "primary-fill": "#e2f2ff",
+    "primary-ink": "#06162d",
+    "primary-hover": "#a1e5ff",
+    "focus": "#a6eeff"
+  },
+  "font": {
+    "display": "Orbitron, system-ui, sans-serif",
+    "mono": "JetBrains Mono, monospace",
+    "displayWeights": [
+      500,
+      600,
+      700,
+      800,
+      900
+    ],
+    "monoWeights": [
+      400,
+      500
+    ]
+  },
+  "gradient": {
+    "plate": "linear-gradient(105deg,#0d42c9,#236dff 72%,#4b9aff)",
+    "glass-red": "linear-gradient(130deg,#11091444,transparent 48%,#811e3545)",
+    "glass-blue": "linear-gradient(120deg,#07183fcc,#0b245844 60%,#02081199)",
+    "hologram": "linear-gradient(125deg,#112c4a44,#02081211)"
+  },
+  "geometry": {
+    "skewDeg": -12,
+    "seamDeg": -16,
+    "cutCornerPx": 24,
+    "panelGridPx": 28
+  },
+  "motion": {
+    "keywordMs": 720,
+    "keywordEasing": "cubic-bezier(.18,.92,.24,1)",
+    "visualMs": 850,
+    "visualDelayMs": 120,
+    "visualEasing": "cubic-bezier(.15,.8,.2,1)",
+    "laserMs": 650,
+    "sheenMs": 1100,
+    "sheenDelayMs": 300,
+    "jumpMs": 1800,
+    "reelSlideMs": 2600
+  },
+  "recommendedExtensions": {
+    "success": "#79e7b2",
+    "caution": "#ffd28a",
+    "essential-body": "14px",
+    "touch-target": "44px"
+  },
+  "recommendedSpacingPx": [
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64
+  ]
+}
