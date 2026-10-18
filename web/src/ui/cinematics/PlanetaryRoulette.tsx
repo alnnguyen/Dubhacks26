@@ -33,7 +33,8 @@ const PLANET_TEXTURE_URLS: Partial<Record<PlanetId, string>> = {
   mars: '/textures/planets/2k_mars.jpg',
   jupiter: '/textures/planets/2k_jupiter.jpg',
   saturn: '/textures/planets/2k_saturn.jpg',
-  neptune: '/textures/planets/2k_neptune.jpg',
+  // Contrast-boosted with wind streaks so the bands read at roulette size (see ATTRIBUTION.md).
+  neptune: '/textures/planets/2k_neptune_roulette.jpg',
 };
 const SUN_TEXTURE_URL = '/textures/planets/2k_sun.jpg';
 
