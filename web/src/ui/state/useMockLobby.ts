@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { loadPilotIdentity } from '../../app/pilotIdentity';
 import type { ChallengePhase, ConnectionStatus, LobbyViewModel, NearbyPilot, PilotProfile } from './lobbyTypes';
 
 /**
@@ -9,9 +10,22 @@ import type { ChallengePhase, ConnectionStatus, LobbyViewModel, NearbyPilot, Pil
 export const MOCK_SELF: PilotProfile = {
   id: 'self',
   callsign: 'STARHAWK',
+  shipName: 'Quiet Lance',
+  accent: 'cyan',
   rank: 'Knight',
   record: { wins: 12, losses: 5 },
 };
+
+function selfFromStorage(): PilotProfile {
+  const saved = loadPilotIdentity();
+  if (!saved) return MOCK_SELF;
+  return {
+    ...MOCK_SELF,
+    callsign: saved.callsign,
+    shipName: saved.shipName,
+    accent: saved.accent,
+  };
+}
 
 /** `declines` marks pilots that will reject an outgoing challenge in the mock. */
 type MockPilot = NearbyPilot & { declines?: boolean };
@@ -38,7 +52,7 @@ export interface MockLobbyDev {
 
 export function useMockLobby(opts: { enabled?: boolean } = {}) {
   const enabled = opts.enabled ?? true;
-  const [self, setSelf] = useState<PilotProfile>(MOCK_SELF);
+  const [self, setSelf] = useState<PilotProfile>(selfFromStorage);
   const [connection, setConnection] = useState<ConnectionStatus>('connecting');
   const [challenge, setChallenge] = useState<ChallengePhase>({ kind: 'idle' });
   const autoIncomingDone = useRef(false);
@@ -95,7 +109,22 @@ export function useMockLobby(opts: { enabled?: boolean } = {}) {
       decline: () => setChallenge((c) => (c.kind === 'incoming' ? { kind: 'idle' } : c)),
       dismiss: () => setChallenge({ kind: 'idle' }),
       launch: () => setChallenge((c) => (c.kind === 'ready' ? { kind: 'launching', opponent: c.opponent } : c)),
-      setCallsign: (callsign) => setSelf((s) => ({ ...s, callsign: callsign.toUpperCase().slice(0, 14) || s.callsign })),
+      setCallsign: (callsign) =>
+        setSelf((s) => {
+          const next = { ...s, callsign: callsign.toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 14) || s.callsign };
+          const identity = loadPilotIdentity();
+          if (identity) {
+            try {
+              localStorage.setItem(
+                'sd.pilot.identity.v1',
+                JSON.stringify({ ...identity, callsign: next.callsign }),
+              );
+            } catch {
+              /* ignore */
+            }
+          }
+          return next;
+        }),
     }),
     [],
   );

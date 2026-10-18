@@ -53,6 +53,10 @@ body {
   pointer-events: none;
 }
 
+.gun-layer {
+  z-index: 2;
+}
+
 .lock-banner {
   position: absolute;
   left: 0;

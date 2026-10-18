@@ -15,10 +15,11 @@ export function ProfileChip({
 }) {
   return (
     <button type="button" className="sd-dock sd-dock--top sd-chip" data-hidden={hidden} onClick={onOpen} aria-label={`Pilot profile: ${self.callsign}, ${connection}`}>
-      <Emblem callsign={self.callsign} size={34} />
+      <Emblem callsign={self.callsign} size={34} tone={self.accent === 'amber' ? 'amber' : self.accent === 'violet' ? 'violet' : 'cyan'} />
       <span className="sd-chip__text">
         <span className="sd-chip__name">{self.callsign}</span>
         <span className="sd-chip__meta">
+          {self.shipName ? `${self.shipName} · ` : ''}
           {self.rank} · <ConnectionBadge status={connection} />
         </span>
       </span>
@@ -57,8 +58,14 @@ export function ProfilePanel({
       }
     >
       <div className="sd-profile">
-        <Emblem callsign={self.callsign} size={72} />
+        <Emblem callsign={self.callsign} size={72} tone={self.accent === 'amber' ? 'amber' : self.accent === 'violet' ? 'violet' : 'cyan'} />
         <dl className="sd-stats">
+          {self.shipName ? (
+            <div>
+              <dt>Ship</dt>
+              <dd>{self.shipName}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>Rank</dt>
             <dd>{self.rank}</dd>

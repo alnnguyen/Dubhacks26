@@ -1,7 +1,10 @@
+import { gameServerUrl } from "./gameEndpoint"
 import { io } from "socket.io-client"
 // Temporary cross-folder import until server/src/contracts.ts moves to packages/contracts.
 import type {
   ChallengeView,
+  CopilotSessionReply,
+  CopilotContextReply,
   Command,
   CommandReply,
   JoinReply,
@@ -24,6 +27,8 @@ import type {
 
 export type {
   ChallengeView,
+  CopilotSessionReply,
+  CopilotContextReply,
   CommandReply,
   LobbyView,
   MatchResult,
@@ -67,7 +72,7 @@ export interface SocketLike {
 }
 
 export interface GameClientOptions {
-  /** Defaults to the page's own origin, which Vite proxies to the game server. */
+  /** Defaults to VITE_GAME_SERVER_URL, or the page origin when unset (Vite proxies locally). */
   url?: string
   storage?: Pick<Storage, "getItem" | "setItem"> | null
   createSocket?: (url: string | undefined) => SocketLike
@@ -75,6 +80,9 @@ export interface GameClientOptions {
 }
 
 export interface GameClient {
+  /** Read-only Voice access on this already joined connection. */
+  copilotSession(): Promise<CopilotSessionReply>
+  copilotContext(): Promise<CopilotContextReply>
   status(): ConnectionStatus
   /** Why the last join failed, e.g. "invalid_request". Null while joined or still trying. */
   joinError(): string | null
@@ -126,7 +134,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   const now = options.now ?? Date.now
   const storage = options.storage === undefined ? safeLocalStorage() : options.storage
   const playerId = loadPlayerId(storage)
-  const socket = (options.createSocket ?? defaultSocket)(options.url)
+  const socket = (options.createSocket ?? defaultSocket)(options.url ?? gameServerUrl())
 
   let status: ConnectionStatus = "connecting"
   let joinError: string | null = null
@@ -201,12 +209,21 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     })
   }
 
+  function copilotRequest<T extends CopilotSessionReply | CopilotContextReply>(event: string, timeoutMs: number): Promise<T> {
+    if (status !== 'online' || !socket.connected) return Promise.resolve({ ok: false, reason: 'offline' } as T)
+    return new Promise(resolve => {
+      socket.timeout(timeoutMs).emit(event, {}, (err, reply) => resolve(err ? { ok: false, reason: 'no_response' } as T : reply))
+    })
+  }
+
   function subscribe<T>(set: Set<T>, listener: T) {
     set.add(listener)
     return () => void set.delete(listener)
   }
 
   return {
+    copilotSession: () => copilotRequest<CopilotSessionReply>('copilot:session', 18000),
+    copilotContext: () => copilotRequest<CopilotContextReply>('copilot:context', REPLY_TIMEOUT_MS),
     status: () => status,
     joinError: () => joinError,
     lobby: () => lobby,

@@ -1,0 +1,19 @@
+.lyra-portrait{display:block;position:relative;width:100%;height:100%;isolation:isolate;overflow:hidden;filter:drop-shadow(0 0 7px #319cff35);mask-image:radial-gradient(ellipse 63% 57% at 50% 48%,#000 60%,transparent 98%)}
+.lyra-projection{position:absolute;inset:0;display:block;animation:lyra-project-float 5s ease-in-out infinite;transform-origin:50% 75%;transition:filter .3s}
+.lyra-portrait-canvas,.lyra-portrait-fallback{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+.lyra-portrait-canvas{z-index:1}.lyra-projection-scan{position:absolute;z-index:2;inset:0;background:linear-gradient(180deg,transparent 0%,#87dcff00 44%,#b1ecff22 49%,#a5e5ff77 50%,#89dcff11 52%,transparent 57%);background-size:100% 210%;animation:lyra-project-scan 6s linear infinite;mix-blend-mode:screen;opacity:.32;pointer-events:none}
+.lyra-projection-ring{position:absolute;z-index:3;left:7%;top:5%;width:86%;aspect-ratio:1;border:1px solid #65c9ff22;border-top-color:#a1dfff90;border-right-color:#ac8dff55;border-radius:50%;animation:lyra-project-orbit 18s linear infinite;opacity:.5}
+.lyra-voice-bars{position:absolute;z-index:4;bottom:4.8%;left:34%;right:34%;height:8%;display:flex;gap:4%;align-items:center;justify-content:center;opacity:0;transition:opacity .2s}
+.lyra-voice-bars i{display:block;width:5%;height:35%;border-radius:2px;background:#9adfff;box-shadow:0 0 7px #63caff;transform-origin:center}
+.lyra-portrait[data-portrait-phase=speaking] .lyra-voice-bars{opacity:.85}.lyra-portrait[data-portrait-phase=speaking] .lyra-voice-bars i{animation:lyra-project-voice .48s ease-in-out infinite alternate}
+.lyra-portrait[data-portrait-phase=speaking] .lyra-projection{filter:brightness(1.12)}
+.lyra-portrait[data-portrait-phase=listening] .lyra-projection{filter:brightness(1.16) saturate(.9)}
+.lyra-portrait[data-portrait-phase=listening] .lyra-projection-ring{border-color:#81ddff77;animation:lyra-project-listen 1.6s ease-in-out infinite}
+.lyra-portrait[data-portrait-phase=thinking] .lyra-projection-ring,.lyra-portrait[data-portrait-phase=connecting] .lyra-projection-ring{animation-duration:2.6s;border-top-color:#d3b7ff}
+@keyframes lyra-project-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.4%)}}
+@keyframes lyra-project-scan{from{background-position:0 190%}to{background-position:0 -90%}}
+@keyframes lyra-project-orbit{to{transform:rotate(360deg)}}
+@keyframes lyra-project-listen{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(1.035);opacity:.9}}
+@keyframes lyra-project-voice{0%{transform:scaleY(.3)}45%{transform:scaleY(1.5)}100%{transform:scaleY(.7)}}
+.sd-root[data-reduced-motion=true] .lyra-portrait *{animation:none!important}
+@media(prefers-reduced-motion:reduce){.lyra-portrait *{animation:none!important}}

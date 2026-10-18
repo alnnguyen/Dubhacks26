@@ -6,6 +6,7 @@ import { createSaberAudio } from "./saberAudio"
 import { createSaberClient, type SaberClient } from "./saberClient"
 import { createSwipe, swipeEnd, swipeMove, swipeStart } from "./swipePad"
 import "./saber.css"
+import { gameServerUrl } from "../networking/gameEndpoint"
 
 // About 60 a second, as fast as the phone's sensors report and the server accepts.
 const AIM_SEND_MS = 16
@@ -172,7 +173,7 @@ export function SaberPhone({ code }: { code: string }) {
         {connection === "invalid_code" ? <p>Scan the QR code on your laptop's duel screen again.</p> : null}
         {connection === "offline" ? (
           <p className="saber-error">
-            Can't reach the game server at {location.host}
+            Can't reach the game server at {new URL(gameServerUrl() || location.origin).host}
             {connectionError ? ` (${connectionError})` : ""}. Retrying… Check the game server is running and this is the
             same address your laptop uses.
           </p>

@@ -1,5 +1,6 @@
 import type { HandTrack, Point } from "../vision/types"
 import type { PoseOverlay } from "./mediapipeVision"
+import type { DrawTracer } from "../overlay/bulletTracer"
 import { healthAnchor } from "../overlay/rockArc"
 import type { DrawRock } from "../overlay/rockVisual"
 
@@ -34,6 +35,10 @@ export type OverlayDrawOptions = {
   rivalHealth?: number
   /** Slightly larger rock for duel readability. */
   rockScale?: number
+  /** Gun bolt progress 0..1 toward the opponent anchor. Null hides it. */
+  bolt?: { progress: number; to: Point; from?: Point } | null
+  /** Live forward tracers (preferred over a single bolt). */
+  tracers?: DrawTracer[]
 }
 
 export function drawRock3d(
@@ -81,6 +86,107 @@ export function drawRock3d(
     ctx.arc(x, y, radius + 3 * scaleMultiplier, 0, Math.PI * 2)
     ctx.stroke()
   }
+}
+
+/** Screen-space bolt. Damage stays on the server; this only shows travel. */
+export function drawBolt(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  progress: number,
+  to: Point,
+  from: Point = { x: 0.5, y: 0.78 },
+) {
+  const t = Math.min(1, Math.max(0, progress))
+  const ease = 1 - (1 - t) * (1 - t)
+  const tip = {
+    x: from.x + (to.x - from.x) * ease,
+    y: from.y + (to.y - from.y) * ease,
+  }
+  const trail = 0.1 + 0.1 * (1 - ease)
+  const tailT = Math.max(0, ease - trail)
+  const tail = {
+    x: from.x + (to.x - from.x) * tailT,
+    y: from.y + (to.y - from.y) * tailT,
+  }
+  drawTracer(ctx, width, height, {
+    tip,
+    tail,
+    scale: 1.35 - 1.05 * ease,
+    alpha: 1,
+    progress: ease,
+  })
+}
+
+/** First-person tracer: streak + tip that shrink as they travel into the scene. */
+export function drawTracer(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  tracer: DrawTracer,
+) {
+  const x0 = tracer.tail.x * width
+  const y0 = tracer.tail.y * height
+  const x1 = tracer.tip.x * width
+  const y1 = tracer.tip.y * height
+  const a = Math.max(0, Math.min(1, tracer.alpha))
+  const lineW = Math.max(2, 7 * tracer.scale)
+
+  ctx.save()
+  ctx.globalAlpha = a
+  ctx.lineCap = "round"
+
+  // Soft outer glow — reads as energy travel into depth.
+  const glow = ctx.createLinearGradient(x0, y0, x1, y1)
+  glow.addColorStop(0, "rgba(80, 180, 255, 0)")
+  glow.addColorStop(0.45, "rgba(90, 210, 255, 0.35)")
+  glow.addColorStop(1, "rgba(230, 250, 255, 0.9)")
+  ctx.beginPath()
+  ctx.strokeStyle = glow
+  ctx.lineWidth = lineW * 2.4
+  ctx.moveTo(x0, y0)
+  ctx.lineTo(x1, y1)
+  ctx.stroke()
+
+  // Hot core streak.
+  const core = ctx.createLinearGradient(x0, y0, x1, y1)
+  core.addColorStop(0, "rgba(120, 220, 255, 0.15)")
+  core.addColorStop(0.55, "rgba(180, 240, 255, 0.85)")
+  core.addColorStop(1, "#ffffff")
+  ctx.beginPath()
+  ctx.strokeStyle = core
+  ctx.lineWidth = lineW
+  ctx.moveTo(x0, y0)
+  ctx.lineTo(x1, y1)
+  ctx.stroke()
+
+  // Tip bloom (large near muzzle, tiny at impact).
+  const tipR = Math.max(2.5, 11 * tracer.scale)
+  const tipGlow = ctx.createRadialGradient(x1, y1, 0, x1, y1, tipR * 2.2)
+  tipGlow.addColorStop(0, "rgba(255, 255, 255, 0.95)")
+  tipGlow.addColorStop(0.35, "rgba(160, 230, 255, 0.7)")
+  tipGlow.addColorStop(1, "rgba(80, 180, 255, 0)")
+  ctx.beginPath()
+  ctx.fillStyle = tipGlow
+  ctx.arc(x1, y1, tipR * 2.2, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.fillStyle = "#f4fcff"
+  ctx.arc(x1, y1, tipR * 0.55, 0, Math.PI * 2)
+  ctx.fill()
+
+  // Muzzle flash while the round is still leaving the hand.
+  if (tracer.progress < 0.12) {
+    const mx = tracer.tail.x * width
+    const my = tracer.tail.y * height
+    const flash = 1 - tracer.progress / 0.12
+    ctx.beginPath()
+    ctx.fillStyle = `rgba(255, 230, 160, ${0.55 * flash * a})`
+    ctx.arc(mx, my, 10 + 18 * flash, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  ctx.restore()
 }
 
 /** @deprecated prefer drawRock3d */
@@ -175,4 +281,9 @@ export function drawCameraOverlay(
     (a, b) => (a.kind === "active" ? 1 : 0) - (b.kind === "active" ? 1 : 0),
   )
   for (const rock of ordered) drawRock3d(ctx, width, height, rock, rockScale)
+  if (options.tracers?.length) {
+    for (const tracer of options.tracers) drawTracer(ctx, width, height, tracer)
+  } else if (options.bolt) {
+    drawBolt(ctx, width, height, options.bolt.progress, options.bolt.to, options.bolt.from)
+  }
 }

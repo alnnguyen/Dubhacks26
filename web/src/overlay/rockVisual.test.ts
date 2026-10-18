@@ -133,4 +133,57 @@ describe("AR rock POC", () => {
     expect(frame.draw.rocks.some((rock) => rock.kind === "ground")).toBe(true)
     expect(frame.draw.active).toBeNull()
   })
+
+  it("hides ground and held rocks while the gun is active", () => {
+    let frame = tickRockVisual(createRockVisual(), {
+      nowMs: 0,
+      phase: "HELD",
+      commands: [command("startLift")],
+      ownHand: lowPalm,
+      target: null,
+      palmOpen: true,
+      weapon: "rock",
+    })
+    expect(frame.draw.rocks.length).toBeGreaterThan(0)
+    frame = tickRockVisual(frame.state, {
+      nowMs: 20,
+      phase: "HELD",
+      commands: [],
+      ownHand: lowPalm,
+      target: null,
+      palmOpen: true,
+      weapon: "gun",
+    })
+    expect(frame.draw.rocks).toEqual([])
+    expect(frame.state.ground).toEqual([])
+  })
+
+  it("ends the throw when the server flight window elapses", () => {
+    let frame = tickRockVisual(createRockVisual(0.2), {
+      nowMs: 0,
+      phase: "HELD",
+      commands: [command("startLift")],
+      ownHand: lowPalm,
+      target: { x: 0.5, y: 0.3 },
+      palmOpen: true,
+    })
+    frame = tickRockVisual(frame.state, {
+      nowMs: 40,
+      phase: "COOLDOWN",
+      commands: [command("releaseRock", 40)],
+      ownHand: lowPalm,
+      target: { x: 0.5, y: 0.3 },
+      palmOpen: false,
+    })
+    expect(frame.state.mode).toBe("flying")
+    frame = tickRockVisual(frame.state, {
+      nowMs: 250,
+      phase: "COOLDOWN",
+      commands: [],
+      ownHand: null,
+      target: { x: 0.5, y: 0.3 },
+      palmOpen: false,
+    })
+    expect(frame.state.mode).not.toBe("flying")
+  })
 })

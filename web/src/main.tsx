@@ -8,6 +8,8 @@ const cameraDebug = search.has('camera') || search.get('debug') === 'camera';
 const marsPreview = search.get('arena') === 'mars';
 // Camera + CV + immersive Mars + detection diagnostics, no match: /?dev=mars
 const devMars = search.get('dev') === 'mars';
+// Older same-link duel rehearsal (Alex): /?pvp=1
+const live = search.has('pvp');
 // Phone lightsaber controller, opened from the laptop's pair code: /?saber=CODE
 const saberCode = search.get('saber');
 // The saber arena with synthetic fighters, no camera/phone/server: /?dev=arena
@@ -40,11 +42,16 @@ const Screen = devArena
           const m = await import('./camera/CameraDebugPage');
           return { default: m.CameraDebugPage };
         })
-      : lazy(async () => {
-          // Real flow: cockpit lobby → challenge → server-picked world → camera duel → result.
-          const m = await import('./app/FlightApp');
-          return { default: m.FlightApp };
-        });
+      : live
+        ? lazy(async () => {
+            const m = await import('./app/LiveDuel');
+            return { default: m.LiveDuel };
+          })
+        : lazy(async () => {
+            // Onboarding → cockpit; FlightApp (real lobby + duel) is next wiring step.
+            const m = await import('./ui/screens/BridgeApp');
+            return { default: m.BridgeApp };
+          });
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root');

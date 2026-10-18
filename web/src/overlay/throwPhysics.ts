@@ -33,6 +33,8 @@ export type FlightState = {
   gravity: number
   /** Soft aim bias toward a target (normalized / second²-ish). */
   aim: Point | null
+  /** Server flight window. When set, the arc ends at this many seconds. */
+  durationSec?: number
 }
 
 /**
@@ -64,7 +66,8 @@ export function sampleBallistic(
   const scale = Math.max(0.35, 1 - travel * 0.85 - t * 0.25)
   const offscreen = x < -0.15 || x > 1.15 || y < -0.2 || y > 1.15
   const grounded = y >= 0.94 && t > 0.12
-  return { point: { x, y }, scale, done: offscreen || grounded || t > 2.4, height }
+  const timedOut = flight.durationSec != null && t >= flight.durationSec
+  return { point: { x, y }, scale, done: offscreen || grounded || timedOut || t > 2.4, height }
 }
 
 export function throwImpulse(velocity: Velocity, toward: Point | null, from: Point): Velocity {

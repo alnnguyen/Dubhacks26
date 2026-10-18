@@ -121,7 +121,15 @@ export function SignalBars({ value }: { value: number }) {
   );
 }
 
-export function Emblem({ callsign, size = 44, tone = 'cyan' }: { callsign: string; size?: number; tone?: 'cyan' | 'orange' }) {
+export function Emblem({
+  callsign,
+  size = 44,
+  tone = 'cyan',
+}: {
+  callsign: string;
+  size?: number;
+  tone?: 'cyan' | 'orange' | 'amber' | 'violet';
+}) {
   const initials = callsign.replace(/[^A-Z0-9]/gi, '').slice(0, 2).toUpperCase() || '??';
   return (
     <span className={`sd-emblem sd-emblem--${tone}`} style={{ width: size, height: size }} aria-hidden>
