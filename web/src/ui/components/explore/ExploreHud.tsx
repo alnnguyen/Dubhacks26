@@ -164,6 +164,7 @@ export function ExploreHud({
       <section className="ex-telemetry gx-world" aria-label="Destination in focus" data-ready={ready} data-expanded={worldOpen}
         onKeyDown={e => { if (e.key==='Escape' && worldOpen) { e.stopPropagation(); setWorldOpen(false); } }}>
         <h2 className="gx-world__heading"><button type="button" className="gx-world__toggle" aria-expanded={worldOpen} aria-controls={worldDetails}
+          onKeyDown={event => { if (event.code === 'Space') event.stopPropagation(); }}
           aria-label={`Destination details: ${ready ? telemetry.nearestName : 'Loading'}`} onClick={() => setWorldOpen(open => !open)}>
           <span><span className="gx-eyebrow">Destination / {catalogMode || telemetry.localNavigation ? 'in focus' : 'nearest'}</span>
             <span className="gx-world__name">{ready ? telemetry.nearestName : 'Loading…'}</span></span>

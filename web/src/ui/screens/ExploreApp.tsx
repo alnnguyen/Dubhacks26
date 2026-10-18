@@ -1,5 +1,5 @@
 import { BRAND_NAME } from '../brand';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExploreBoundary } from '../components/explore/ExploreBoundary';
 import { useProgress } from '@react-three/drei';
@@ -77,9 +77,21 @@ export interface ExploreAppProps {
 
 export function ExploreApp(props: ExploreAppProps = {}) {
   const [entryMode, setEntryMode] = useState<ExploreMode | null>(null);
-  if (entryMode === null) return <ExploreIntro initialMode={initialMode()} reducedMotion={props.settings?.reducedMotion}
-    onEnter={setEntryMode} onBack={() => props.onExit ? props.onExit() : window.location.assign('/')} />;
-  return <ExploreFlight {...props} entryMode={entryMode} />;
+  // Warm modules while the pilot chooses; effects still wait for explicit entry.
+  useEffect(() => {
+    void import('../../onboarding/HyperspaceTunnel').catch(() => undefined);
+    void import('../components/explore/ExploreScene').catch(() => undefined);
+  }, []);
+  return <>
+    {entryMode !== null && <ExploreFlight {...props} entryMode={entryMode} />}
+    <AnimatePresence initial={false}>
+      {entryMode === null && <motion.div key="mode-choice" className="ex-entry-choice"
+        exit={{opacity:0}} transition={{duration:props.settings?.reducedMotion ? .15 : .4}}>
+        <ExploreIntro initialMode={initialMode()} reducedMotion={props.settings?.reducedMotion}
+          onEnter={setEntryMode} onBack={() => props.onExit ? props.onExit() : window.location.assign('/')} />
+      </motion.div>}
+    </AnimatePresence>
+  </>;
 }
 
 function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChange, onExit, onMatchLaunch, onEngage, copilotClient, entryMode }: ExploreAppProps & { entryMode: ExploreMode }) {
@@ -126,6 +138,10 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
   const [highlightLayer,setHighlightLayer]=useState(-1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sceneReady, setSceneReady] = useState(false);
+  const [entryWarpDone, setEntryWarpDone] = useState(false);
+  const [entryRevealed, setEntryRevealed] = useState(false);
+  useEffect(() => { if (entryWarpDone && sceneReady) setEntryRevealed(true); }, [entryWarpDone, sceneReady]);
+  const entering = !entryRevealed;
   const [sceneAttempt, setSceneAttempt] = useState(0);
   const [slowLoad, setSlowLoad] = useState(false);
   const { active: loadingAssets, progress: assetProgress, errors: assetErrors } = useProgress();
@@ -265,7 +281,7 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
 
   const busy = challenge.kind !== 'idle' && challenge.kind !== 'declined';
   const warp = jumping || challenge.kind === 'launching' ? 1 : 0;
-  const flightEnabled = sceneReady && !jumping && !navOpen && !creditsOpen && !learn && !inspectId && !handoff && !busy && !pendingMode;
+  const flightEnabled = sceneReady && !entering && !jumping && !navOpen && !creditsOpen && !learn && !inspectId && !handoff && !busy && !pendingMode;
   useEffect(() => { if (!flightEnabled) setInput(EMPTY_INPUT); }, [flightEnabled]);
   useEffect(() => {
     const clear = () => setInput(EMPTY_INPUT);
@@ -347,6 +363,7 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
       data-quality={settings.quality}
       data-reduced-motion={settings.reducedMotion}
       data-ready={sceneReady}
+      data-entering={entering && !slowLoad}
       data-chrome="drive"
     >
       <ExploreBoundary key={`${sceneAttempt}-${sceneKey}`} fallback={
@@ -495,6 +512,18 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
         <p>Expanding domain…</p>
       </div>
 
+      <AnimatePresence>
+        {entering && !slowLoad && <motion.div key="entry-warp" className="ex-entry-warp"
+          initial={{opacity:1}} exit={{opacity:0}} transition={{duration:settings.reducedMotion ? .2 : .65}}>
+          {settings.reducedMotion ? <EntryFade onFinished={() => setEntryWarpDone(true)} /> :
+            <ExploreBoundary fallback={<EntryFade onFinished={() => setEntryWarpDone(true)} />}>
+              <Suspense fallback={<div className="ob-warp"/>}>
+                <HyperspaceTunnel active caption="Entering flight…" durationMs={2200} onFinished={() => setEntryWarpDone(true)} />
+              </Suspense>
+            </ExploreBoundary>}
+        </motion.div>}
+      </AnimatePresence>
+
       {jumping && (
         <Suspense fallback={<div className="ob-warp" />}>
           <HyperspaceTunnel
@@ -539,4 +568,11 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
       </div>
     </div>
   );
+}
+
+/** Reduced motion keeps the same readiness gate, without accelerating stars. */
+function EntryFade({onFinished}: {onFinished: () => void}) {
+  const finish = useRef(onFinished); finish.current = onFinished;
+  useEffect(() => { const timer=window.setTimeout(()=>finish.current(),300); return ()=>clearTimeout(timer); }, []);
+  return <div className="ob-warp" aria-hidden="true"/>;
 }

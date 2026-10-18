@@ -1,5 +1,22 @@
 # Initial task board
 
+## KO.rbit animated intro — October 18 (Alan / Codex)
+
+- Goal: integrate Alan’s `korbit-intro.html` animation into welcome, with a simpler exploration mode entry, following `design/space-battles-ui/BRAND-GUIDELINES.md`; remove slogans, use blue Explore and red Flight.
+- Owned paths: shared intro artwork/runtime/styles, onboarding welcome composition, exploration intro and this handoff. Existing entry callbacks and gameplay/provider interfaces stay unchanged. No dependencies, server changes, deployment or external messaging. Work continues on the existing human-owned UI branch; unrelated merge work is preserved.
+- Delivered: scoped four-second K/O impact → orbiting planet → KO.rbit plate sequence; Orbitron/JetBrains Mono, −12° blue plate, diagonal translucent glass, readable mode cards and ice action. No tagline. Exploration uses a quiet “Choose a mode” screen without repeating the KO.rbit reveal. Enter fades into the existing hyperspace tunnel, then dissolves into the rendered universe only after both the animation and scene are ready; flight input waits for that gate. Slow loads and scene errors retain their recovery controls. Skip, Replay and a visible reduced-motion control; native keyboard buttons, finite 30fps Canvas at DPR ≤1.5, pause when hidden and cleanup on unmount. No fullscreen flashes or extra WebGL renderer.
+- Validation: production build/typecheck passed; 193 frontend tests passed, one opt-in live-network test skipped on the current merged tree. Browser verified desktop/390×844 layout, replay impact animation, Skip, reduced motion, red Flight/blue Explore selection, scene entry with Explore active and welcome → callsign. The simplified exploration screen was verified on desktop and 390px widths after Alan’s follow-up; the retained hyperspeed tunnel was captured after the selector faded, then verified to release into the ready Earth scene with no warning/error logs. Entry warp does not repeat on subsequent destination changes. Fresh warning/error logs were empty in both intro and scene. Existing large-bundle warnings remain. Screenshots: `/private/tmp/korbit-intro-desktop.png`, `/private/tmp/korbit-intro-mobile.png`. Physical-device and deployed-flow checks remain open. New environment variables: none.
+
+
+## KO.rbit rebrand and exploration entry — October 18 (Alan / Codex)
+
+- Implemented locally on `codex/ko-rbit-brand-exploration`. Goal: change visible title/corner branding to KO.rbit, add a branded exploration intro, and make the top-left destination card collapsible.
+- User-authorized owned paths: onboarding, exploration/cockpit UI, shared frontend brand styling, HTML title and docs. Preserve unrelated `.vscode/` files. No server/game/provider contracts, manifests, dependencies or deployment changes.
+- Interface: existing exploration props stay compatible; an internal entry choice selects Explore/Flight before the scene mounts. The destination card uses native button disclosure semantics, with keyboard support and a stable details region.
+- Acceptance: frontend build/typecheck and existing tests, browser checks for title casing, intro entry/mode selection and repeated mouse/keyboard destination toggling; phone-width visual check. No new tests are needed for copy/CSS alone.
+- Validation: frontend typecheck and production build passed; 259 tests passed, one opt-in network test skipped. Browser verified exact KO.rbit casing on welcome/cockpit/exploration, intro mode selection and scene entry, mouse/Enter/Space toggling and Escape dismissal. Checked intro and expanded destination at 390×844; moved phone zoom controls clear of the disclosure and suppressed overlapping panels while it is open. Fresh warning/error logs were empty. Existing large-bundle warnings remain. Screenshots: `/private/tmp/ko-rbit-title.png`, `/private/tmp/ko-rbit-explore-intro.png`, `/private/tmp/ko-rbit-destination.png`.
+- Handoff: no new environment variables, contracts, provider calls or deployments. Local preview remains at `http://localhost:5180/?explore=1`. Physical-phone and deployed-flow checks remain open.
+
 ## Cinematic arena replay — October 18 (Alan / Codex)
 
 - Implemented locally on `codex/cinematic-arena-replay`: user explicitly requested cinematic replay to make Perceptron's contribution visible, then required the knockout as the last highlight. Owned paths: `web/src/replay`, minimal `ArenaScene`/`FlightApp`/dev-route composition, recorder lifecycle and docs. No combat/server/provider contracts, dependencies, manifests, deployment or external messaging.

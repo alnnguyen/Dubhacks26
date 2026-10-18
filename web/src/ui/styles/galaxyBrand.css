@@ -844,6 +844,13 @@
 /* Compact name stays visible on phones; optional details are available when deliberately opened. */
 .galaxy-exploration .gx-mark strong.ko-wordmark { display:block; }
 @media(max-width:700px) {
+  /* Keep the destination disclosure clear of the separate zoom controls. */
+  .galaxy-exploration .ex-local-zoom { top:auto; bottom:calc(var(--gx-rail-h) + var(--safe-b) + 12px); }
+  .galaxy-exploration:has(.ex-local-zoom) .ex-lyra { bottom:calc(var(--gx-rail-h) + var(--safe-b) + 350px); }
+  .galaxy-exploration .ex-telemetry.gx-world[data-expanded=true] { width:calc(100vw - var(--safe-l) - var(--safe-r) - 32px); max-width:none; z-index:4; }
+  .galaxy-exploration .gx-world__details { max-height:calc(100dvh - 300px); }
+  .galaxy-exploration:has(.gx-world[data-expanded=true]) .ex-local-zoom,
+  .galaxy-exploration:has(.gx-world[data-expanded=true]) .ex-lyra { visibility:hidden; }
   .galaxy-exploration .gx-mark strong.ko-wordmark { font-size:11px; letter-spacing:-.035em; }
   .galaxy-exploration .gx-world[data-expanded=true] .gx-world__blurb { display:-webkit-box; -webkit-line-clamp:3; }
   .galaxy-exploration .gx-world[data-expanded=true] .gx-world__data { display:grid; }

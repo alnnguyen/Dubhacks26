@@ -1,34 +1,30 @@
-import { useEffect, useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
-import { BRAND_NAME } from '../../brand';
+import { useState } from 'react';
 import type { ExploreMode } from './ExploreHud';
+import { BRAND_NAME } from '../../brand';
 import '../../styles/exploreIntro.css';
 
-/** Entry page, not a modal over a running ship. The flight scene mounts after confirmation. */
-export function ExploreIntro({ initialMode, reducedMotion = false, onEnter, onBack }: {
+/** Quiet mode selection; the cinematic KO.rbit reveal belongs to the main welcome. */
+export function ExploreIntro({ initialMode, onEnter, onBack }: {
   initialMode: ExploreMode; reducedMotion?: boolean; onEnter: (mode: ExploreMode) => void; onBack: () => void;
 }) {
   const [mode, setMode] = useState(initialMode);
-  const reduce = !!useReducedMotion() || reducedMotion;
-  const enter = useRef<HTMLButtonElement>(null);
-  useEffect(() => { enter.current?.focus(); }, []);
-  return <motion.main className="ko-intro" data-reduced-motion={reduce}
-    initial={reduce ? false : { opacity: 0 }} animate={{opacity:1}} transition={{duration:.35}}>
-    <div className="ko-intro__stars" aria-hidden="true" />
-    <div className="ko-intro__planet" aria-hidden="true"><i/><i/><span/></div>
-    <header className="ko-intro__masthead"><span className="ko-wordmark">✦ {BRAND_NAME}</span><span>EXPLORATION / UPLINK</span></header>
-    <div className="ko-intro__content">
-      <p className="ko-intro__eyebrow">ONE UNIVERSE. YOUR NEXT MOVE.</p>
-      <motion.h1 className="ko-wordmark" initial={reduce ? false : {y:22,opacity:0}} animate={{y:0,opacity:1}} transition={{duration:.5,delay:.08}}>{BRAND_NAME}</motion.h1>
-      <p className="ko-intro__lead">Go beyond the fight.</p>
-      <p className="ko-intro__copy">From Earth's orbit to distant galaxies. Pick a destination, discover the story behind it, and find your next adventure.</p>
-      <div className="ko-intro__modes" role="group" aria-label="Choose exploration mode">
-        <button type="button" aria-pressed={mode==='explore'} onClick={()=>setMode('explore')}><span>01 / DISCOVER</span><strong>Explore</strong><small>Peaceful flight · zoom &amp; views</small></button>
-        <button type="button" aria-pressed={mode==='flight'} onClick={()=>setMode('flight')}><span>02 / CONNECT</span><strong>Flight</strong><small>Pilot contacts · challenges</small></button>
+  return <main className="ko-mode-entry">
+    <header><span className="ko-wordmark">✦ {BRAND_NAME}</span><span>EXPLORATION</span></header>
+    <section className="ko-mode-entry__content" aria-labelledby="mode-heading">
+      <p className="ko-mode-entry__eyebrow">FLIGHT DECK</p>
+      <h1 id="mode-heading">Choose a mode.</h1>
+      <div className="ko-mode-entry__choices" role="group" aria-label="Choose exploration mode">
+        <button type="button" data-mode="explore" aria-pressed={mode==='explore'} onClick={()=>setMode('explore')}>
+          <span className="ko-mode-entry__label"><strong>Explore</strong><span aria-hidden="true">{mode==='explore'?'✓':'↗'}</span></span>
+          <span className="ko-mode-entry__description">Discover planets, stars and galaxies at your own pace.</span>
+        </button>
+        <button type="button" data-mode="flight" aria-pressed={mode==='flight'} onClick={()=>setMode('flight')}>
+          <span className="ko-mode-entry__label"><strong>Flight</strong><span aria-hidden="true">{mode==='flight'?'✓':'↗'}</span></span>
+          <span className="ko-mode-entry__description">Find other pilots and send challenges.</span>
+        </button>
       </div>
-      <button ref={enter} type="button" className="ko-intro__enter" onClick={()=>onEnter(mode)}><span>{mode==='explore'?'Enter exploration':'Enter flight'}</span><b aria-hidden="true">↗</b></button>
-      <button type="button" className="ko-intro__back" onClick={onBack}>← Back to bridge</button>
-    </div>
-    <footer className="ko-intro__footer"><span>EARTH → STARS → GALAXIES</span><span>CHOOSE YOUR OWN ORBIT.</span></footer>
-  </motion.main>;
+      <button className="ko-mode-entry__enter" type="button" onClick={()=>onEnter(mode)}><span>{mode==='explore'?'Enter exploration':'Enter flight'}</span><span aria-hidden="true">↗</span></button>
+      <button className="ko-mode-entry__back" type="button" onClick={onBack}>← Back to bridge</button>
+    </section>
+  </main>;
 }
