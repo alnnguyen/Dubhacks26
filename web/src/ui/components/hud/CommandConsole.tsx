@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { ConnectionStatus, LobbyView } from '../../state/lobbyTypes';
 
 const KEYS: { view: LobbyView; label: string; hint: string; icon: string }[] = [
@@ -17,6 +18,7 @@ export function CockpitShortcuts({
   onRadar,
   onConsole,
   onPilot,
+  controls,
 }: {
   count: number;
   connection: ConnectionStatus;
@@ -24,10 +26,11 @@ export function CockpitShortcuts({
   onRadar: () => void;
   onConsole: () => void;
   onPilot?: () => void;
+  controls?: ReactNode;
 }) {
   const radarMeta = connection === 'online' ? `${count} nearby` : connection === 'connecting' ? 'Scanning…' : 'No link';
   return (
-    <nav className="sd-dock sd-dock--bottom sd-shortcuts" data-hidden={hidden} aria-label="Cockpit shortcuts">
+    <nav className={`sd-dock sd-dock--bottom sd-shortcuts${controls ? ' sd-shortcuts--with-mode' : ''}`} data-hidden={hidden} aria-label="Cockpit shortcuts">
       <button type="button" className="sd-shortcut" onClick={onRadar} aria-label={`Proximity radar, ${radarMeta}`}>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
           <path d={KEYS[0].icon} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
@@ -64,6 +67,7 @@ export function CockpitShortcuts({
           </span>
         </button>
       )}
+      {controls}
     </nav>
   );
 }

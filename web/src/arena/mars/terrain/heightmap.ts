@@ -62,8 +62,14 @@ let molaPromise: Promise<MolaGrid> | null = null
 export function loadMola(): Promise<MolaGrid> {
   molaPromise ??= (async () => {
     const [meta, png] = await Promise.all([
-      fetch(BASE + 'jezero_mola.json').then((r) => r.json() as Promise<MolaMeta>),
-      fetch(BASE + 'jezero_mola.png').then((r) => r.arrayBuffer()).then(decodePng16),
+      fetch(BASE + 'jezero_mola.json').then((r) => {
+        if (!r.ok) throw new Error(`Mars metadata request failed: ${r.status}`)
+        return r.json() as Promise<MolaMeta>
+      }),
+      fetch(BASE + 'jezero_mola.png').then((r) => {
+        if (!r.ok) throw new Error(`Mars heightmap request failed: ${r.status}`)
+        return r.arrayBuffer()
+      }).then(decodePng16),
     ])
     const range = meta.elevationMaxM - meta.elevationMinM
     const elevation = new Float32Array(png.values.length)

@@ -4,8 +4,9 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 
 ## Doing
 
-- C (Alan): live duel gestures — rock palm→fist→fling; gun fist-hold then index+middle fire; saber fist-hold + lateral slash (Wii timing window). Still on `createGameClient`. Phone QA in `docs/qa-checklist.md`. Lobby / Photon deferred.
-- D (Alex): Grok Bot bonus session (template in `docs/sponsor-evidence.md`). Live Photon/Voice on real challenges **blocked on B**.
+- B (Justin): **laptop + iPhone lightsaber duel in a shared 3D arena** merged via `main`/`saber-duel` into `alex-dev`. Server 3D collision/pairing, laptop arena (`web/src/arena3d`), phone saber (`web/src/saber`, `/?saber=CODE`). Scripted socket proof done; real laptop/iPhone QA still open — check `/?dev=arena` first.
+- C (Alan): live duel gestures — rock palm→fist→fling; gun fist-hold then index+middle fire; saber fist-hold + lateral slash (Wii timing window). Still on `createGameClient`. Phone QA in `docs/qa-checklist.md`. Lobby / Photon deferred. Saber arena (B) is now the FlightApp duel path; rock/gun CV remains on `/?camera=1` and `/?pvp=1`.
+- D (Alex): Grok Bot planning bonus **claimed** (`docs/sponsor-evidence.md`). Remaining: Photon live-challenge binding + physical-phone LYRA mic QA.
 - A (Ally): **pull `alex-dev`** — Alan’s latest camera is merged; cockpit default + turn-to-look remain on ally paths. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
 
 ## Ready — unblock first
@@ -56,9 +57,9 @@ Full text: `server/src/integrations/HANDOFF.md`.
 
 ## Integrated local rehearsal — October 17
 
-- A/C/D composition on alex-dev: cockpit → world/Voice briefing → **duel HUD** camera → result → cockpit. Duel mode hides lab chrome; `/?camera=1` remains full MediaPipe harness.
+- A/C/D composition on alex-dev: cockpit → planetary travel → world/Voice briefing → **saber arena duel** (Justin) → result → cockpit. `/?camera=1` remains full MediaPipe harness; rock/gun CV still Alan’s path.
 - Provider proofs (Photon fixtures, Grok TTS/S2S/narration) recorded in `docs/sponsor-evidence.md`.
-- B blocker unchanged until `createGamePort` exists.
+- Server-backed lobby, accepted match, Mars selection, readiness, and saber combat are merged. Photon live binding + physical LYRA mic remain follow-up.
 
 
 ## Exploration flight repair — October 17 (Alan / Codex)
@@ -114,3 +115,56 @@ Full text: `server/src/integrations/HANDOFF.md`.
 - Added refined Motion springs/tab exits/shared underline/cards/counters, planet switcher, comparison circles, educational gravity arc, numbered highlighted layers and desktop leader lines; responsive sheet and reduced-motion handling. Exact supplied facts retained with provenance/confidence/snapshot labels.
 - Checks: 150 frontend tests passed, one live-network test skipped; typecheck/build passed with catalog chunk warning. Five added tests cover framing/return/scale/cancellation/layer-data invariants. Browser Mars/Earth cutaways and source UI observed. Phone performance pending.
 - Handoff: docs/planet-inspector-handoff.md. New environment variables: none. No deployment or external messages.
+
+
+## Planetary travel roulette — merged from `mars-arena`
+
+- Accepted match → cockpit roulette (Mars) → travel video → server-backed briefing → arena when both ready. Room scanning skipped.
+- Roulette assets (textures, Sun map, flight video, attribution) committed. Mobile Safari / two-device QA still open.
+
+## Cockpit Demo / Live + LYRA — on alex-dev
+
+- Demo/Live switch, dock controls, hologram Voice: see `docs/hologram-copilot.md` and BridgeApp. Grok Bot planning bonus claimed in `docs/sponsor-evidence.md`.
+
+
+## Live connected to Justin shared server — October 18
+
+Alex: configured the merged frontend to Justin’s public Cloudflare multiplayer server; phone QR and saber client routing now use that same backend. Real test join + controller pairing passed; the shared roster saw the merged preview pilot. Build and 156 frontend tests pass (one opt-in skipped). No game/server rules changed. Justin’s running server lacks copilot RPC replies, so shared Voice still needs his backend updated. Physical two-player saber testing remains. Changes prepared on alex-dev for team integration; `.env.local` stays ignored. Handoff: `docs/shared-live-server.md`.
+
+## Mars intro and arena rendering recovery — October 18
+
+- Goal/owned paths: user-authorized frontend cinematic, Mars loading, arena composition and the socket factory type needed to build; no server rules or shared contracts changed.
+- Fixed missing `saberControllerUrl` import in ArenaDuel (render-time ReferenceError). Timed roulette waits for cockpit readiness and preloaded planet textures, with a 10-second texture wait limit. Mars heightmap preloads during travel; failed HTTP responses report errors.
+- Arena render error boundary offers a simple floor/fighters mode without Mars assets or postprocessing, plus return to cockpit.
+- Checks: frontend tests passed 169, one opt-in live test skipped. Production build/typecheck passed; focused socket/cinematic tests also passed (9 tests). No new environment variables. Actual two-device playback/graphics QA remains required; preloading does not guarantee GPU compilation has finished.
+
+## Cinematic fast-forward correction — October 18
+
+- Goal/owned paths: user-authorized cinematic scheduler, cockpit frame callback and tests; no game interfaces, server rules, manifests or deployment changed.
+- Cause: wall-clock phase timers kept advancing while camera/planet motion capped frame deltas at 50 ms. Render stalls therefore moved phase selection ahead of visible motion. Orbit trails also used uncapped deltas.
+- Change: phase scheduler now ticks from the cockpit useFrame callback, caps progress to the same 50 ms, advances at most one phase per rendered frame, discards excess stall time and stops ticking in hidden tabs. Orbit trails use the same cap.
+- Checks: production build passed; five cinematic tests passed including long stalls, short-stop boundaries and normal 60 fps duration. No new environment variables. Two-device visual QA remains open; this fixes catch-up behavior, not hardware frame-rate limits.
+
+## Cockpit/roulette startup synchronization — October 18
+
+- Goal/owned paths: user-authorized cockpit/cinematic preparation and timing tests; no shared manifests, contracts, server or deployment changes.
+- Roulette now mounts hidden in the lobby after bounded texture preloading (including Sun and Earth layers), creates materials with cached maps immediately, uploads textures, compiles shaders, and draws an offscreen preview before reporting ready. The same mounted objects are revealed for playback. Failed/slow maps retain plain-material fallbacks.
+- Launch camera/mood stays in cockpit until the prepared sequence starts; hidden idle roulette resets focus/zoom/scale for subsequent travel. Normal activation increased from 700 to 1100 ms, roulette stops from 1600 to 2400 ms total (4.8-second overall intro). Reduced-motion timings unchanged.
+- Validation: frontend suite 172 passed, one opt-in live test skipped; production build/typecheck passed. No new environment variables. Actual two-device GPU/playback QA remains open.
+
+## Visible planet-by-planet roulette — October 18
+
+- User-reported skipped-looking highlights: fixed updates to an unattached `marker` material ref by updating the actual ring material; raised selected-ring opacity and planet emissive strength. Shared reticle now tracks the selected planet directly, scales around its radius and sits in front of its surface. Planet transforms update before the reticle and camera.
+- Each normal roulette stop now lasts 450–1000 ms (5.35 seconds for all eight; 7.75 seconds including activation/lock/zoom/flash). Mars destination remains scripted; reduced-motion timings unchanged.
+- Owned paths: cinematic renderer, sequence, regression checks and board. No server selection/rules/contracts or environment changes. Five cinematic tests passed, including minimum readable stop duration and stall behavior. Production build/typecheck passed. Actual browser/device highlight verification remains open.
+
+## Reduced-motion selection parity — October 18
+
+- Investigation found OS/saved Reduce motion selected a separate Earth→Mars-only sequence under 900 ms, matching the reported skip despite normal-mode timing fixes. User's actual browser setting and served URL remain unconfirmed (Chrome inspection not approved; requested frontend URL/start command).
+- Reduced motion now retains all eight normal readable planet stops while keeping its shorter transition stages and existing motion reductions. Normal-mode timings unchanged.
+- Owned paths: sequence, sequence tests and board; no backend, deployment or environment changes. Production build/typecheck and five cinematic tests passed; the reduced-motion regression verifies content/duration parity for all planet stops. Live visual QA remains open.
+
+## Restore original intro pacing — October 18
+
+- User requested reverting timing increases: normal activation restored to 700 ms; original eight roulette stops total 1600 ms (65–475 ms each), for a 3.6-second normal intro. Preserved preloading/readiness, rendered-frame clock, highlight/reticle fixes and all-eight-stop reduced-motion content.
+- Owned paths: sequence, timing tests and board. No contracts, backend or environment changes. Five cinematic tests passed; production build/typecheck passed. Device visual playback remains unverified.

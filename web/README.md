@@ -1,19 +1,24 @@
 # Browser client
 
-The default page renders Ally’s 3D cockpit (`SpaceshipHome`). It currently uses mock lobby players and challenge timers; no real multiplayer connection is implied. Alan’s camera debug harness: `/?debug=camera` or legacy `/?camera=1`. Live duel rehearsal (Alex): `/?pvp=1`. Photon and Voice remain in their existing standalone provider harnesses.
+The default page renders Ally’s 3D cockpit (`SpaceshipHome`) connected to the shared game server. The server owns challenges, Mars matches, readiness, combat, and results. Alan’s camera debug harness: `/?debug=camera` or legacy `/?camera=1`. Mars arena preview: `/?arena=mars`. Photon and Voice remain in their existing provider harnesses.
 
 Combat on this page is **rock only** (screen-space overlay). Gun and lightsaber are deferred until the rock loop + phone framing pass. Defense is **Block**, not catch.
 
 ## Run (laptop)
 
 ```bash
-cd web
-npm install
-npm test
+cd server
 npm run dev
 ```
 
-Open the printed HTTPS URL (self-signed), usually `https://localhost:5173`. Accept the certificate warning. For camera testing, append `/?debug=camera` (or `/?camera=1`) and click **Start camera**.
+In a second terminal:
+
+```bash
+cd web
+npm run dev
+```
+
+Open the printed HTTPS URL (self-signed), usually `https://localhost:5173`, on both devices/browsers. Accept the certificate warning. For camera testing, append `/?debug=camera` (or `/?camera=1`) and click **Start camera**.
 
 - Prefers rear ~0.5× / min zoom when the phone exposes it; otherwise shows “Wide lens unavailable — default rear.”
 - Laptop with no rear lens falls back to the front camera and labels that clearly.
@@ -94,3 +99,14 @@ These are frozen orbital-element illustrations at each record's epoch, **not liv
 In the continuous local view, click a planet's name or its navigation-focus card. The ship approaches a framed view and opens an animated archive sheet. Switch between Overview / Dissection / Facts / vs Earth / Duel, or between planets using the small header buttons. Dissection clips the actual textured globe and shows approximate sourced layers; click a layer row to highlight it. Earth/Mars layers and giant interior models carry confidence labels. Close, Escape, background click or Resume flight returns to the original view; Visit keeps normal destination navigation. Sun retains its existing card and Moon has no dissection. Nonlocal scene cards remain supported.
 
 Uses the installed Motion package and one existing R3F canvas. No added dependencies/keys. Source facts and the supplied showcase integration, tests and limitations: `docs/planet-inspector-handoff.md`. Phone performance is not yet verified.
+
+Both pilots accept the server challenge, then each engages from the cockpit. The planetary roulette always selects Mars, plays `public/cinematics/spacetomars.mp4`, and calls `onTravelComplete("mars")` on video completion or skip. `FlightApp` opens the server-backed Mars briefing; the arena and camera duel begin only after the server reports both pilots ready. No room scan is used.
+
+The live arena preserves the existing MediaPipe opponent segmentation, hand/pose tracking, and touch controls. The server remains authoritative for health, attacks, cooldowns, and results. See `docs/flight-integration.md` from the repository root for local connection details and device-test limitations.
+
+The interactive roulette takes 3.6 seconds before the flight video. It uses the supplied 2K planetary maps, Earth day/night/cloud layers, directional sunlight, and lightweight procedural Saturn rings; the available files and attribution are recorded in `public/textures/planets/ATTRIBUTION.md`. No Uranus surface map or Saturn ring texture was supplied, so Uranus keeps its procedural fallback. Sounds are synthesized with the browser Web Audio API and can be enabled from the Engage gesture or the in-sequence sound control.
+
+
+## Shared Live backend (Alex integration, October 18)
+
+The default root now uses BridgeApp for onboarding and the compact Demo/Live switch. To connect this UI to a teammate’s working shared game, copy `.env.example` to `.env.local`, set `VITE_GAME_SERVER_URL` to the shared HTTPS Socket.IO site, and `VITE_SABER_CONTROLLER_URL` to the public frontend serving the paired phone page. Restart Vite. The game and phone clients share the configured backend; Demo stays local. See `../docs/shared-live-server.md` for current setup and verified limitations. The earlier rock-only instructions above describe the older camera harness; the current Live FlightApp uses the laptop + paired-phone lightsaber arena.

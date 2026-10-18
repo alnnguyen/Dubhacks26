@@ -1,7 +1,10 @@
+import { gameServerUrl } from "./gameEndpoint"
 import { io } from "socket.io-client"
 // Temporary cross-folder import until server/src/contracts.ts moves to packages/contracts.
 import type {
   ChallengeView,
+  CopilotSessionReply,
+  CopilotContextReply,
   Command,
   CommandReply,
   JoinReply,
@@ -11,12 +14,21 @@ import type {
   PlayerState,
   PlayerView,
   ProjectileLanded,
+  ArenaFrame,
+  BodyPose,
+  SaberAim,
+  SaberCalibration,
+  SaberResolved,
+  SaberStatus,
+  StepDirection,
   Weapon,
   World,
 } from "../../../server/src/contracts"
 
 export type {
   ChallengeView,
+  CopilotSessionReply,
+  CopilotContextReply,
   CommandReply,
   LobbyView,
   MatchResult,
@@ -24,6 +36,13 @@ export type {
   PlayerState,
   PlayerView,
   ProjectileLanded,
+  ArenaFrame,
+  BodyPose,
+  SaberAim,
+  SaberCalibration,
+  SaberResolved,
+  SaberStatus,
+  StepDirection,
   Weapon,
   World,
 }
@@ -47,11 +66,13 @@ export interface SocketLike {
   connected: boolean
   on(event: string, listener: (...args: any[]) => void): unknown
   timeout(ms: number): { emit(event: string, payload: unknown, ack: (err: Error | null, reply: any) => void): unknown }
+  /** Fire-and-forget emits that are dropped rather than buffered while offline. */
+  volatile: { emit(event: string, payload: unknown): unknown }
   disconnect(): unknown
 }
 
 export interface GameClientOptions {
-  /** Defaults to the page's own origin, which Vite proxies to the game server. */
+  /** Defaults to VITE_GAME_SERVER_URL, or the page origin when unset (Vite proxies locally). */
   url?: string
   storage?: Pick<Storage, "getItem" | "setItem"> | null
   createSocket?: (url: string | undefined) => SocketLike
@@ -59,6 +80,9 @@ export interface GameClientOptions {
 }
 
 export interface GameClient {
+  /** Read-only Voice access on this already joined connection. */
+  copilotSession(): Promise<CopilotSessionReply>
+  copilotContext(): Promise<CopilotContextReply>
   status(): ConnectionStatus
   /** Why the last join failed, e.g. "invalid_request". Null while joined or still trying. */
   joinError(): string | null
@@ -70,6 +94,22 @@ export interface GameClient {
   onLobby(listener: (lobby: LobbyView) => void): () => void
   onView(listener: (view: PlayerView | null) => void): () => void
   onProjectileLanded(listener: (event: ProjectileLanded) => void): () => void
+  /** Both players' bodies and blades in the arena, every server tick. */
+  onArena(listener: (frame: ArenaFrame) => void): () => void
+  onSaberResolved(listener: (event: SaberResolved) => void): () => void
+  /** Your own paired phone's readings, relayed by the server for the setup checks. */
+  onPhoneAim(listener: (aim: SaberAim) => void): () => void
+  /** Store what the laptop's guided setup measured about your phone. */
+  calibrateSaber(calibration: SaberCalibration): Promise<ClientReply>
+  /** A step was accepted (yours or your rival's), ahead of the next arena frame. */
+  onStepped(listener: (event: { slot: 1 | 2; cell: { q: number; r: number } }) => void): () => void
+  /** One step to a neighboring cell, relative to the way you face (forward is toward your rival's side). */
+  step(direction: StepDirection): Promise<ClientReply>
+  /**
+   * Stream your own body from the laptop camera (~20 Hz). No reply; a stale
+   * pose is useless, so nothing is sent while offline. This module numbers them.
+   */
+  sendBodyPose(pose: Omit<BodyPose, "seq">): void
   /** Stored on the phone and sent on every join, so it survives reloads. */
   setCallsign(callsign: string): Promise<ClientReply>
   challenge(pilotId: string): Promise<ClientReply>
@@ -96,7 +136,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   const now = options.now ?? Date.now
   const storage = options.storage === undefined ? safeLocalStorage() : options.storage
   const playerId = loadPlayerId(storage)
-  const socket = (options.createSocket ?? defaultSocket)(options.url)
+  const socket = (options.createSocket ?? defaultSocket)(options.url ?? gameServerUrl())
 
   let status: ConnectionStatus = "connecting"
   let joinError: string | null = null
@@ -109,6 +149,12 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   const lobbyListeners = new Set<(lobby: LobbyView) => void>()
   const viewListeners = new Set<(view: PlayerView | null) => void>()
   const landedListeners = new Set<(event: ProjectileLanded) => void>()
+  const arenaListeners = new Set<(frame: ArenaFrame) => void>()
+  const phoneAimListeners = new Set<(aim: SaberAim) => void>()
+  const steppedListeners = new Set<(event: { slot: 1 | 2; cell: { q: number; r: number } }) => void>()
+  const resolvedListeners = new Set<(event: SaberResolved) => void>()
+  // Page-load time, like command IDs, so poses after a reload are newer than any before it.
+  let nextPose = now()
 
   function setStatus(next: ConnectionStatus) {
     if (next === status) return
@@ -147,6 +193,10 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   socket.on("lobby", (next: LobbyView) => setLobby(next))
   socket.on("view", (next: PlayerView | null) => setView(next))
   socket.on("projectileLanded", (event: ProjectileLanded) => landedListeners.forEach((listener) => listener(event)))
+  socket.on("arena", (frame: ArenaFrame) => arenaListeners.forEach((listener) => listener(frame)))
+  socket.on("phoneAim", (aim: SaberAim) => phoneAimListeners.forEach((listener) => listener(aim)))
+  socket.on("stepped", (event: { slot: 1 | 2; cell: { q: number; r: number } }) => steppedListeners.forEach((listener) => listener(event)))
+  socket.on("saberResolved", (event: SaberResolved) => resolvedListeners.forEach((listener) => listener(event)))
 
   function send(payload: Payload): Promise<ClientReply> {
     const commandId = `c${nextCommand++}`
@@ -161,12 +211,21 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     })
   }
 
+  function copilotRequest<T extends CopilotSessionReply | CopilotContextReply>(event: string, timeoutMs: number): Promise<T> {
+    if (status !== 'online' || !socket.connected) return Promise.resolve({ ok: false, reason: 'offline' } as T)
+    return new Promise(resolve => {
+      socket.timeout(timeoutMs).emit(event, {}, (err, reply) => resolve(err ? { ok: false, reason: 'no_response' } as T : reply))
+    })
+  }
+
   function subscribe<T>(set: Set<T>, listener: T) {
     set.add(listener)
     return () => void set.delete(listener)
   }
 
   return {
+    copilotSession: () => copilotRequest<CopilotSessionReply>('copilot:session', 18000),
+    copilotContext: () => copilotRequest<CopilotContextReply>('copilot:context', REPLY_TIMEOUT_MS),
     status: () => status,
     joinError: () => joinError,
     lobby: () => lobby,
@@ -175,6 +234,16 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     onLobby: (listener) => subscribe(lobbyListeners, listener),
     onView: (listener) => subscribe(viewListeners, listener),
     onProjectileLanded: (listener) => subscribe(landedListeners, listener),
+    onArena: (listener) => subscribe(arenaListeners, listener),
+    onPhoneAim: (listener) => subscribe(phoneAimListeners, listener),
+    onStepped: (listener) => subscribe(steppedListeners, listener),
+    calibrateSaber: (calibration) => send({ type: "calibrateSaber", calibration }),
+    step: (direction) => send({ type: "step", direction }),
+    onSaberResolved: (listener) => subscribe(resolvedListeners, listener),
+    sendBodyPose: (pose) => {
+      if (status !== "online" || !socket.connected) return
+      socket.volatile.emit("bodyPose", { ...pose, seq: nextPose++ })
+    },
     setCallsign: (callsign) => {
       writeStorage(storage, CALLSIGN_KEY, callsign)
       return send({ type: "setCallsign", callsign })

@@ -17,6 +17,9 @@ function newMatch(events: Partial<MatchEvents> = {}): Match {
   return new Match("test", "mars", PILOTS, {
     changed: () => {},
     projectileLanded: (e) => landings.push(e),
+    saberResolved: () => {},
+    arenaFrame: () => {},
+    stepped: () => {},
     finished: (r) => results.push(r),
     ...events,
   });
@@ -151,7 +154,14 @@ describe("rock", () => {
   });
 
   test("a Moon match uses the Moon's longer flight time", () => {
-    const moon = new Match("moon", "moon", PILOTS, { changed: () => {}, projectileLanded: () => {}, finished: () => {} });
+    const moon = new Match("moon", "moon", PILOTS, {
+      changed: () => {},
+      projectileLanded: () => {},
+      saberResolved: () => {},
+      arenaFrame: () => {},
+      stepped: () => {},
+      finished: () => {},
+    });
     moon.handleCommand(1, { commandId: "r1", type: "ready" });
     moon.handleCommand(2, { commandId: "r2", type: "ready" });
     moon.handleCommand(1, { commandId: "a", type: "rockActive" });

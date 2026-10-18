@@ -54,10 +54,16 @@ function planetPlacement() {
   return { center: center.toArray() as [number, number, number], yaw };
 }
 
-function LobbyEarth({ quality }: { quality: GraphicsQuality }) {
+function LobbyEarth({ quality, hidden }: { quality: GraphicsQuality; hidden: boolean }) {
   const placement = useMemo(planetPlacement, []);
+  const root = useRef<THREE.Group>(null);
+  useFrame((_, dt) => {
+    if (!root.current) return;
+    const target = hidden ? 0.001 : 1;
+    root.current.scale.setScalar(THREE.MathUtils.damp(root.current.scale.x, target, hidden ? 3.2 : 2.4, dt));
+  });
   return (
-    <group position={placement.center}>
+    <group ref={root} position={placement.center}>
       <group rotation={[0, placement.yaw, 0]}>
         <PlanetEarth quality={quality} radius={PLANET_R} position={[0, 0, 0]} sunDir={SUN_DIR} spin={0.0006} />
       </group>
@@ -121,12 +127,12 @@ function Stars({ count, warp }: { count: number; warp: number }) {
   );
 }
 
-export function SpaceEnvironment({ quality, warp }: { quality: GraphicsQuality; warp: number }) {
+export function SpaceEnvironment({ quality, warp, hideEarth }: { quality: GraphicsQuality; warp: number; hideEarth?: boolean }) {
   return (
     <group name="space-environment">
       <Stars count={quality === 'high' ? 2600 : 1400} warp={warp} />
       <Suspense fallback={null}>
-        <LobbyEarth quality={quality} />
+        <LobbyEarth quality={quality} hidden={hideEarth ?? false} />
       </Suspense>
     </group>
   );

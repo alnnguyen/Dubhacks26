@@ -1,34 +1,48 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { SpaceshipHome } from '../ui/screens/SpaceshipHome';
-import { CameraDebugPage } from '../camera/CameraDebugPage';
+import { ArenaDuel } from '../arena3d/ArenaDuel';
 import { useServerLobby } from '../lobby/useServerLobby';
-import { getGameClient, useGameView, type ClientReply, type PlayerView, type Weapon } from '../networking';
-import type { BattleCommand } from '../vision/types';
-import { dispatchBattleCommand } from './liveCommands';
+import { getGameClient, useGameLobby, useGameView, type ClientReply, type GameClient, type PlayerView } from '../networking';
 import './flight.css';
 
-const GUN_FLIGHT_MS = 800;
-
 // Every match number below comes from the game server's view; this screen only displays it.
-export function FlightApp() {
-  const client = getGameClient();
+export function FlightApp({client: providedClient, cockpitControls}: {client?: GameClient; cockpitControls?: ReactNode} = {}) {
+  const client = providedClient ?? getGameClient();
   const lobby = useServerLobby(client);
   const view = useGameView(client);
+  // Private pair code: a phone opening /?saber=<code> becomes this pilot's lightsaber.
+  const pairCode = useGameLobby(client)?.pairCode ?? '';
   // The match this phone engaged into. A reload lands back in the cockpit with the match ready to re-engage.
   const [entered, setEntered] = useState<string | null>(null);
   const [voiceWorld, setVoiceWorld] = useState('');
   const [entering, setEntering] = useState(false);
   const [note, setNote] = useState('');
-  const [bolt, setBolt] = useState<{ startedAt: number } | null>(null);
-  const [slashAt, setSlashAt] = useState<number | null>(null);
-  const [rockResolvedAt, setRockResolvedAt] = useState(0);
+  const [travelDestination, setTravelDestination] = useState<'mars' | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const launchTimer = useRef<number | undefined>(undefined);
 
-  const beginBriefing = useCallback(() => {
-    setVoiceWorld(''); setNote('');
-    setEntered(client.view()?.matchId ?? null);
-  }, [client]);
+  const beginBriefing = useCallback((destination: 'mars') => {
+    setNote('Travel complete. Connecting to the Mars match…');
+    setTravelDestination(destination);
+  }, []);
+
+  useEffect(() => {
+    if (!travelDestination || !view) return;
+    if (view.phase === 'finished') {
+      setTravelDestination(null);
+      setNote('The match ended before arrival. Return to the cockpit to challenge again.');
+      return;
+    }
+    if (view.world.id !== travelDestination) {
+      setTravelDestination(null);
+      setNote(`The server selected ${view.world.name}, not Mars. This arena flow requires Mars.`);
+      return;
+    }
+    setVoiceWorld('');
+    setNote('');
+    setEntered(view.matchId);
+    setTravelDestination(null);
+  }, [travelDestination, view]);
 
   const ready = useCallback(() => {
     clearTimeout(launchTimer.current); setEntering(false);
@@ -45,18 +59,10 @@ export function FlightApp() {
     return () => { window.removeEventListener('message', message); clearTimeout(launchTimer.current); };
   }, [ready]);
 
-  useEffect(() => client.onProjectileLanded(event => {
+  useEffect(() => client.onSaberResolved(event => {
     const mine = event.attackerSlot === client.view()?.you.slot;
-    const weapon =
-      event.weapon === 'rock' ? 'Rock' : event.weapon === 'saber' ? 'Saber slash' : 'Bolt';
-    if (mine) {
-      setNote(event.blocked ? `${weapon} blocked by rival.` : `${weapon} hit: −${event.damage} rival health.`);
-      if (event.weapon === 'rock') setRockResolvedAt(performance.now());
-      if (event.weapon === 'gun') setBolt(null);
-      if (event.weapon === 'saber') setSlashAt(null);
-    } else {
-      setNote(event.blocked ? `Blocked the incoming ${weapon.toLowerCase()}.` : `Hit: −${event.damage} health.`);
-    }
+    if (event.outcome === 'blocked') setNote(mine ? 'Clash! Your swing hit their blade.' : 'You blocked their swing.');
+    else setNote(mine ? `Hit! −${event.damage} rival health.` : `You were hit: −${event.damage} health.`);
   }), [client]);
 
   // A match that ended while this phone was in the cockpit (e.g. after a reload) has no result
@@ -69,52 +75,27 @@ export function FlightApp() {
     frame.current?.contentWindow?.postMessage({ type: 'COPILOT_STOP' }, location.origin);
     launchTimer.current = window.setTimeout(ready, 1500);
   }
-
   function leave() {
     clearTimeout(launchTimer.current); setEntering(false); setVoiceWorld(''); setNote('');
     setEntered(null);
-    setBolt(null);
-    setSlashAt(null);
     void client.leaveMatch();
   }
 
-  async function ensureWeapon(weapon: Weapon) {
-    const current = client.view()?.you.weapon;
-    if (current === weapon) return;
-    if (weapon === 'rock') await client.rockActive();
-    else if (weapon === 'saber') await client.saberActive();
-    else await client.gunActive();
+  if (!view || entered !== view.matchId) {
+    return (
+      <>
+        <SpaceshipHome
+          lobby={lobby}
+          onTravelComplete={beginBriefing}
+          cockpitControls={cockpitControls}
+          copilotClient={client}
+        />
+        {note && <p className="flight-muted" role="status">{note}</p>}
+      </>
+    );
   }
-
-  async function run(label: string, action: () => Promise<ClientReply>) {
-    const reply = await action();
-    if (reply.status === 'rejected') setNote(rejectionNote(reply));
-    else setNote(`${label} accepted.`);
-    if (label === 'fireGun' && reply.status === 'accepted') setBolt({ startedAt: performance.now() });
-    if (label === 'slash' && reply.status === 'accepted') setSlashAt(performance.now());
-    return reply;
-  }
-
-  // Same validated server commands for gestures and touch buttons.
-  async function onCommands(commands: BattleCommand[]) {
-    for (const command of commands) {
-      const reply = await dispatchBattleCommand(client, command);
-      if (!reply) continue;
-      if (reply.status === 'rejected') setNote(rejectionNote(reply));
-      else setNote(`${command.name} accepted.`);
-      if (command.name === 'fireGun' && reply.status === 'accepted') {
-        setBolt({ startedAt: performance.now() });
-      }
-      if (command.name === 'slash' && reply.status === 'accepted') {
-        setSlashAt(performance.now());
-      }
-    }
-  }
-
-  if (!view || entered !== view.matchId) return <SpaceshipHome lobby={lobby} onEnterBattle={beginBriefing} />;
 
   const { world, you, rival } = view;
-  const flightSeconds = world.rockFlightMs / 1000;
   const screen = view.phase === 'finished' ? 'result' : view.phase === 'waiting' && !you.ready ? 'briefing' : 'duel';
   return <main className="flight-flow">
     <header className="flight-header">
@@ -125,52 +106,19 @@ export function FlightApp() {
       <section className="flight-panel">
         <p className="flight-eyebrow">JUMP COORDINATES CONFIRMED · VS {rival.callsign}</p>
         <h1>The server picked {world.name}. Listen to the briefing.</h1>
-        <p><strong>{world.gravityMps2} m/s²</strong> · designed rock flight / defense window <strong>{flightSeconds.toFixed(2)} s</strong></p>
-        <p>Rounded <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/" target="_blank" rel="noreferrer">NASA gravity</a> values. Window = 0.8 × √(9.8 / gravity), a gameplay mapping.</p>
+        <p><strong>{world.gravityMps2} m/s²</strong> surface gravity (rounded <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/" target="_blank" rel="noreferrer">NASA</a> value) · lightsaber duel</p>
+        <p>Your laptop camera tracks your body and your iPhone is your lightsaber. Swing fast through your rival to hit; put your blade in the way of theirs to block. Step to move in the arena.</p>
         <p className="flight-muted">Both pilots got the same world. Your copilot announces it automatically. If sound is paused by your browser, tap Play briefing below. Ask the copilot is optional for follow-up questions.</p>
         <p role="status">{voiceWorld === world.id ? `Copilot state synced: ${world.name}.` : 'Connecting briefing state… If unavailable, start the local Voice server; the duel still works.'}</p>
         <p role="status">{rival.ready ? `${rival.callsign} is ready.` : `${rival.callsign} is still in the briefing.`}</p>
-        <button className="flight-primary" disabled={entering} onClick={launch}>{entering ? 'Stopping microphone…' : 'Ready — enter camera duel'}</button>
+        <button className="flight-primary" disabled={entering} onClick={launch}>{entering ? 'Stopping microphone…' : 'Ready — enter the arena'}</button>
         {note && <p className="flight-muted">{note}</p>}
         <p className="flight-muted">Entering combat stops the briefing microphone and audio. Start camera explicitly on the next screen. The round begins when both pilots are ready.</p>
       </section>
       <iframe key={world.id} ref={frame} className="flight-voice" title="Grok Voice briefing" allow="microphone; autoplay" src={`/copilot/?world=${world.id}`} />
     </>}
     {screen === 'duel' && (
-      <CameraDebugPage
-        mode="duel"
-        flightSeconds={flightSeconds}
-        duel={{
-          worldName: world.name,
-          gravity: world.gravityMps2,
-          rivalName: rival.callsign,
-          health: you.health,
-          rivalHealth: rival.health,
-          note: duelNote(view, note),
-          serverNote: note,
-          incoming: rival.projectile !== null,
-          weapon: you.weapon,
-          onSelectRock: () => void run('rockActive', () => client.rockActive()),
-          onSelectGun: () => void run('gunActive', () => client.gunActive()),
-          onSelectSaber: () => void run('saberActive', () => client.saberActive()),
-          onFireGun: () =>
-            void run('fireGun', async () => {
-              await ensureWeapon('gun');
-              return client.fireGun();
-            }),
-          onSlash: () =>
-            void run('slash', async () => {
-              await ensureWeapon('saber');
-              return client.slash();
-            }),
-          boltStartedAt: bolt?.startedAt ?? null,
-          boltFlightMs: GUN_FLIGHT_MS,
-          slashStartedAt: slashAt,
-          rockResolvedAt,
-          immersive: world.id === 'mars',
-        }}
-        onCommands={(commands) => void onCommands(commands)}
-      />
+      <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} />
     )}
     {screen === 'result' && <section className="flight-panel">
       <p className="flight-eyebrow">DUEL COMPLETE</p>
@@ -186,8 +134,7 @@ function duelNote(view: PlayerView, note: string): string {
   const { rival } = view;
   if (view.phase === 'waiting') return `Waiting for ${rival.callsign} to finish the briefing…`;
   if (!rival.connected) return `${rival.callsign} lost connection — they forfeit unless they return shortly.`;
-  if (rival.projectile) return `Incoming ${rival.projectile.weapon}! Block before impact.`;
-  return note || 'Rock / Gun / Saber · Block when something is incoming.';
+  return note || 'Swing fast through your rival. Block with your blade.';
 }
 
 function resultTitle({ result, you, rival }: PlayerView): string {
@@ -198,10 +145,6 @@ function resultTitle({ result, you, rival }: PlayerView): string {
 }
 
 const REJECTION_NOTES: Record<string, string> = {
-  on_cooldown: 'Still cooling down.',
-  busy: 'Busy — wait for your throw or block to finish.',
-  projectile_in_flight: 'Your last shot is still in flight.',
-  weapon_not_active: 'Switch weapon first (Rock / Gun / Saber).',
   match_not_active: 'The round has not started.',
   offline: 'Offline — command not sent.',
   no_response: 'Server did not answer in time.',

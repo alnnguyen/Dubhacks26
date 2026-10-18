@@ -13,6 +13,7 @@ class FakeSocket implements SocketLike {
   on(event: string, listener: (...args: any[]) => void) {
     this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener])
   }
+  volatile = { emit: (event: string, payload: unknown) => void this.sent.push({ event, payload, ack: () => {} }) }
   timeout(_ms: number) {
     return { emit: (event: string, payload: unknown, ack: Ack) => this.sent.push({ event, payload, ack }) }
   }
@@ -43,13 +44,27 @@ const view = (health: number): PlayerView => {
     cooldowns: { rock: null, gun: null, saber: null },
     block: { active: false, endsInMs: null, cooldownEndsInMs: null },
     projectile: null,
+    saber: { swinging: false, cooldownEndsInMs: null, paired: false, phoneLive: false, bodyReady: false, saberReady: false },
   })
   const world = { id: "mars" as const, name: "Mars", gravityMps2: 3.7, rockFlightMs: 1302 }
-  return { matchId: "m1", phase: "active", world, result: null, you: player(1), rival: player(2) }
+  return {
+    matchId: "m1",
+    phase: "active",
+    world,
+    result: null,
+    board: { cellSize: 0.65, rows: 3, stepMs: 110 },
+    you: player(1),
+    rival: player(2),
+  }
 }
 
 const pilot = (id: string) => ({ id, callsign: id.toUpperCase(), status: "available" as const, wins: 0, losses: 0 })
-const lobbyView = (others: string[] = []): LobbyView => ({ you: pilot("pme"), pilots: others.map(pilot), challenge: null })
+const lobbyView = (others: string[] = []): LobbyView => ({
+  you: pilot("pme"),
+  pilots: others.map(pilot),
+  challenge: null,
+  pairCode: "ABC234",
+})
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const data = { ...initial }
@@ -70,9 +85,20 @@ function joinOnline(matchView: PlayerView | null = view(100)) {
   socket.last("join").ack(null, { ok: true, lobby: lobbyView(), view: matchView })
 }
 
-afterEach(() => vi.useRealTimers())
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
 
 describe("connecting", () => {
+  it("routes to the configured shared server while preserving an explicit override", () => {
+    vi.stubEnv("VITE_GAME_SERVER_URL", "https://shared.example")
+    const createSocket = vi.fn(() => new FakeSocket())
+    const shared = createGameClient({ storage: null, createSocket })
+    expect(createSocket).toHaveBeenLastCalledWith("https://shared.example")
+    shared.close()
+    const local = createGameClient({ url: "http://localhost:3001", storage: null, createSocket })
+    expect(createSocket).toHaveBeenLastCalledWith("http://localhost:3001")
+    local.close()
+  })
+
   it("joins with a stored playerId and goes online with the server's view", () => {
     setup(memoryStorage({ "jedi.playerId": "stored-player-id" }))
     expect(client.status()).toBe("connecting")
@@ -160,6 +186,50 @@ describe("game state", () => {
   })
 })
 
+describe("arena stream", () => {
+  const pose = { tracked: true, joints: [], calibrated: true, setup: null }
+
+  it("streams body poses with increasing seq from page-load time", () => {
+    setup()
+    joinOnline()
+    client.sendBodyPose(pose)
+    client.sendBodyPose(pose)
+    const sent = socket.sent.filter((s) => s.event === "bodyPose").map((s) => s.payload.seq)
+    expect(sent).toEqual([5000, 5001])
+  })
+
+  it("drops poses while offline instead of queueing them", () => {
+    setup()
+    client.sendBodyPose(pose)
+    expect(socket.sent.some((s) => s.event === "bodyPose")).toBe(false)
+  })
+
+  it("passes arena frames and outcomes to listeners", () => {
+    setup()
+    joinOnline()
+    const frames: unknown[] = []
+    const outcomes: unknown[] = []
+    client.onArena((f) => frames.push(f))
+    client.onSaberResolved((e) => outcomes.push(e))
+    socket.fire("arena", { serverMs: 0, engaged: false, players: [] })
+    socket.fire("saberResolved", { attackerSlot: 2, outcome: "blocked", damage: 0 })
+    expect(frames).toEqual([{ serverMs: 0, engaged: false, players: [] }])
+    const steps: unknown[] = []
+    client.onStepped((e) => steps.push(e))
+    socket.fire("stepped", { slot: 1, cell: { q: 0, r: 0 } })
+    expect(steps).toEqual([{ slot: 1, cell: { q: 0, r: 0 } }])
+    void client.step("left")
+    expect(socket.last("command").payload).toMatchObject({ type: "step", direction: "left" })
+    const readings: unknown[] = []
+    client.onPhoneAim((a) => readings.push(a))
+    socket.fire("phoneAim", { seq: 1, tracked: true, top: [0, 0, 1], rate: 0 })
+    expect(readings).toHaveLength(1)
+    void client.calibrateSaber({ forward: [0, 1], hand: "right", mirror: false, done: true })
+    expect(socket.last("command").payload).toMatchObject({ type: "calibrateSaber", calibration: { hand: "right" } })
+    expect(outcomes).toEqual([{ attackerSlot: 2, outcome: "blocked", damage: 0 }])
+  })
+})
+
 describe("commands", () => {
   it("sends a fresh command ID and resolves with the server's reply", async () => {
     setup()
@@ -240,3 +310,23 @@ describe("commands", () => {
     expect(REPLY_TIMEOUT_MS).toBe(3000)
   })
 })
+
+
+describe("read-only copilot transport", () => {
+  it("never queues provider access while offline", async () => {
+    setup();
+    expect(await client.copilotSession()).toEqual({ok: false, reason: "offline"});
+    expect(await client.copilotContext()).toEqual({ok: false, reason: "offline"});
+    expect(socket.sent).toHaveLength(0);
+  });
+  it("requests state without accepting a caller-supplied identity and handles missing replies", async () => {
+    setup(); joinOnline(null);
+    const context = client.copilotContext();
+    expect(socket.last("copilot:context").payload).toEqual({});
+    socket.last("copilot:context").ack(null, {ok: true, context: {source: "live", lobby: lobbyView(), match: null}});
+    expect(await context).toMatchObject({ok: true, context: {source: "live"}});
+    const session = client.copilotSession();
+    socket.last("copilot:session").ack(new Error("timeout"), undefined);
+    expect(await session).toEqual({ok: false, reason: "no_response"});
+  });
+});

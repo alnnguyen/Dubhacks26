@@ -14,6 +14,8 @@ import { CameraController } from './CameraController';
 import { AnchorProjector, type AnchorRegistry } from './anchors';
 import { CAMERA_POSES } from './cockpitLayout';
 import type { ConnectionStatus, LobbyView, NearbyPilot, SceneSettings } from '../../state/lobbyTypes';
+import { PlanetaryRoulette } from '../../cinematics/PlanetaryRoulette';
+import type { PlanetaryCinematicState } from '../../cinematics/sequence';
 
 export interface SpaceshipSceneProps {
   settings: SceneSettings;
@@ -25,12 +27,16 @@ export interface SpaceshipSceneProps {
   callsign: string;
   connection: ConnectionStatus;
   anchors: AnchorRegistry;
+  cinematic: PlanetaryCinematicState;
+  prepareRoulette?: boolean;
+  onRoulettePrepared?: (ready: boolean) => void;
   /** Optional authored cockpit model (GLB/GLTF) to replace the procedural one. */
   cockpitModelUrl?: string;
   onNavigate: (view: LobbyView) => void;
   onSelectPilot: (id: string) => void;
   onLowPerformance?: () => void;
   onReady?: () => void;
+  onCinematicFrame?: (delta: number) => void;
 }
 
 /**
@@ -77,6 +83,11 @@ function PerfGuard({ onLow }: { onLow?: () => void }) {
   return null;
 }
 
+function CinematicClock({ onFrame }: { onFrame?: (delta: number) => void }) {
+  useFrame((_, delta) => { if (!document.hidden) onFrame?.(delta); });
+  return null;
+}
+
 function FirstFrame({ onReady }: { onReady?: () => void }) {
   const done = useRef(false);
   useFrame(() => {
@@ -87,12 +98,26 @@ function FirstFrame({ onReady }: { onReady?: () => void }) {
   return null;
 }
 
-function Lights({ mood, high }: { mood: SpaceshipSceneProps['mood']; high: boolean }) {
+function Lights({
+  mood,
+  high,
+  cinematicPhase,
+  reducedMotion,
+}: {
+  mood: SpaceshipSceneProps['mood'];
+  high: boolean;
+  cinematicPhase: SpaceshipSceneProps['cinematic']['phase'];
+  reducedMotion: boolean;
+}) {
   const warm = useRef<THREE.PointLight>(null);
   useFrame(({ clock }) => {
     if (!warm.current) return;
     const base = mood === 'alert' ? 1.6 + Math.sin(clock.elapsedTime * 5) * 0.9 : 0.55;
-    warm.current.intensity = base;
+    const pulse = reducedMotion ? 0 : Math.sin(clock.elapsedTime * 12) * 0.18;
+    const activating = cinematicPhase === 'activating';
+    const locked = cinematicPhase === 'locked' || cinematicPhase === 'zooming' || cinematicPhase === 'flash';
+    warm.current.intensity = base + (activating ? Math.max(0, pulse) : 0) + (locked ? 0.62 + pulse : 0);
+    warm.current.color.set(locked ? '#ff7434' : '#ff8a3d');
   });
   return (
     <>
@@ -126,10 +151,13 @@ function Lights({ mood, high }: { mood: SpaceshipSceneProps['mood']; high: boole
 }
 
 export function SpaceshipScene(props: SpaceshipSceneProps) {
-  const { settings, view, mood, anchors } = props;
+  const { settings, view, mood, anchors, cinematic } = props;
   const high = settings.quality === 'high';
+  const cinematicActive = cinematic.phase !== 'idle';
   const pose = mood === 'launch' ? CAMERA_POSES.launch : CAMERA_POSES[view];
-  const dpr: [number, number] = high ? [1, Math.min(window.devicePixelRatio || 1, 1.75)] : [1, 1.25];
+  const marsTarget = useRef<THREE.Group>(null);
+  const maxDpr = cinematicActive ? 1.2 : high ? Math.min(window.devicePixelRatio || 1, 1.75) : 1.25;
+  const dpr: [number, number] = [1, maxDpr];
   const screenFps = settings.reducedMotion ? 1 : high ? 6 : 2;
 
   return (
@@ -138,7 +166,7 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
       shadows={high ? 'soft' : 'percentage'}
       className="sd-canvas"
       dpr={dpr}
-      gl={{ antialias: !high, powerPreference: 'high-performance', alpha: false, stencil: false }}
+      gl={{ antialias: !high && !cinematicActive, powerPreference: 'high-performance', alpha: false, stencil: false }}
       camera={{ fov: 70, near: 0.05, far: 3200, position: CAMERA_POSES.lobby.position }}
       onCreated={({ gl }) => {
         gl.setClearColor('#010205');
@@ -149,16 +177,22 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
       aria-hidden
     >
       <CockpitEnvironment high={high} />
-      <Lights mood={mood} high={high} />
+      <Lights mood={mood} high={high} cinematicPhase={cinematic.phase} reducedMotion={settings.reducedMotion} />
       <BakeShadows />
       <CameraController
         pose={pose}
         reducedMotion={settings.reducedMotion}
-        parallax={settings.parallax}
+        parallax={cinematic.phase === 'idle' && settings.parallax}
         panelOpen={view !== 'lobby' && view !== 'console' && view !== 'pilot' && mood !== 'launch'}
         lookAround={(view === 'lobby' || view === 'pilot') && mood !== 'launch'}
+        cinematicPhase={cinematic.phase}
+        marsTarget={marsTarget}
       />
-      <SpaceEnvironment quality={settings.quality} warp={mood === 'launch' ? 1 : 0} />
+      <SpaceEnvironment
+        quality={settings.quality}
+        warp={mood === 'launch' ? 1 : 0}
+        hideEarth={cinematic.phase !== 'idle' && cinematic.phase !== 'activating'}
+      />
       <Cockpit
         modelUrl={props.cockpitModelUrl}
         quality={settings.quality}
@@ -176,21 +210,32 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
       <HolographicConsole
         pilots={props.pilots}
         selectedId={props.selectedId}
-        interactive={view === 'lobby' ? 'globe' : view === 'radar' ? 'blips' : 'none'}
+        interactive={cinematic.phase !== 'idle' ? 'none' : view === 'lobby' ? 'globe' : view === 'radar' ? 'blips' : 'none'}
         alert={mood === 'alert'}
         boost={mood === 'ready' || mood === 'launch' || view === 'radar'}
+        cinematicPhase={cinematic.phase}
         reducedMotion={settings.reducedMotion}
         quality={settings.quality}
         anchors={anchors}
         onActivate={() => props.onNavigate('radar')}
         onSelect={props.onSelectPilot}
       />
+      {props.prepareRoulette && (
+        <PlanetaryRoulette
+          onPrepared={props.onRoulettePrepared}
+          phase={cinematic.phase}
+          selectedPlanet={cinematic.selectedPlanet}
+          marsTarget={marsTarget}
+          reducedMotion={settings.reducedMotion}
+        />
+      )}
       <ConsoleHotspot interactive={view === 'lobby' && mood !== 'launch'} onActivate={() => props.onNavigate('console')} />
       <SeatHotspot interactive={view === 'lobby' && mood !== 'launch'} onActivate={() => props.onNavigate('pilot')} />
       <AnchorProjector registry={anchors} />
-      <PerfGuard onLow={high ? props.onLowPerformance : undefined} />
+      <PerfGuard onLow={high && !cinematicActive ? props.onLowPerformance : undefined} />
       <FirstFrame onReady={props.onReady} />
-      {high && (
+      <CinematicClock onFrame={props.onCinematicFrame} />
+      {high && !cinematicActive && (
         <EffectComposer multisampling={0} enableNormalPass={false}>
           {/* Threshold above 1: only HDR emissives (holograms, indicator lights, strips) bloom. */}
           <Bloom mipmapBlur intensity={0.55} luminanceThreshold={1.0} luminanceSmoothing={0.25} radius={0.6} levels={6} />
