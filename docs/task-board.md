@@ -270,3 +270,12 @@ Adaptation preserves direct travel-to-setup, compact LYRA initiation, fresh loca
 The replay HTTP route honors the configured ALLOWED_ORIGIN list; use the public frontend origin there for a separately hosted frontend. PERCEPTRON_API_KEY (optional PERCEPTRON_MODEL) belongs only in ignored server/.env on the actual host. This integration made no provider calls or uploads and did not deploy or change running-host configuration.
 
 Necessary checks only: frontend build/typecheck passed; 50 focused replay/recorder/networking/local-fighter/buffer/countdown-display tests passed; server build plus 33 replay HTTP/parser/match/rematch/countdown tests passed. Inference is mocked in transport tests. No broad full-suite rerun or browser/device walkthrough was performed. Physical capture-to-real-provider playback remains an acceptance check for the team. Existing exploration chunk-size warning remains. Not pushed.
+
+
+## Live victory/defeat result + prominent Perceptron replay — Alex, October 18
+
+Applied the approved duel-result-preview design to the real finished-match overlay. New DuelResult component/styles display authoritative outcome, callsigns/slots, final health and knockout/forfeit reason. Green/red/gold animated plates, glass accents, laser entrance and aligned VS retain the existing brand; reduced-motion styles are included. Existing rematch/accept/pending/offline gates and Back to bridge handlers are preserved; ArenaDuel stays mounted for camera/calibration continuity.
+
+Watch Replay is now a large blue Perceptron-labelled action above Rematch. It expands and scrolls to the existing actual replay panel; provider upload still requires its separate consent/action. No recording or provider request is triggered by the new button. Source paths: DuelResult component/CSS, ArenaDuel result rendering, labelled synthetic /?dev=result route. Server contracts, combat rules, camera/phone calibration and audio assets are unchanged.
+
+Validation: web production build/typecheck passed; 21 existing client-command tests passed. Browser review used the production component with labelled synthetic results: Victory, Defeated, pending-rematch disabled state, rival Accept rematch state and Watch Replay opening were verified; no console warning/error logs. Physical end-of-duel and real provider playback are not claimed by this UI check. Not pushed. The unrelated shared-live-server.md tunnel edit is preserved.

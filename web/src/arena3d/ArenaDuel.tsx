@@ -18,6 +18,7 @@ import { createStabilizer, stabilize } from "./bodyStabilizer";
 import { withLocalFighter, withSetupBody } from "./localFighter";
 import { glideRoot, onOwnStep, reconcile, type OwnGlide } from "./ownGlide";
 import { ArenaScene, type ImpactFlash } from "./ArenaScene";
+import { DuelResult } from "./DuelResult";
 import {
   applyCameraFix,
   calibrationOf,
@@ -573,34 +574,7 @@ export function ArenaDuel({
       <SaberCountdown start={saberStart} remaining={countdown} fresh={!finished && serverFresh && wizard.step === "done" && youArmed && rivalArmed} />
       {running && !fighting && !finished && <span className="si-self-label">YOUR CAMERA / LIVE FEEDBACK</span>}
 
-      {finished ? (
-        <section className="arena-result" aria-label="Result">
-          <p className="arena-result-eyebrow">DUEL COMPLETE</p>
-          <h2>{resultTitle(view)}</h2>
-          <p>
-            You {you.health} · {rival.callsign} {rival.health}
-          </p>
-          <p className="arena-result-status" role="status">
-            {!rival.connected
-              ? `${rival.callsign} returned to the cockpit.`
-              : you.rematch
-                ? `Waiting for ${rival.callsign} to accept the rematch…`
-                : rival.rematch
-                  ? `${rival.callsign} wants a rematch!`
-                  : "Rematch keeps your camera and saber setup."}
-          </p>
-          {note ? <p className="arena-warning">{note}</p> : null}
-          <div className="arena-setup-actions">
-            <button type="button" disabled={you.rematch || !rival.connected} onClick={onRematch}>
-              {you.rematch ? "Rematch requested" : rival.rematch ? "Accept rematch" : "Rematch"}
-            </button>{" "}
-            <button type="button" className="secondary" onClick={onLeave}>
-              Back to bridge
-            </button>
-          </div>
-          {resultExtra}
-        </section>
-      ) : null}
+      {finished && <DuelResult view={view} note={note} onRematch={onRematch} onLeave={onLeave} replay={resultExtra} />}
       {engaged && fighting ? (
         <div className="arena-engaged">ENGAGED</div>
       ) : null}
@@ -624,13 +598,6 @@ export function ArenaDuel({
       />
     </main>
   );
-}
-
-function resultTitle({ result, you, rival }: PlayerView): string {
-  if (!result) return "Duel over";
-  const how = result.reason === "forfeit" ? " by forfeit" : "";
-  if (result.winner === null) return "Draw";
-  return result.winner === you.slot ? `You win${how}` : `${rival.callsign} wins${how}`;
 }
 
 function midpoint(a: Vec3, b: Vec3): Vec3 {

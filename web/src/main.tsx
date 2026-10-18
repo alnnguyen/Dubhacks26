@@ -11,6 +11,7 @@ const saberCode = search.get('saber');
 // The saber arena with synthetic fighters, no camera/phone/server: /?dev=arena
 const devArena = search.get('dev') === 'arena';
 // Cinematic director with labeled synthetic frames/events; never a provider proof.
+const devResult = search.get("dev") === "result";
 const devReplay = search.get('dev') === 'replay';
 
 const initiationPreview = search.get("dev") === "initiation";
@@ -18,6 +19,8 @@ const explore = search.has('explore');
 const soundCheck = search.get('audio') === 'check';
 const Screen = soundCheck
   ? lazy(async () => { const m = await import('./audio/SoundCheck'); return { default: m.SoundCheck }; })
+  : devResult
+  ? lazy(async () => { const m = await import("./arena3d/DuelResultPreview"); return { default: m.DuelResultPreview }; })
   : devReplay
   ? lazy(async () => {
       const m = await import('./replay/ReplayPreview');
