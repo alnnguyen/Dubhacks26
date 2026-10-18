@@ -4,7 +4,7 @@ import { useThree } from '@react-three/fiber'
 import { usePbrSet } from './terrain/Terrain'
 import { createRockMaterial, makeRockGeometry, type RockShape } from './rockGeometry'
 import { obstaclePosition, OPPONENT_DISTANCE_M, type ArenaObstacle } from './obstacles'
-import type { TerrainSampler } from './terrain/heightmap'
+import { MARS_PLATFORM, type TerrainSampler } from './terrain/heightmap'
 import type { GraphicsQuality } from '../../ui/state/lobbyTypes'
 
 function seeded(seed: number) {
@@ -53,6 +53,8 @@ function Scatter({ sampler, spec, material }: { sampler: TerrainSampler; spec: S
       if (cluster < -0.2 && rnd() < 0.7) continue
       const size = spec.minSize + (spec.maxSize - spec.minSize) * Math.pow(rnd(), 2.2)
       if (inDuelCorridor(x, z, size)) continue
+      // Nothing on the platform deck; its rim is half-buried in a regolith drift instead.
+      if (Math.hypot(x, z) < MARS_PLATFORM.radius + 0.8 + size) continue
       const y = sampler.heightAt(x, z) - size * 0.22
       e.set((rnd() - 0.5) * 0.4, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.4)
       q.setFromEuler(e)

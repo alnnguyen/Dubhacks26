@@ -1,0 +1,9 @@
+.mars-arrival{position:absolute;inset:0;overflow:hidden;background:#8a1c04;opacity:0;pointer-events:none;z-index:3}
+.mars-arrival[data-active=true]{opacity:1}
+/* One box at the video's own 736×400 aspect, covering the viewport; video, veil and canvas stay registered. */
+.mars-arrival__frame{position:absolute;left:50%;top:50%;width:max(100vw,184vh);height:max(100vh,54.35vw);transform:translate(-50%,-50%)}
+.mars-arrival__frame canvas,.mars-arrival__frame video,.mars-arrival__veil{position:absolute;inset:0;width:100%;height:100%}
+/* Radial glow sampled from the video's final dust frame. */
+.mars-arrival__veil{z-index:1;pointer-events:none;background:radial-gradient(ellipse 70% 75% at 50% 52%,#dd3d0a 0%,#b9300a 30%,#a12207 60%,#8a1c04 100%)}
+.mars-arrival__frame video{z-index:2;object-fit:cover}
+.mars-arrival__loading{position:absolute;bottom:10%;left:5%;z-index:4;color:#ffe3d0;font:12px monospace}

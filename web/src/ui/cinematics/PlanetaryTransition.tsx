@@ -6,6 +6,7 @@ import './planetary-transition.css';
 import { gameAudio } from '../../audio/gameAudio';
 import { DESTINATIONS, preloadDestination, type DestinationId } from '../../destinations/config';
 import { NeptuneArrival } from '../../arena/neptune/NeptuneArrival';
+import { MarsArrival } from '../../arena/mars/MarsArrival';
 
 const PLANET_NAMES: Record<PlanetId, string> = {
   mercury: 'Mercury',
@@ -167,32 +168,19 @@ export function PlanetaryTransition({
       aria-label="Planetary travel sequence"
     >
       {destination==='neptune'&&<NeptuneArrival active={state.phase==='video'||skipArrival} skip={skipArrival} reducedMotion={reducedMotion} onComplete={complete} onPlaying={()=>setVideoPlaying(true)} onError={()=>setVideoError(true)}/>}
-      {destination==='mars'&&<video
-        ref={video}
-        className="planetary-transition__video"
-        src={config.cinematicPath}
-        playsInline
-        muted
-        preload="auto"
-        aria-label={`Spaceship travel from the cockpit to ${config.displayName}`}
-        onLoadedData={captureBackdrop}
-        onTimeUpdate={() => {
-          if (video.current && video.current.duration && video.current.currentTime / video.current.duration > 0.84) {
-            captureBackdrop();
-            if (!travelSound.current.arrived) {
-              travelSound.current.arrived = true;
-              gameAudio.setEngine(false);
-              arrivalStop.current = gameAudio.play('arrive');
-            }
-          }
-        }}
+      {destination==='mars'&&<MarsArrival
+        active={state.phase==='video'||skipArrival}
+        skip={skipArrival}
+        reducedMotion={reducedMotion}
+        onComplete={() => { landedNaturally.current = !skipArrival; complete(); }}
         onPlaying={() => setVideoPlaying(true)}
-        onPause={() => setVideoPlaying(false)}
-        onEnded={() => {
-          landedNaturally.current = true;
-          complete();
-        }}
         onError={() => setVideoError(true)}
+        onArrive={() => {
+          if (travelSound.current.arrived) return;
+          travelSound.current.arrived = true;
+          gameAudio.setEngine(false);
+          arrivalStop.current = gameAudio.play('arrive');
+        }}
       />}
       <div
         className="planetary-transition__backdrop"
@@ -226,7 +214,7 @@ export function PlanetaryTransition({
       <button
         type="button"
         className="planetary-transition__skip"
-        onClick={()=>destination==='neptune'?setSkipArrival(true):complete()}
+        onClick={()=>setSkipArrival(true)}
         aria-label={`Continue to the ${config.displayName} arena`}
       >
         {videoError ? `Continue to ${config.displayName} arena` : state.phase === 'video' ? 'Skip flight' : 'Skip cinematic'}
