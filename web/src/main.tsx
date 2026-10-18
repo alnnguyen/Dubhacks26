@@ -16,8 +16,11 @@ const devReplay = search.get('dev') === 'replay';
 const initiationPreview = search.get("dev") === "initiation";
 const explore = search.has('explore');
 const soundCheck = search.get('audio') === 'check';
+const marsJourney=search.get('journey')==='mars';
 const neptunePreview=search.get('arena')==='neptune'||search.get('journey')==='neptune';
-const Screen = neptunePreview
+const Screen = marsJourney
+  ? lazy(async()=>{const m=await import('./arena/mars/MarsJourneyPreview');return {default:m.MarsJourneyPreview};})
+  : neptunePreview
   ? lazy(async()=>{const m=await import('./arena/neptune/NeptunePreview');return {default:m.NeptunePreview};})
   : soundCheck
   ? lazy(async () => { const m = await import('./audio/SoundCheck'); return { default: m.SoundCheck }; })

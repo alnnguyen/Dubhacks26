@@ -144,9 +144,18 @@ function ridged(x: number, y: number) {
   return sum
 }
 
+/** The embedded combat platform: walkable top radius and the regolith berm that buries its rim. */
+export const MARS_PLATFORM = { radius: 12, bermWidth: 14 }
+
+const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
+
 export interface TerrainSampler {
-  /** Scene height (meters) at scene position x (east), z (south). */
+  /** Walkable scene height (meters) at x (east), z (south); the platform floor inside its radius. */
   heightAt(x: number, z: number): number
+  /** Height of the regolith surface itself (dips under the platform); used for the terrain mesh. */
+  groundAt(x: number, z: number): number
+  /** Height of the platform's central fighting floor. */
+  floorY: number
   /** True when (x, z) is inside the MOLA crop. */
   inBounds(x: number, z: number): boolean
   /** Scene half-extent of the MOLA terrain. */
@@ -183,8 +192,35 @@ export function createTerrainSampler(grid: MolaGrid): TerrainSampler {
     return (sampleRaw(col, row) - spawnElevation) * MOLA_SCALE * VERTICAL_EXAGGERATION
   }
 
+  const natural = (x: number, z: number) => {
+    const r = Math.hypot(x, z)
+    // Procedural (non-NASA) detail: rolling regolith, small ridges, sand swales.
+    const near = Math.max(0, 1 - r / DETAIL_RADIUS)
+    const flatten = Math.min(1, Math.max(0.25, (r - 2) / ARENA_FLAT_RADIUS))
+    const rolling = fbm(x * 0.045, z * 0.045, 5) * 2.6
+    const ridges = (ridged(x * 0.018 + 4.1, z * 0.03 - 2.7) - 0.35) * 3.2
+    const fine = fbm(x * 0.35, z * 0.35, 3) * 0.12
+    const detail = (rolling + ridges * near) * flatten + fine
+    // Mid-distance hills fill the gap between the arena and the MOLA rim.
+    const mid = Math.max(0, (r - 40) / 160)
+    const hills = Math.min(mid, 1) * (fbm(x * 0.006 + 9, z * 0.006 - 3, 4) + 0.35) * 22
+    return molaHeight(x, z) + detail + hills
+  }
+  const floorY = natural(0, 0)
+  const R = MARS_PLATFORM.radius
+  // Outside the platform: a drift of regolith piled against the rim, easing back into the real terrain.
+  const surrounding = (x: number, z: number, r: number) => {
+    const berm = floorY + 0.55 * Math.exp(-(((r - (R + 0.9)) / 1.5) ** 2)) + (fbm(x * 0.4, z * 0.4, 2) * 0.12)
+    return berm + (natural(x, z) - berm) * smooth(R + 1.2, R + MARS_PLATFORM.bermWidth, r)
+  }
+
   return {
     halfExtent,
+    floorY,
+    groundAt(x, z) {
+      const r = Math.hypot(x, z)
+      return r < R - 0.4 ? floorY - 1.2 : surrounding(x, z, Math.max(r, R))
+    },
     inBounds(x, z) {
       const col = spawnCol + x / scenePerPx
       const row = spawnRow + z / scenePerPx
@@ -192,17 +228,7 @@ export function createTerrainSampler(grid: MolaGrid): TerrainSampler {
     },
     heightAt(x, z) {
       const r = Math.hypot(x, z)
-      // Procedural (non-NASA) detail: rolling regolith, small ridges, sand swales.
-      const near = Math.max(0, 1 - r / DETAIL_RADIUS)
-      const flatten = Math.min(1, Math.max(0.25, (r - 2) / ARENA_FLAT_RADIUS))
-      const rolling = fbm(x * 0.045, z * 0.045, 5) * 2.6
-      const ridges = (ridged(x * 0.018 + 4.1, z * 0.03 - 2.7) - 0.35) * 3.2
-      const fine = fbm(x * 0.35, z * 0.35, 3) * 0.12
-      const detail = (rolling + ridges * near) * flatten + fine
-      // Mid-distance hills fill the gap between the arena and the MOLA rim.
-      const mid = Math.max(0, (r - 40) / 160)
-      const hills = Math.min(mid, 1) * (fbm(x * 0.006 + 9, z * 0.006 - 3, 4) + 0.35) * 22
-      return molaHeight(x, z) + detail + hills
+      return r <= R ? floorY : surrounding(x, z, r)
     },
   }
 }
