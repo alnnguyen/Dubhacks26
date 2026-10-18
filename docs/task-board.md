@@ -121,3 +121,10 @@ Alex: configured the merged frontend to Justin’s public Cloudflare multiplayer
 - Interface handoff to A/C: fractional q/r coordinates; optional world-space orbitCenter on stepped; board.rows retained only for compatibility. See docs/contracts.md. Server and web must update together. No new environment variables.
 - Validation: all 92 server tests passed, including socket integration, repeated circles, simultaneous commands, radial limits and held-blade movement. Frontend production build/typecheck passed; 173 frontend tests passed, one opt-in live test skipped. Actual two-laptop/iPhone camera/orbit visual checks and deployment remain open, so status is Integration, not Done.
 - Git: clean starting checkout was saber-duel. Creating the required codex/orbital-duel-movement branch was blocked by sandbox Git-ref permissions and the escalation was declined; changes remain uncommitted on the existing branch. No external messages or deployment performed.
+
+## Damage knockback — October 18
+
+- Goal: force an avatar backward when damaged. Owned paths: server game/rules/tests and coordination docs, explicitly authorized by the user; interface: existing stepped event and arena frames. Excludes camera, provider integrations, shared manifests, frontend redesign and deployment.
+- Positive saber/projectile damage pushes the defender 0.65 m away from the attacker, capped at 3.9 m separation. Interrupts voluntary glides and clears buffered movement; blocks do not push. Rule tuning: SABER.knockbackMeters.
+- Validation: server build and all 61 game tests passed; frontend production build/typecheck passed. Updated cooldown/knockout tests to close distance after hits; hit and block regressions assert displacement/no displacement. Full server suite attempted but socket tests failed and the process did not finish in the restricted environment; stopped it. No claim of full-suite or actual-device verification.
+- Status: Integration; actual two-player visual/device check remains open. Branch: codex/damage-knockback. No new environment variables, external messages or deployment.

@@ -14,6 +14,7 @@ export const RULES = {
 // with real players; speeds use server time between ticks.
 export const SABER = {
   damage: 15,
+  knockbackMeters: 0.65,
   bladeLength: 0.9,
   bladeRadius: 0.03,
   torsoRadius: 0.17,

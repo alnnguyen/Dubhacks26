@@ -297,6 +297,26 @@ export class Match {
     return null;
   }
 
+  // Damage interrupts voluntary movement; both laptops receive the normal glide event.
+  private knockBack(defender: Player, attacker: Player, now: number): void {
+    clearTimeout(defender.timers.step);
+    defender.saber.queuedStep = null;
+    const from = this.rootXZ(defender, now);
+    const origin = this.rootXZ(attacker, now);
+    const dx = from[0] - origin[0], dz = from[1] - origin[1];
+    const distance = Math.hypot(dx, dz);
+    if (distance < 1e-9) return;
+    const next = Math.max(distance, Math.min(6 * CELL_SIZE, distance + SABER.knockbackMeters));
+    const target = {
+      q: (origin[0] + dx * next / distance) / CELL_SIZE,
+      r: (origin[1] + dz * next / distance) / CELL_SIZE,
+    };
+    defender.saber.glide = { from, startedAt: now };
+    defender.saber.cell = target;
+    defender.saber.stepReadyAt = now + SABER.stepMs + SABER.stepCooldownMs;
+    this.events.stepped({ slot: defender.slot, cell: target });
+  }
+
   // Engagement uses current gliding positions, rather than destination coordinates.
   get engaged(): boolean {
     const now = Date.now();
@@ -449,6 +469,7 @@ export class Match {
     const blocked = defender.blockEndsAt !== null;
     const damage = blocked ? 0 : Math.min(this.weapons[weapon].damage, defender.health);
     defender.health -= damage;
+    if (damage > 0) this.knockBack(defender, attacker, Date.now());
 
     this.events.projectileLanded({ attackerSlot: attacker.slot, weapon, blocked, damage });
     if (defender.health === 0) {
@@ -507,6 +528,7 @@ export class Match {
         this.endSwing(attacker, now);
         const damage = Math.min(SABER.damage, defender.health);
         defender.health -= damage;
+        if (damage > 0) this.knockBack(defender, attacker, now);
         this.events.saberResolved({ attackerSlot: attacker.slot, outcome: "hit", damage });
         if (defender.health === 0) this.finish({ winner: attacker.slot, reason: "knockout" });
         this.events.changed();

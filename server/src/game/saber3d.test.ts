@@ -165,12 +165,19 @@ describe("saber duel in the arena", () => {
     swingAcross();
     assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "hit", damage: SABER.damage }]);
     assert.equal(health(2), 100 - SABER.damage);
+    assert.equal(stepped.at(-1)!.slot, 2);
+    assert.ok(Math.abs(stepped.at(-1)!.cell.r - 2) < 1e-9);
+    assert.equal(stepped.at(-1)!.cell.q, 0);
+    mock.timers.tick(SABER.stepMs);
+    assert.equal(match.engaged, false, "a hit pushes the defender out of reach");
     step(slash(-40));
     assert.equal(resolved.length, 1, "carrying on through doesn't hit again");
   });
 
   test("the defender's blade in the path blocks, and the body behind it is safe", () => {
+    const moves = stepped.length;
     swingAcross(guard);
+    assert.equal(stepped.length, moves, "blocked hits do not push");
     assert.deepEqual(resolved, [{ attackerSlot: 1, outcome: "blocked", damage: 0 }]);
     assert.equal(health(2), 100);
   });
@@ -184,6 +191,7 @@ describe("saber duel in the arena", () => {
     swingAcross();
     for (const angle of [60, 35, 10, -15]) step(slash(angle));
     assert.equal(resolved.length, 1, "the back-swing came during the cooldown");
+    match.step(2, "forward");
     for (let i = 0; i < SABER.swingCooldownMs / SABER.tickMs; i++) step(slash(60));
     swingAcross();
     assert.equal(resolved.length, 2);
@@ -413,6 +421,10 @@ describe("saber duel in the arena", () => {
   test("a knockout finishes the match", () => {
     for (let i = 0; i < Math.ceil(100 / SABER.damage); i++) {
       swingAcross();
+      if (match.toSnapshot().result) break;
+      mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+      match.step(2, "forward");
+      mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
       for (let k = 0; k < SABER.swingCooldownMs / SABER.tickMs + 1; k++) step(slash(60));
     }
     assert.deepEqual(match.toSnapshot().result, { winner: 1, reason: "knockout" });
