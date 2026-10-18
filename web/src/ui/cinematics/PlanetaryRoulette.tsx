@@ -33,7 +33,8 @@ const PLANET_TEXTURE_URLS: Partial<Record<PlanetId, string>> = {
   mars: '/textures/planets/2k_mars.jpg',
   jupiter: '/textures/planets/2k_jupiter.jpg',
   saturn: '/textures/planets/2k_saturn.jpg',
-  neptune: '/textures/planets/2k_neptune.jpg',
+  // Contrast-boosted with wind streaks so the bands read at roulette size (see ATTRIBUTION.md).
+  neptune: '/textures/planets/2k_neptune_roulette.jpg',
 };
 const SUN_TEXTURE_URL = '/textures/planets/2k_sun.jpg';
 
@@ -452,7 +453,7 @@ function Planet({
     const nextAppearance = finalSelection ? (selected ? 2 : 3) : selected ? 1 : 0;
     if (appearance.current !== nextAppearance) {
       markerMaterial.color.copy(
-        nextAppearance === 2 ? MARKER_LOCKED : nextAppearance === 1 ? MARKER_SELECTED : MARKER_CYAN,
+        nextAppearance === 2 ? (definition.id==='neptune' ? MARKER_CYAN : MARKER_LOCKED) : nextAppearance === 1 ? MARKER_SELECTED : MARKER_CYAN,
       );
       material.color.copy(nextAppearance === 3 ? PLANET_DIM : PLANET_WHITE);
       appearance.current = nextAppearance;
@@ -466,7 +467,7 @@ function Planet({
       <group ref={surface}>
         <mesh geometry={geometry} material={material} />
         {definition.id === 'earth' && <EarthLayers geometry={geometry} sunDirection={earthSunDirection.current} />}
-        {definition.id === 'mars' && (
+        {(definition.id === 'mars' || definition.id === 'neptune') && (
           <MarsAtmosphere geometry={geometry} phase={phase} reducedMotion={reducedMotion} color={definition.glow} />
         )}
       </group>
@@ -723,7 +724,7 @@ export function PlanetaryRoulette({
           geometry={geometry}
           selected={planet.id === selectedPlanet}
           phase={phase}
-          marsTarget={planet.id === 'mars' ? marsTarget : undefined}
+          marsTarget={planet.id === selectedPlanet ? marsTarget : undefined}
           registerPlanet={registerPlanet}
           reducedMotion={reducedMotion}
         />

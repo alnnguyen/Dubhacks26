@@ -47,6 +47,20 @@ describe("saber3d geometry", () => {
     assert.equal(inReach({ q: 0, r: 0 }, { q: 3, r: 0 }), false);
   });
 
+  test("forward/back from a fractional gap stop at the limit instead of being refused", () => {
+    const rival = { q: 0, r: 0 };
+    // Knockback can leave players 2.4 apart: out of reach, so a refused step would strand them.
+    const closer = orbitStep({ q: 0, r: -2.4 }, rival, "forward")!;
+    close([closer.q, closer.r], [0, -2]);
+    assert.ok(inReach(closer, rival));
+    assert.equal(orbitStep(closer, rival, "forward"), null, "already at the minimum");
+    const farther = orbitStep({ q: 0, r: -5.5 }, rival, "back")!;
+    close([farther.q, farther.r], [0, -6]);
+    assert.equal(orbitStep(farther, rival, "back"), null, "already at the maximum");
+    // A gap already inside the minimum is never pushed out by a forward step.
+    assert.equal(orbitStep({ q: 0, r: -1.5 }, rival, "forward"), null);
+  });
+
   test("a blade touching the defender's blade blocks before the body behind it", () => {
     const rules = { bladeRadius: 0.03, torsoRadius: 0.17, headRadius: 0.12, substeps: 10 };
     const body = { torso: [[0, 1.5, 1] as Vec3, [0, 1, 1] as Vec3] as [Vec3, Vec3], head: [0, 1.75, 1] as Vec3 };

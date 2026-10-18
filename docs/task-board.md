@@ -211,6 +211,21 @@ Alex reports occasional return to cockpit during travel and wants the saber with
 - Goal: lightsaber-only combat, as requested by Justin. Removed rock/gun server commands, state, events and rules; matching web client API; the old phone-camera duel (LiveDuel, CameraDebugPage, DevMars, vision, overlay, gun model) and its routes. See docs/contracts.md. Excludes D's Grok briefing fixtures, shared manifests/dependencies and deployment.
 - Validation: server build plus 70 game/session/socket tests passed; web typecheck, 94 tests (one opt-in live test skipped) and production build passed. No device check yet.
 - Status: Integration; staged on saber-duel for Justin to commit. No new environment variables, external messages or deployment.
+## Neptune destination — `feature/neptune-arena` (not merged)
+
+- Goal: Neptune as a second arena beside Mars. The server rolls Mars/Neptune 50/50 per accepted challenge; `?world=mars|neptune` on the challenger's page is a testing override.
+- Flow: roulette locks the chosen planet → Neptune cinematic (`web/public/assets/neptune/neptune-arrival.mp4`, which ends in blue cloud with no arena) → the live 3D scene, already compiled behind the video and parked in matching fog → the video fades to a cutout of its own final cockpit frame plus a matched blue veil → the camera flies out of the cloud, the fog clears, and the camera settles at the slot-1 shoulder pose → server-backed briefing and arena.
+- Mars flow is unchanged.
+- Data and sources: `docs/neptune-sources.md`. The platform is fictional; the clouds are procedural and Voyager-informed.
+- Interface: the `challenge` command gains an optional `destination` (see `docs/contracts.md`), and `WorldId` gains `neptune`. Affects B (server/contracts) and A (cockpit/cinematics).
+- Review routes:
+  - `/?arena=neptune`: orbit the station.
+  - `/?journey=neptune`: cinematic → live handoff.
+  - `/?journey=neptune&skip`: reveal only.
+  - `/?dev=arena&destination=neptune`: synthetic fighters.
+- Not yet checked in a real browser playing the video, on phones, or in a live two-client match.
+- 2026-10-18 check (saber-duel): server tests 98/98, integration tests 13/13, web typecheck + 99 tests pass, production build OK, all Neptune assets serve (arrival MP4 is H.264 + faststart). Fixed: the voice briefing iframe ignored `?world=neptune` and announced the Mars fixture (D's `client.mjs`, `demo-state.mjs`, `briefing.mjs`, `demo.html`), the copilot text said matches are always Mars, and the arena's basic-graphics recovery re-rendered the full Neptune scene. Live two-client match, phones and voice server still unverified.
+- Deploy server and client together before using Neptune in real matches. Not deployed or pushed.
 
 
 ## saber-duel merged into alex-dev — October 18
@@ -271,7 +286,6 @@ The replay HTTP route honors the configured ALLOWED_ORIGIN list; use the public 
 
 Necessary checks only: frontend build/typecheck passed; 50 focused replay/recorder/networking/local-fighter/buffer/countdown-display tests passed; server build plus 33 replay HTTP/parser/match/rematch/countdown tests passed. Inference is mocked in transport tests. No broad full-suite rerun or browser/device walkthrough was performed. Physical capture-to-real-provider playback remains an acceptance check for the team. Existing exploration chunk-size warning remains. Not pushed.
 
-
 ## Live victory/defeat result + prominent Perceptron replay — Alex, October 18
 
 Applied the approved duel-result-preview design to the real finished-match overlay. New DuelResult component/styles display authoritative outcome, callsigns/slots, final health and knockout/forfeit reason. Green/red/gold animated plates, glass accents, laser entrance and aligned VS retain the existing brand; reduced-motion styles are included. Existing rematch/accept/pending/offline gates and Back to bridge handlers are preserved; ArenaDuel stays mounted for camera/calibration continuity.
@@ -286,3 +300,13 @@ Validation: web production build/typecheck passed; 21 existing client-command te
 Integrated source 09b5291 from origin/codex/cinematic-arena-replay, omitted earlier because the requested integration was replay-only. The source commit predates the replay work and changes cockpit/exploration presentation: measured left-seat camera pose, pilot flight stick, pilotLaunch forward push, 1.1-second seat-to-flight fade, warm exploration import, Flight/Explore confirmation/reset and mode title/wipe. Resolved against current launch persistence and cockpit actions without reintroducing old briefing/result/duel flows. Existing sound hooks, actual challenge travel, saber setup/countdown, cinematic results and prominent Perceptron replay action are preserved.
 
 Validation limited to conflict/diff review and frontend production build/typecheck, which passed (existing large exploration chunk warning). No broad suite, paid provider calls or deployment. Actual cockpit/seat animation needs user visual confirmation. The unrelated shared-live-server.md note remains untouched. Not pushed.
+
+## alex-dev merged into saber-duel — October 18
+
+- Resolved six conflicted files (see docs/contracts.md for the decisions) and threaded the arena world into the cinematic replay and exploration copy.
+- Checks actually run after resolution: web `tsc --noEmit` clean; web vitest 193 passed, 1 opt-in live test skipped; `vite build` OK (existing large ExploreApp chunk warning); server `tsc` clean; server tests 111/111.
+- Not verified: a live two-client match on Mars and on Neptune through the new direct-to-setup flow, phone hold-to-ignite on a real iPhone, replay capture on Neptune, exploration → challenge → Neptune travel. Not deployed or pushed.
+
+## Merged origin/main into alex-dev — October 18
+
+Pulled Justin's updated main (force-updated; includes Neptune destination, 50/50 world roll, arrival cinematic, dust, map, deadzone/iPhone exit fixes). Only conflict was this task board; code auto-merged. Host must run the updated server for Mars/Neptune world selection.

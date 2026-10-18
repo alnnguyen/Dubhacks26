@@ -151,7 +151,7 @@ export interface SaberStatus {
 
 export type PairReply = { ok: true; status: SaberStatus } | { ok: false; reason: "invalid_code" };
 
-export type WorldId = "earth" | "mars" | "moon";
+export type WorldId = "earth" | "mars" | "moon" | "neptune";
 
 // Chosen once by the server when a challenge is accepted. Both phones show this record.
 export interface World {
@@ -261,7 +261,7 @@ export type MatchCommandType = "ready" | "forfeit" | "rematch" | "leaveMatch";
 
 export type Command =
   | { commandId: string; type: MatchCommandType }
-  | { commandId: string; type: "challenge"; pilotId: string }
+  | { commandId: string; type: "challenge"; pilotId: string; destination?: "mars" | "neptune" }
   | { commandId: string; type: "acceptChallenge" | "declineChallenge" | "cancelChallenge"; challengeId: string }
   | { commandId: string; type: "setCallsign"; callsign: string }
   // null clears it, e.g. when the pilot leaves exploration.

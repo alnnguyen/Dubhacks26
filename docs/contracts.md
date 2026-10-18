@@ -142,12 +142,30 @@ Holds are 0/600/500/500/400 ms and the camera give-up is 2.5 s. The phone shows 
 
 New in-match command `rematch` (`MatchCommandType` is now `ready | rematch | leaveMatch`; `GameClient.rematch()`). Accepted only in the `finished` phase while the rival is still in the match (`match_not_active` / `pilot_unavailable` otherwise); deduplicated by commandId like `ready`. `PlayerState.rematch` shows who has asked. Once both ask, the same match (same `matchId`) starts a new round: health, positions, stamina, cooldowns and stun reset, while phone pairing, `SaberCalibration` and the live body/aim streams carry over. Body and aim streams are now accepted after the match ends so both players are still armed when the round restarts. The round is `active` with a countdown: `MatchSnapshot.startsInMs` / `PlayerView.startsInMs` (remaining ms, `RULES.rematchCountdownMs` 3000; null otherwise). No swings or steps count until it ends. Views are re-sent when it ends, and `stepped` is sent for both start positions. Leaving a finished match (`leaveMatch`) now marks that player as disconnected, so the rival sees they left. Each round updates wins/losses. Laptop: `ArenaDuel` stays mounted through the result (camera and setup wizard are kept) and shows the result panel with Rematch / Back to bridge, then a 3-2-1-FIGHT countdown. Phones need no change. No external messages or deployment.
 
-Follow-up: new in-match command `forfeit` (`GameClient.forfeit()`): gives the round to the rival like `leaveMatch` did before the end, but keeps the player in the match, so both land on the result screen and can rematch. Refused with `match_not_active` once finished. The laptop's in-duel button is now "Forfeit" (was "Forfeit & return"); "Back to bridge" on the result still sends `leaveMatch`. The briefing's header button still leaves.
+Follow-up: new in-match command `forfeit` (`GameClient.forfeit()`): gives the round to the rival like `leaveMatch` did before the end, but keeps the player in the match, so both land on the result screen and can rematch. Refused with `match_not_active` once finished. The laptop's in-duel button is now "Forfeit" (was "Forfeit & return"); "Back to bridge" on the result still sends `leaveMatch`. The briefing's header button now forfeits too (was "Forfeit & return"), so a forfeit from the briefing also lands both pilots on the result screen with Rematch; the rematch round then runs the saber setup as usual.
 
 Follow-up: every round now has the countdown, not just rematches. `RULES.rematchCountdownMs` → `RULES.countdownMs` (3000). The countdown starts on the first server tick of an `active` round where both players are armed (body calibrated, phone live, setup done), so `startsInMs` stays null during the first round's setup. After a rematch the players are usually still armed, so it starts on the next tick. Swings never count before it ends. Steps are refused only while it is running (still allowed during setup). Wire shapes unchanged.
 
 Follow-up: `SaberStatus.match.startsInMs` added (same value as the laptop's `PlayerView.startsInMs`), so the paired phone shows the 3-2-1-FIGHT countdown with a chime per number. Laptop and phone share `web/src/arena3d/useCountdown.ts`.
 
+## Neptune destination — feature/neptune-arena, user-authorized integration
+
+The existing authenticated, deduplicated `challenge` command gains optional
+`destination: "mars" | "neptune"`. The server rejects other values, stores the
+request on that challenge, and chooses the match world once on acceptance.
+Omitting it preserves the existing server `pickWorld` behavior (Mars by default).
+`WorldId` gains `neptune`, with 11.2 m/s² reference gravity; the arena is a
+fictional floating station, not solid Neptune terrain. Saber timing/damage are
+unchanged. Both clients route travel/environment from the authoritative view,
+including after reconnect. No new events, ready semantics, controller changes,
+or provider calls. A/B/C handoff is recorded here and in the task board; no
+external messages or deployment were sent. Deploy both updated server and client
+together before using Neptune in real matches.
+
+
+## Random arena world — feature/neptune-arena
+
+With no `destination` on the challenge, the server now rolls Mars or Neptune 50/50 when the challenge is accepted (`pickArenaWorld`), once per match; both pilots and reconnects see the same world. The web client no longer sends `destination` (the cockpit picker is removed); the optional field stays for tests and tools.
 
 ## saber-duel merged into alex-dev — October 18
 
@@ -186,3 +204,9 @@ Adaptation preserves direct travel-to-setup, compact LYRA initiation, fresh loca
 The replay HTTP route honors the configured ALLOWED_ORIGIN list; use the public frontend origin there for a separately hosted frontend. PERCEPTRON_API_KEY (optional PERCEPTRON_MODEL) belongs only in ignored server/.env on the actual host. This integration made no provider calls or uploads and did not deploy or change running-host configuration.
 
 Necessary checks only: frontend build/typecheck passed; 50 focused replay/recorder/networking/local-fighter/buffer/countdown-display tests passed; server build plus 33 replay HTTP/parser/match/rematch/countdown tests passed. Inference is mocked in transport tests. No broad full-suite rerun or browser/device walkthrough was performed. Physical capture-to-real-provider playback remains an acceptance check for the team. Existing exploration chunk-size warning remains. Not pushed.
+
+## alex-dev merged into saber-duel — October 18
+
+Source: origin/alex-dev at 4b354a8 onto saber-duel at 07a0229 (base 7e8d387). Conflicts in `FlightApp.tsx`, `ArenaScene.tsx`, `gameClient.ts`, `SaberPhone.tsx` and both docs were resolved by keeping alex-dev's newer flow (direct travel → saber setup, persisted arena journey, hold-to-ignite phone HUD, Perceptron replay) as the structure and layering the Neptune generalization on it: travel destinations are `DestinationId`, the cockpit receives the server's world, and `ArenaScene` takes `destination`, `initiation` and `replay` together (initiation square is world-agnostic; the Neptune branch now also honors the replay presentation). `GameClient` keeps both `setLocation` and the optional `challenge(pilotId, destination?)` testing override. The phone keeps the "duel over → close tab" and result-screen mute behavior; the removed local countdown chime stays removed as on alex-dev.
+
+Wiring added beyond the raw conflicts: `ReplayPanel`/`CinematicReplay` accept `destination` so a Neptune duel replays on Neptune; the exploration HUD and LYRA copy no longer claim duels are always on Mars. No contract fields changed.

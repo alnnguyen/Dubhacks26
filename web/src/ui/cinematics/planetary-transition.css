@@ -284,3 +284,5 @@
 .planetary-transition[data-reduced-motion='true'] .planetary-transition__flash[data-release='true'] {
   animation-duration: 100ms;
 }
+
+.planetary-transition[data-destination=neptune] .planetary-transition__backdrop{background:#427da9}.planetary-transition[data-destination=neptune] .planetary-transition__flash{background:radial-gradient(ellipse,#e1faff,#50b5ef 45%,transparent 95%)}.planetary-transition[data-destination=neptune] .planetary-transition__flash[data-hold=true]{background:#68bce4}.planetary-transition[data-destination=neptune] .planetary-transition__heading h1{color:#b6f7ff;text-shadow:0 0 28px #3ca3e9}.planetary-transition[data-destination=neptune] .planetary-transition__eyebrow{color:#a0efff}

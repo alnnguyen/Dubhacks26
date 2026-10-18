@@ -1,3 +1,4 @@
+import type { DestinationId } from '../../destinations/config';
 export type PlanetId =
   | 'mercury'
   | 'venus'
@@ -38,9 +39,10 @@ const ROULETTE_STOPS: Array<{ planet: PlanetId; durationMs: number }> = [
   { planet: 'mars', durationMs: 475 },
 ];
 
-export function buildPlanetarySequence(reducedMotion: boolean): CinematicStep[] {
+export function buildPlanetarySequence(reducedMotion: boolean, destination: DestinationId = 'mars'): CinematicStep[] {
   // Reduced motion changes movement, not which destinations the user can read.
-  const stops = ROULETTE_STOPS;
+  const order = [...ROULETTE_STOPS.filter(s=>s.planet!==destination), ROULETTE_STOPS.find(s=>s.planet===destination)!];
+  const stops = order.map((s,i)=>({...s,durationMs:ROULETTE_STOPS[i].durationMs}));
 
   return [
     {
@@ -51,10 +53,10 @@ export function buildPlanetarySequence(reducedMotion: boolean): CinematicStep[] 
       state: { phase: 'roulette' as const, selectedPlanet: planet },
       durationMs,
     })),
-    { state: { phase: 'locked', selectedPlanet: 'mars' }, durationMs: reducedMotion ? 180 : 800 },
-    { state: { phase: 'zooming', selectedPlanet: 'mars' }, durationMs: reducedMotion ? 120 : 380 },
-    { state: { phase: 'flash', selectedPlanet: 'mars' }, durationMs: reducedMotion ? 80 : 120 },
-    { state: { phase: 'video', selectedPlanet: 'mars' }, durationMs: 0 },
+    { state: { phase: 'locked', selectedPlanet: destination }, durationMs: reducedMotion ? 180 : 800 },
+    { state: { phase: 'zooming', selectedPlanet: destination }, durationMs: reducedMotion ? 120 : 380 },
+    { state: { phase: 'flash', selectedPlanet: destination }, durationMs: reducedMotion ? 80 : 120 },
+    { state: { phase: 'video', selectedPlanet: destination }, durationMs: 0 },
   ];
 }
 

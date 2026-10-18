@@ -1,3 +1,4 @@
+import { DESTINATIONS, type DestinationId } from '../../destinations/config';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnchorRegistry } from '../components/spaceship/anchors';
 import { ProfileChip, ProfilePanel } from '../components/hud/PlayerProfile';
@@ -24,12 +25,13 @@ const SpaceshipScene = lazy(() => import('../components/spaceship/SpaceshipScene
 const ExploreApp = lazy(() => import('./ExploreApp').then((m) => ({ default: m.ExploreApp })));
 
 export interface SpaceshipHomeProps {
+  destination?: DestinationId;
   /** Real lobby adapter from the multiplayer module. Uses local mocks when omitted. */
   lobby?: LobbyViewModel;
   /** Development-only local rehearsal callback; normal gameplay uses onTravelComplete. */
   onEnterBattle?: (opponent: NearbyPilot) => void;
-  /** Called once after travel ends or is skipped, before the server-backed Mars briefing. */
-  onTravelComplete?: (destination: 'mars') => void;
+  /** Called once after travel ends or is skipped, with the world the server chose; the arena entry follows. */
+  onTravelComplete?: (destination: DestinationId) => void;
   /** Optional GLB cockpit to replace the procedural prototype. */
   cockpitModelUrl?: string;
   /** Optional compact controls in the existing Radar / Console dock. */
@@ -56,7 +58,10 @@ function initialSettings(): SceneSettings {
   return { quality: 'high', reducedMotion: !!reduced, parallax: true, ...saved };
 }
 
-export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete, cockpitModelUrl, cockpitControls, copilotClient }: SpaceshipHomeProps) {
+export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete, cockpitModelUrl, cockpitControls, copilotClient, destination:providedDestination }: SpaceshipHomeProps) {
+  // The server rolls the world; local rehearsals (no server) roll 50/50 here.
+  const [localDestination]=useState<DestinationId>(()=>Math.random()<0.5?'mars':'neptune');
+  const destination=providedDestination??localDestination;
   const mock = useMockLobby({ enabled: !external });
   const lobby = external ?? mock.lobby;
   const { challenge, actions } = lobby;
@@ -157,9 +162,9 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
     actions.launch();
   }, [actions, enableCinematicAudio]);
   const finishTravel = useCallback(
-    (destination: 'mars') => {
+    (destination: DestinationId) => {
       setTravelActive(false);
-      setCinematic({ phase: 'idle', selectedPlanet: 'mars' });
+      setCinematic({ phase: 'idle', selectedPlanet: destination });
       const opponent = travelOpponent.current;
       travelOpponent.current = null;
       if (onTravelComplete) onTravelComplete(destination);
@@ -324,6 +329,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
 
       {travelActive && (
         <PlanetaryTransition
+          destination={destination}
           sceneReady={sceneReady && rouletteReady}
           frameTick={cinematicTick}
           reducedMotion={settings.reducedMotion}
@@ -339,12 +345,12 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
       {handoff && (
         <div className="sd-handoff" role="dialog" aria-modal="true" aria-labelledby="sd-handoff-title">
           <div className="sd-challenge__card">
-            <p className="sd-eyebrow">Destination locked // Mars</p>
+            <p className="sd-eyebrow">Destination locked // {DESTINATIONS[destination].displayName}</p>
             <h2 id="sd-handoff-title" className="sd-challenge__title">
-              Mars arena connection
+              {DESTINATIONS[destination].displayName} arena connection
             </h2>
             <p className="sd-challenge__desc">
-              Planetary travel is complete. Connect the accepted match to its server-backed briefing and readiness flow to enter the live Mars arena.
+              Planetary travel is complete. Connect the accepted match to its server-backed briefing and readiness flow to enter the live arena.
             </p>
             <div className="sd-challenge__actions">
               <HoloButton variant="primary" onClick={returnToBridge} data-autofocus autoFocus>

@@ -83,7 +83,7 @@ export function noticeChange(prev: ExploreSnapshot | null, next: ExploreSnapshot
   const fresh = (t: Thought) => (said.has(t.key) ? null : t);
 
   if (next.challenge === 'incoming' && prev?.challenge !== 'incoming') {
-    return { key: `incoming-${next.challenger}-${Date.now()}`, priority: 2, text: `Incoming challenge from ${next.challenger ?? 'a pilot'}! Accept and I’ll plot the jump to the Mars arena.` };
+    return { key: `incoming-${next.challenger}-${Date.now()}`, priority: 2, text: `Incoming challenge from ${next.challenger ?? 'a pilot'}! Accept and I’ll plot the jump to the arena the server picks: Mars or Neptune.` };
   }
   const prevRivals = new Set(prev?.rivals.filter((r) => r.location?.bodyId === prev.nearestId).map((r) => r.id));
   const rivalHere = next.rivals.find((r) => r.status === 'available' && r.location?.bodyId === next.nearestId && !prevRivals.has(r.id));
@@ -192,4 +192,4 @@ export function exploreToolState(snapshot: ExploreSnapshot) {
   };
 }
 
-export const EXPLORE_INSTRUCTIONS = `The player is now in free-flight exploration of a real-data universe, not the cockpit lobby. Before answering anything about where they are, what they see, nearby objects or other pilots, call getExploreState and use only its facts; never invent coordinates, distances or pilots. Speak like an enthusiastic but precise ship guide in 1–3 short sentences. Controls: W/S thrust, arrows or drag steer, Space stops, Shift boosts, N opens Destinations search, scroll zooms between planet, system and star scales. To fight another pilot, open Pilot contacts (or click their ship) and press Challenge; the match then travels to the Mars arena. You cannot fly the ship, jump, or send challenges yourself. Say that view distances are compressed when relevant.`;
+export const EXPLORE_INSTRUCTIONS = `The player is now in free-flight exploration of a real-data universe, not the cockpit lobby. Before answering anything about where they are, what they see, nearby objects or other pilots, call getExploreState and use only its facts; never invent coordinates, distances or pilots. Speak like an enthusiastic but precise ship guide in 1–3 short sentences. Controls: W/S thrust, arrows or drag steer, Space stops, Shift boosts, N opens Destinations search, scroll zooms between planet, system and star scales. To fight another pilot, open Pilot contacts (or click their ship) and press Challenge; the server then picks Mars or Neptune, 50/50, and the match travels there. You cannot fly the ship, jump, or send challenges yourself. Say that view distances are compressed when relevant.`;

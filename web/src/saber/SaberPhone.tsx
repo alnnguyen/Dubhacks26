@@ -13,6 +13,7 @@ const HOLD_MS = 450
 
 type PermissionResult = "granted" | "denied"
 type WithPermission = { requestPermission?: () => Promise<PermissionResult> }
+type WakeLock = { release(): Promise<void> }
 
 /**
  * The phone in the player's hand is their lightsaber: hold it like a hilt, the
@@ -43,11 +44,20 @@ export function SaberPhone({ code }: { code: string }) {
   const ignitingRef = useRef(false)
   // The last swipe, for a quick arrow flash: refused swipes flash red.
   const [swipeFlash, setSwipeFlash] = useState<{ direction: StepDirection; blocked: boolean; key: number } | null>(null)
+  const wakeLockRef = useRef<WakeLock | null>(null)
+  // The pilot's match finished and they went back to the lobby instead of a rematch.
+  const [ended, setEnded] = useState(false)
 
   useEffect(() => {
     const client = createSaberClient(code)
     setClient(client)
+    // The server drops a pilot's match only when they leave it, which always ends it (a knockout,
+    // a forfeit or leaving mid-duel), so losing the match means back in the lobby with no rematch.
+    let hadMatch = false
     const off = client.onChange(() => {
+      const match = client.status()?.match ?? null
+      if (match) hadMatch = true
+      else if (hadMatch && client.connection() === "paired") setEnded(true)
       // A chime each time the laptop's setup moves on.
       const step = client.status()?.match?.setup?.step ?? null
       if (step && lastStepRef.current && step !== lastStepRef.current) audio.chime()
@@ -154,7 +164,8 @@ export function SaberPhone({ code }: { code: string }) {
       if (orientationResult !== "granted") throw new Error("Motion access was denied. Reload the page and allow it.")
       await audio.start()
       try {
-        await (navigator as Navigator & { wakeLock?: { request(type: "screen"): Promise<unknown> } }).wakeLock?.request("screen")
+        wakeLockRef.current =
+          (await (navigator as Navigator & { wakeLock?: { request(type: "screen"): Promise<WakeLock> } }).wakeLock?.request("screen")) ?? null
       } catch { /* the screen may dim; the saber still works */ }
       setEnabled(true)
       setHoldProgress(0)
@@ -165,6 +176,19 @@ export function SaberPhone({ code }: { code: string }) {
       ignitingRef.current = false
     }
   }
+
+  // No rematch, so this saber is done: let go of the server, sensors, sound and screen, then
+  // close the tab. Browsers only let a page close a tab that a script opened, so when the phone
+  // scanned the QR code the close is ignored and the "Duel over" screen below stays up instead.
+  useEffect(() => {
+    if (!ended) return
+    client?.close()
+    audio.stop()
+    void wakeLockRef.current?.release().catch(() => {})
+    wakeLockRef.current = null
+    setEnabled(false)
+    window.close()
+  }, [ended, client, audio])
 
   function clearHold() {
     if (holdTimerRef.current != null) {
@@ -199,6 +223,9 @@ export function SaberPhone({ code }: { code: string }) {
   const status = client?.status() ?? null
   const connectionError = client?.error() ?? null
   const match = status?.match ?? null
+  // Quiet on the result screen; a rematch brings the sound back.
+  const finished = match?.phase === "finished"
+  useEffect(() => audio.setMuted(finished), [finished, audio])
 
   const linkLabel =
     connection === "paired" ? "LINKED"
@@ -212,6 +239,18 @@ export function SaberPhone({ code }: { code: string }) {
         : match.startsInMs != null ? `Get ready · ${Math.max(1, Math.ceil(match.startsInMs / 1000))}`
           : enabled && !sensing ? "Waiting for motion…"
             : null
+
+  if (ended) {
+    return (
+      <main className="saber-phone">
+        <header>
+          <p className="saber-eyebrow">LIGHTSABER · {code.toUpperCase()}</p>
+          <h1>Duel over</h1>
+          <p className="saber-note">Your saber is off. You can close this tab — scan your laptop's code again for your next duel.</p>
+        </header>
+      </main>
+    )
+  }
 
   return (
     <main className="saber-phone" data-lit={enabled || undefined}>

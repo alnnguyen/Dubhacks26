@@ -1,3 +1,4 @@
+import { destinationFromWorld, DESTINATIONS, type DestinationId } from '../destinations/config';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { SpaceshipHome } from '../ui/screens/SpaceshipHome';
 import { ArenaDuel } from '../arena3d/ArenaDuel';
@@ -24,14 +25,15 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const entered = !!view && journey?.stage === "arena" && matchesJourney(view, journey);
   const [entering, setEntering] = useState(false);
   const [note, setNote] = useState('');
-  const [travelDestination, setTravelDestination] = useState<'mars' | null>(null);
+  // The world the cockpit travel sequence flew to; the server's view must agree before we enter.
+  const [travelDestination, setTravelDestination] = useState<DestinationId | null>(null);
   const readyAttempt = useRef<{ matchId: string; client: GameClient } | null>(null);
   const [entryError, setEntryError] = useState('');
   const audioScene = !view || !entered ? null : view.phase === 'finished' ? 'result' : 'battle';
   useAudioScene(audioScene);
 
-  const beginArena = useCallback((destination: 'mars') => {
-    setNote('Travel complete. Connecting to the Mars match…');
+  const beginArena = useCallback((destination: DestinationId) => {
+    setNote(`Travel complete. Connecting to ${DESTINATIONS[destination].displayName}…`);
     setTravelDestination(destination);
   }, []);
 
@@ -44,7 +46,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     }
     if (view.world.id !== travelDestination) {
       setTravelDestination(null);
-      setNote(`The server selected ${view.world.name}, not Mars. This arena flow requires Mars.`);
+      setNote(`The server selected ${view.world.name}, not the arrival destination. Return to the cockpit and try again.`);
       return;
     }
     setNote('');
@@ -88,6 +90,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
 
   const phase = view?.phase;
   useEffect(() => { if (phase === 'finished') setNote(''); }, [phase]);
+  // Ends the round but stays in the match, so both pilots can still rematch.
   function forfeit() {
     void client.forfeit().then(reply => reply.status === 'rejected' && setNote(rejectionNote(reply)));
   }
@@ -107,6 +110,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       <>
         <SpaceshipHome
           lobby={lobby}
+          destination={view ? destinationFromWorld(view.world.id) : undefined}
           onTravelComplete={beginArena}
           cockpitControls={cockpitControls}
           copilotClient={client}
@@ -119,7 +123,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   // One mounted arena preserves the camera and calibration through the result and rematch.
   return <>
     <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} onForfeit={forfeit} onRematch={rematch} replayEnabled={replayEnabled} onReplayEnabled={setReplayEnabled} onReplaySource={replay.start}
-      resultExtra={<ReplayPanel key={`${view.matchId}:${view.round ?? 1}`} client={client} matchId={view.matchId} clip={replay.clip} arena={replay.arena} board={view.board} mySlot={view.you.slot} status={replay.status} onDiscard={replay.discard} />} />
+      resultExtra={<ReplayPanel key={`${view.matchId}:${view.round ?? 1}`} client={client} matchId={view.matchId} clip={replay.clip} arena={replay.arena} board={view.board} mySlot={view.you.slot} destination={destinationFromWorld(view.world.id)} status={replay.status} onDiscard={replay.discard} />} />
     {entryError && <aside className="flight-entry-error" role="alert"><p>{entryError}</p><button type="button" disabled={entering} onClick={() => readyForArrival(view.matchId)}>{entering ? 'Connecting…' : 'Retry arena entry'}</button></aside>}
   </>;
 }

@@ -18,6 +18,15 @@ import type { ChallengePhase, LobbyViewModel, NearbyPilot, PilotProfile } from '
  * server's room. Only `launching` (the Engage transition) and dismissed
  * declined banners are local UI state.
  */
+/**
+ * Testing override: `?world=mars` or `?world=neptune` on the challenger's page
+ * asks the server for that arena. Without it the server rolls 50/50.
+ */
+function devWorld(): "mars" | "neptune" | undefined {
+  const world = typeof location === "undefined" ? null : new URLSearchParams(location.search).get("world");
+  return world === "mars" || world === "neptune" ? world : undefined;
+}
+
 export function useServerLobby(client: GameClient = getGameClient()): LobbyViewModel {
   const connection = useGameStatus(client);
   const lobby = useGameLobby(client);
@@ -32,7 +41,7 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
 
   const actions = useMemo<LobbyViewModel['actions']>(
     () => ({
-      challenge: (pilotId) => void client.challenge(pilotId),
+      challenge: (pilotId) => void client.challenge(pilotId, devWorld()),
       cancelChallenge: () => challengeId && void client.cancelChallenge(challengeId),
       accept: () => challengeId && void client.acceptChallenge(challengeId),
       decline: () => challengeId && void client.declineChallenge(challengeId),

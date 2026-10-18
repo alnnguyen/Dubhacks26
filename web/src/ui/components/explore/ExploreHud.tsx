@@ -175,7 +175,7 @@ export function ExploreHud({
         </dl>
         <p className="gx-world__effect">
           <span>Arena effect</span>
-          {telemetry.nearestId === 'mars' || telemetry.nearestId === 'mars-surface' ? 'Live duels are fought on Mars' : 'Exploration only · no duel arena'}
+          {telemetry.nearestId === 'mars' || telemetry.nearestId === 'mars-surface' || telemetry.nearestId === 'neptune' ? 'Live duel arena · the server rolls Mars or Neptune' : 'Exploration only · no duel arena'}
         </p>
         {onZoom && (telemetry.nearestId === 'earth' || telemetry.nearestId.startsWith('sat-')) && <OrbitTimeControl compact />}
         <p className="gx-world__source">{nearestScience ? nearestScience.source : 'Visual units are compressed for navigation'}</p>

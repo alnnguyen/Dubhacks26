@@ -23,9 +23,11 @@ export function orbitStep(a: Cell, b: Cell, direction: "forward" | "back" | "lef
   const radius = Math.hypot(dx, dz);
   if (radius < 1e-9) return null;
   if (direction === "forward" || direction === "back") {
-    const next = radius + (direction === "forward" ? -1 : 1);
-    // Same closest/farthest separation as the old front/back rows.
-    if (next < 2 - 1e-9 || next > 6 + 1e-9) return null;
+    // Same closest/farthest separation as the old front/back rows. Knockback leaves fractional
+    // gaps, so a step stops short at the limit rather than being refused (which could strand
+    // both players just outside reach); it's refused only when already at the limit.
+    const next = Math.max(2, Math.min(6, radius + (direction === "forward" ? -1 : 1)));
+    if (direction === "forward" ? next >= radius - 1e-9 : next <= radius + 1e-9) return null;
     return { q: b.q + dx * next / radius, r: b.r + dz * next / radius };
   }
   // Constant travel distance, capped at 15 degrees per swipe near the rival.

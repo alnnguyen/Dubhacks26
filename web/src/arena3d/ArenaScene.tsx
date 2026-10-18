@@ -1,3 +1,6 @@
+import { NeptuneEnvironment } from '../arena/neptune/NeptuneEnvironment';
+import { NeptuneDust } from '../arena/neptune/NeptuneDust';
+import type { DestinationId } from '../destinations/config';
 import { Suspense, use, useMemo, useRef, type RefObject } from "react"
 import * as THREE from "three"
 import { Canvas, useFrame } from "@react-three/fiber"
@@ -440,7 +443,9 @@ function FrameSampler({ getFrame, frameRef }: { getFrame: () => ArenaFrame | nul
   return null
 }
 
-export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false, initiation = false, replay }: {
+export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false, initiation = false, replay, destination = 'mars' }: {
+  /** Which world's environment to draw; the server's view decides it. */
+  destination?: DestinationId
   basicGraphics?: boolean
   initiation?: boolean
   /** The arena to draw right now: blended server frames, with your own fighter drawn locally. */
@@ -456,16 +461,27 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
       className="arena-canvas"
       dpr={[1, 1.5]}
       shadows
-      camera={{ fov: 55, near: 0.05, far: 400, position: [0, 2, 2.5] }}
+      camera={{ fov: 55, near: 0.05, far: 2400, position: [0, 2, 2.5] }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
       <FrameSampler getFrame={getFrame} frameRef={frameRef} />
       {initiation ? <>
+        {/* The saber setup square is world-agnostic: a calm grid while the player calibrates. */}
         <color attach="background" args={["#061326"]} />
         <hemisphereLight args={["#c5efff", "#174d80", 2.2]} />
         <directionalLight position={[2, 5, 4]} intensity={2} color="#9de4ff" />
         <gridHelper args={[12, 24, "#225884", "#102b46"]} />
         <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation />
+      </> : destination === 'neptune' ? <>
+        {basicGraphics ? <>
+          <color attach="background" args={["#4f97d8"]} />
+          <hemisphereLight args={["#8cc4f0", "#0d2c58", 1.6]} />
+          <mesh rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[11, 48]} /><meshStandardMaterial color="#3a4a5c" /></mesh>
+        </> : <>
+          <NeptuneEnvironment/>
+          <NeptuneDust/>
+        </>}
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} replay={replay} />
       </> : basicGraphics ? <>
         <color attach="background" args={["#1b0f0b"]} />
         <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />

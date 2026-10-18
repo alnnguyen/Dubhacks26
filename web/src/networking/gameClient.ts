@@ -115,7 +115,8 @@ export interface GameClient {
   setCallsign(callsign: string): Promise<ClientReply>
   /** Where you are flying in exploration, shown to other pilots. null clears it. Display only. */
   setLocation(location: PilotLocation | null): Promise<ClientReply>
-  challenge(pilotId: string): Promise<ClientReply>
+  /** Without a destination the server rolls the world itself; the override exists for tests and tools. */
+  challenge(pilotId: string, destination?: "mars" | "neptune"): Promise<ClientReply>
   acceptChallenge(challengeId: string): Promise<ClientReply>
   declineChallenge(challengeId: string): Promise<ClientReply>
   cancelChallenge(challengeId: string): Promise<ClientReply>
@@ -261,7 +262,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
       return send({ type: "setCallsign", callsign })
     },
     setLocation: (location) => send({ type: "setLocation", location }),
-    challenge: (pilotId) => send({ type: "challenge", pilotId }),
+    challenge: (pilotId, destination) => send({ type: "challenge", pilotId, ...(destination ? { destination } : {}) }),
     acceptChallenge: (challengeId) => send({ type: "acceptChallenge", challengeId }),
     declineChallenge: (challengeId) => send({ type: "declineChallenge", challengeId }),
     cancelChallenge: (challengeId) => send({ type: "cancelChallenge", challengeId }),

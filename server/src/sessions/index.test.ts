@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, mock, test } from "node:test";
 import { RULES } from "../game/rules.js";
-import { Lobby } from "./index.js";
+import { Lobby, pickArenaWorld } from "./index.js";
 
 const ALICE = "player-alice";
 const BOB = "player-bob";
@@ -230,5 +230,34 @@ describe("matches", () => {
     const before = changes;
     challengeBobFromAlice();
     assert.ok(changes > before);
+  });
+});
+
+describe('destination selection',()=>{
+ test('an accepted Neptune challenge shares one immutable world with both pilots and reconnects',()=>{
+  assert.equal(send(ALICE,{type:'challenge',pilotId:idOf(BOB),destination:'neptune'},'route').status,'accepted');
+  const id=lobby.lobbyView(BOB).challenge!.id;
+  assert.equal(send(BOB,{type:'acceptChallenge',challengeId:id},'accept-neptune').status,'accepted');
+  const a=lobby.matchView(ALICE)!,b=lobby.matchView(BOB)!;
+  assert.equal(a.world.id,'neptune');assert.deepEqual(a.world,b.world);assert.equal(a.matchId,b.matchId);
+  assert.equal(send(ALICE,{type:'challenge',pilotId:idOf(BOB),destination:'mars'},'route').status,'accepted');
+  assert.equal(lobby.matchView(ALICE)!.world.id,'neptune');
+  lobby.disconnect(ALICE);lobby.join(ALICE,'alice');assert.equal(lobby.matchView(ALICE)!.world.id,'neptune');
+ });
+ test('rejects unsupported destinations and retains explicit Mars',()=>{
+  assert.equal(send(ALICE,{type:'challenge',pilotId:idOf(BOB),destination:'saturn'}).status,'rejected');
+  assert.equal(lobby.lobbyView(BOB).challenge,null);
+  send(ALICE,{type:'challenge',pilotId:idOf(BOB),destination:'mars'});
+  send(BOB,{type:'acceptChallenge',challengeId:lobby.lobbyView(BOB).challenge!.id});
+  assert.equal(lobby.matchView(BOB)!.world.id,'mars');
+ });
+});
+
+describe('arena world roll', () => {
+  test('splits Mars and Neptune evenly', () => {
+    assert.equal(pickArenaWorld(() => 0), 'mars');
+    assert.equal(pickArenaWorld(() => 0.49), 'mars');
+    assert.equal(pickArenaWorld(() => 0.5), 'neptune');
+    assert.equal(pickArenaWorld(() => 0.99), 'neptune');
   });
 });
