@@ -3,25 +3,27 @@
    dark holographic theme regardless of system color scheme. */
 
 .sd-root {
-  --holo: #5fe1ff;
-  --holo-strong: #b4f3ff;
-  --holo-line: rgba(95, 225, 255, 0.42);
-  --holo-faint: rgba(95, 225, 255, 0.14);
-  --accent: #ff9a4a;
-  --go: #63f5b0;
-  --danger: #ff6b6b;
-  --text: #e8f8ff;
-  --muted: #9cc3d4;
+  /* Aliases onto the shared tokens in theme.css. */
+  --holo: var(--ko-cyan);
+  --holo-strong: var(--ko-cyan-strong);
+  --holo-line: var(--ko-cyan-line);
+  --holo-faint: var(--ko-cyan-faint);
+  --accent: var(--ko-orange);
+  --go: var(--ko-go);
+  --danger: var(--ko-danger);
+  --text: var(--ko-text);
+  --muted: var(--ko-text-muted);
   --glass-a: rgba(9, 30, 46, 0.72);
   --glass-b: rgba(3, 13, 22, 0.8);
-  --cut: 12px;
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --display: 'Rajdhani', 'Avenir Next Condensed', 'Arial Narrow', system-ui, sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-  --safe-t: max(env(safe-area-inset-top), 12px);
-  --safe-b: max(env(safe-area-inset-bottom), 12px);
-  --safe-l: max(env(safe-area-inset-left), 12px);
-  --safe-r: max(env(safe-area-inset-right), 12px);
+  --cut: var(--ko-cut);
+  --ease: var(--ko-ease);
+  /* Two families: Orbitron for headings, Rajdhani for all UI text. */
+  --display: var(--ko-font-ui);
+  --mono: var(--ko-font-ui);
+  --safe-t: var(--ko-edge-t);
+  --safe-b: var(--ko-edge-b);
+  --safe-l: var(--ko-edge-l);
+  --safe-r: var(--ko-edge-r);
 
   position: fixed;
   inset: 0;
@@ -90,7 +92,6 @@ body,
 
 /* Shared holographic glass with chamfered corners */
 .sd-chip,
-.sd-shortcut,
 .sd-command,
 .sd-panel__frame,
 .sd-challenge__card,
@@ -102,7 +103,7 @@ body,
   clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
 }
 
-.sd-root[data-quality='high'] :is(.sd-chip, .sd-shortcut, .sd-command, .sd-panel__frame, .sd-challenge__card) {
+.sd-root[data-quality='high'] :is(.sd-chip, .sd-command, .sd-panel__frame, .sd-challenge__card) {
   -webkit-backdrop-filter: blur(10px) saturate(1.25);
   backdrop-filter: blur(10px) saturate(1.25);
 }
@@ -203,23 +204,24 @@ body,
   margin: 0;
   display: flex;
   flex-direction: column;
-  line-height: 1.1;
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--holo-strong);
-  text-shadow: 0 0 12px rgba(95, 225, 255, 0.55);
+  gap: var(--ko-sp-4);
+  padding: var(--ko-sp-8) var(--ko-sp-12);
+  border-radius: var(--ko-radius-md);
+  background: linear-gradient(90deg, rgba(1, 6, 11, 0.78), rgba(1, 6, 11, 0.45));
+  box-shadow: inset 0 0 0 1px var(--ko-cyan-faint);
+  line-height: 1;
+  font: 700 var(--ko-fs-16) / 1 var(--ko-font-display);
+  letter-spacing: 0.04em;
+  color: var(--ko-cyan);
+  text-shadow: var(--ko-text-shadow);
   pointer-events: none;
 }
 
 .sd-brand__sub {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 400;
-  letter-spacing: 0.2em;
-  color: var(--muted);
-  text-shadow: none;
+  font: 600 var(--ko-fs-12) / 1 var(--ko-font-ui);
+  letter-spacing: var(--ko-track-caps);
+  text-transform: uppercase;
+  color: var(--ko-text-muted);
 }
 
 /* ------------------------------------------------------------------ Buttons */
@@ -267,7 +269,6 @@ body,
 .sd-icon-btn:focus-visible,
 .sd-switch:focus-visible,
 .sd-seg button:focus-visible,
-.sd-shortcut:focus-visible,
 .sd-blip-label:focus-visible {
   outline: none;
   box-shadow:
@@ -346,8 +347,13 @@ body,
 }
 
 .sd-icon-btn--lg {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
+}
+
+.sd-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .sd-icon-btn:hover {
@@ -364,8 +370,8 @@ body,
   --cut: 9px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 16px 6px 8px;
+  gap: var(--ko-sp-12);
+  padding: var(--ko-sp-8) var(--ko-sp-16) var(--ko-sp-8) var(--ko-sp-8);
   border: 0;
   color: inherit;
   text-align: left;
@@ -375,33 +381,52 @@ body,
 .sd-chip__text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--ko-sp-8);
+}
+
+.sd-chip:hover {
+  box-shadow:
+    inset 0 0 0 1px var(--ko-cyan),
+    inset 0 0 28px rgba(34, 229, 255, 0.12);
 }
 
 .sd-chip__name {
-  font-weight: 700;
-  font-size: 16px;
-  letter-spacing: 0.14em;
+  font: 700 var(--ko-fs-16) / 1 var(--ko-font-display);
+  letter-spacing: 0.08em;
+  color: var(--ko-text);
 }
 
 .sd-chip__meta {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
+  gap: var(--ko-sp-8);
+  font: 600 var(--ko-fs-12) / 1 var(--ko-font-ui);
+  letter-spacing: var(--ko-track-label);
+  text-transform: uppercase;
+  color: var(--ko-text-muted);
 }
 
 /* ------------------------------------------------------------------ Radar tag (anchored beside the hologram) */
 
 /* ------------------------------------------------------------------ Cockpit shortcuts (bottom edge, clear of the scene) */
 
+/* One frosted dark-metal bar, lifted off the bottom edge. Every control is
+   --ko-control-h tall; the sound dock (audio/sound.css) shares the baseline. */
 .sd-shortcuts {
   display: flex;
-  gap: 8px;
-  width: min(440px, calc(100vw - 32px));
-  margin-bottom: 10px;
+  align-items: stretch;
+  gap: var(--ko-sp-12);
+  padding: var(--ko-sp-8);
+  max-width: calc(100vw - 2 * var(--ko-edge) - 200px);
+  border: 1px solid var(--ko-cyan-line);
+  border-radius: var(--ko-radius-md);
+  background: var(--ko-panel);
+  box-shadow: var(--ko-shadow);
+}
+
+.sd-root[data-quality='high'] .sd-shortcuts {
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
 }
 
 .sd-pilot-hint {
@@ -423,50 +448,78 @@ body,
 }
 
 .sd-shortcut {
-  --cut: 8px;
-  flex: 1;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
-  min-height: 46px;
-  padding: 6px 10px;
+  gap: var(--ko-sp-12);
+  min-height: var(--ko-control-h);
+  padding: 0 var(--ko-sp-16);
   border: 0;
-  color: var(--holo-strong);
+  border-radius: var(--ko-radius-sm);
+  color: var(--ko-cyan-strong);
+  background: rgba(20, 40, 58, 0.7);
+  box-shadow: inset 0 0 0 1px var(--ko-cyan-faint);
+  clip-path: none;
   cursor: pointer;
   text-align: left;
   transition:
-    background 0.2s var(--ease),
-    transform 0.12s var(--ease);
+    background 0.18s var(--ko-ease),
+    box-shadow 0.18s var(--ko-ease),
+    transform 0.12s var(--ko-ease);
 }
 
-.sd-shortcut:hover {
-  background: linear-gradient(180deg, rgba(20, 60, 86, 0.8), rgba(6, 24, 38, 0.85));
+.sd-shortcut > svg {
+  flex: none;
+  width: var(--ko-icon);
+  height: var(--ko-icon);
 }
 
-.sd-shortcut:active {
+.sd-shortcut:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(30, 64, 88, 0.85);
+  box-shadow:
+    inset 0 0 0 1px var(--ko-cyan),
+    0 0 14px rgba(34, 229, 255, 0.28);
+}
+
+.sd-shortcut:active:not(:disabled) {
   transform: scale(0.97);
+}
+
+.sd-shortcut[aria-pressed='true'],
+.sd-shortcut[aria-current='true'] {
+  color: var(--ko-on-cyan);
+  background: var(--ko-cyan);
+}
+
+.sd-shortcut:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .sd-shortcut__text {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--ko-sp-4);
 }
 
 .sd-shortcut__label {
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.12em;
+  font: 600 var(--ko-fs-20) / 1 var(--ko-font-ui);
+  letter-spacing: var(--ko-track-label);
   text-transform: uppercase;
 }
 
 .sd-shortcut__meta {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  font: 600 var(--ko-fs-12) / 1 var(--ko-font-ui);
+  letter-spacing: var(--ko-track-label);
   text-transform: uppercase;
-  color: #86dcf5;
+  color: var(--ko-text-muted);
+}
+
+.sd-shortcut:focus-visible {
+  outline: none;
+  box-shadow: var(--ko-focus-ring);
 }
 
 /* ------------------------------------------------------------------ Blip labels (radar view) */

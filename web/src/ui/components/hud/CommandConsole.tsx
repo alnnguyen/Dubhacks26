@@ -30,9 +30,9 @@ export function CockpitShortcuts({
 }) {
   const radarMeta = connection === 'online' ? `${count} nearby` : connection === 'connecting' ? 'Scanning…' : 'No link';
   return (
-    <nav className={`sd-dock sd-dock--bottom sd-shortcuts${controls ? ' sd-shortcuts--with-mode' : ''}`} data-hidden={hidden} aria-label="Cockpit shortcuts">
+    <nav className="sd-dock sd-dock--bottom sd-shortcuts" data-hidden={hidden} aria-label="Cockpit shortcuts">
       <button type="button" className="sd-shortcut" data-ui-sound="commit" onClick={onRadar} aria-label={`Proximity radar, ${radarMeta}`}>
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden>
           <path d={KEYS[0].icon} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <span className="sd-shortcut__text">
@@ -41,7 +41,7 @@ export function CockpitShortcuts({
         </span>
       </button>
       <button type="button" className="sd-shortcut" onClick={onConsole} aria-label="Open command console">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden>
           <path d="M4 6h16v9H4zM9 19h6M12 15v4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <span className="sd-shortcut__text">
@@ -50,7 +50,7 @@ export function CockpitShortcuts({
         </span>
       </button>
       {onPilot && <button type="button" className="sd-shortcut" onClick={onPilot} aria-label="Sit in pilot seat and explore">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden><path d="M6 19v-6a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v6M4 19h16M9 9V5a3 3 0 0 1 6 0v4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden><path d="M6 19v-6a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v6M4 19h16M9 9V5a3 3 0 0 1 6 0v4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
         <span className="sd-shortcut__text"><span className="sd-shortcut__label">Seat</span><span className="sd-shortcut__meta">Explore</span></span>
       </button>}
       {controls}

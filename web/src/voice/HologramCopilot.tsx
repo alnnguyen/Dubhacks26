@@ -114,7 +114,7 @@ export function HologramCopilot({lobby, client, hidden, onNavigate, onSelectPilo
   if (hidden) return null;
   return <section className="lyra-root" data-phase={phase} data-open={open} aria-label="Ship copilot">
     <button ref={launcher} type="button" className="lyra-launcher" data-button-feedback="off" aria-label="Open LYRA ship copilot" aria-expanded={open} aria-controls={panelId} onClick={toggleOpen}>
-      <HologramPortrait phase={phase} active={!open} /><span className="lyra-launcher__name">LYRA</span><span className="lyra-launcher__dot"/>
+      <HologramPortrait phase={phase} active={!open} /><span className="lyra-launcher__name">LYRA<small aria-hidden="true">Ask</small></span><span className="lyra-launcher__dot"/>
     </button>
     {open && <section id={panelId} className="lyra-panel" role="dialog" aria-modal="false" aria-labelledby={titleId}>
       <header className="lyra-head">

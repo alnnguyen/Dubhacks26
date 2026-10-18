@@ -1,18 +1,115 @@
-/* Shares the original Radar / Console dock; never overlays those shortcuts. */
-.sd-shortcuts--with-mode{width:min(540px,calc(100vw - 24px));gap:6px;align-items:stretch}
-.sd-shortcuts--with-mode>.sd-shortcut{min-width:0}
-.sd-shortcuts--with-mode .bridge-mode{flex:0 0 112px;flex-direction:column;gap:3px;padding:5px 9px;cursor:default;text-align:center}
-.bridge-mode__label{font-size:10px;line-height:1;letter-spacing:.15em;color:var(--muted)}
-.bridge-mode__switch{display:flex;gap:2px;width:100%;border:1px solid var(--holo-faint);background:#010b14aa}
-.bridge-mode__switch button{flex:1;min-width:0;border:0;padding:4px 6px;font:600 10px/1.1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:transparent;cursor:pointer}
-.bridge-mode__switch button[aria-pressed=true]{color:var(--holo-strong);background:#17394a;box-shadow:inset 0 -1px var(--holo)}
-.bridge-mode__switch button:first-child[aria-pressed=true]{color:#ffd696;background:#362b1c;box-shadow:inset 0 -1px #e5ae62}
-.bridge-mode__switch button:focus-visible,.bridge-mode__reset:focus-visible{outline:2px solid var(--holo-strong);outline-offset:-2px}
-.bridge-mode__switch button:disabled,.bridge-mode__reset:disabled{cursor:not-allowed;opacity:.45}
-.bridge-mode__status{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-.sd-shortcuts--with-mode .bridge-mode__reset{flex:0 0 34px;padding:6px;color:var(--muted)}
-.bridge-mode__loading{position:fixed;inset:0;display:grid;place-content:center;margin:0;color:#a7dbed;background:#050a13;font:14px system-ui}
-@media(max-width:600px){.sd-shortcuts--with-mode>.sd-shortcut{gap:5px;padding:6px;min-height:46px}.sd-shortcuts--with-mode>.sd-shortcut>svg{width:14px;height:14px}.sd-shortcuts--with-mode .sd-shortcut__label{font-size:12px;letter-spacing:.08em}.sd-shortcuts--with-mode .sd-shortcut__meta{font-size:8px;letter-spacing:.06em}.sd-shortcuts--with-mode .bridge-mode{flex-basis:94px;gap:3px;padding:5px 6px}.sd-shortcuts--with-mode .bridge-mode__label{font-size:9px}.bridge-mode__switch button{font-size:10px;padding:5px 4px}.sd-shortcuts--with-mode .bridge-mode__reset{flex-basis:30px}}
+/* Lobby mode + reset share the Radar / Console bar; sizes come from theme.css. */
+.sd-shortcuts .bridge-mode {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--ko-sp-8);
+  padding: 0 var(--ko-sp-12);
+  cursor: default;
+  text-align: center;
+}
+.sd-shortcuts .bridge-mode:hover {
+  color: var(--ko-cyan-strong);
+  background: rgba(20, 40, 58, 0.7);
+  box-shadow: inset 0 0 0 1px var(--ko-cyan-faint);
+}
+.sd-shortcuts .bridge-mode:active { transform: none; }
+.bridge-mode__label {
+  font: 600 var(--ko-fs-12) / 1 var(--ko-font-ui);
+  letter-spacing: var(--ko-track-caps);
+  color: var(--ko-text-muted);
+}
 
-.sd-shortcuts--with-mode{width:min(640px,calc(100vw - 24px))}
-@media(max-width:600px){.sd-shortcuts--with-mode{flex-wrap:wrap}.sd-shortcuts--with-mode>.sd-shortcut{flex:1 1 22%}.sd-shortcuts--with-mode .bridge-mode{flex:1 1 112px}}
+/* Segmented control: the active side is filled. */
+.bridge-mode__switch {
+  display: flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--ko-cyan-line);
+  border-radius: var(--ko-radius-sm);
+  background: var(--ko-metal-950);
+}
+.bridge-mode__switch button {
+  flex: 1;
+  min-width: 64px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 2px;
+  padding: 0 var(--ko-sp-12);
+  font: 600 var(--ko-fs-14) / 1 var(--ko-font-ui);
+  letter-spacing: var(--ko-track-label);
+  text-transform: uppercase;
+  color: var(--ko-text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.18s var(--ko-ease), color 0.18s var(--ko-ease), transform 0.12s var(--ko-ease);
+}
+.bridge-mode__switch button:hover:not(:disabled):not([aria-pressed='true']) {
+  color: #fff;
+  background: var(--ko-cyan-fill);
+}
+.bridge-mode__switch button:active:not(:disabled) { transform: scale(0.97); }
+.bridge-mode__switch button[aria-pressed='true'] {
+  color: var(--ko-on-cyan);
+  background: var(--ko-cyan);
+}
+/* Demo keeps its warm cue so it never reads as a live room. */
+.bridge-mode__switch button:first-child[aria-pressed='true'] {
+  background: var(--ko-orange);
+}
+.bridge-mode__switch button:focus-visible,
+.bridge-mode__reset:focus-visible {
+  outline: none;
+  box-shadow: var(--ko-focus-ring);
+}
+.bridge-mode__switch button:disabled,
+.bridge-mode__reset:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.bridge-mode__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Icon over a short label, so its purpose is visible without hovering. */
+.sd-shortcuts .bridge-mode__reset {
+  flex-direction: column;
+  gap: var(--ko-sp-4);
+  width: var(--ko-control-h);
+  padding: 0;
+  color: var(--ko-text-muted);
+}
+.bridge-mode__reset-label {
+  font: 600 var(--ko-fs-12) / 1 var(--ko-font-ui);
+  letter-spacing: var(--ko-track-label);
+  text-transform: uppercase;
+}
+
+.bridge-mode__loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  margin: 0;
+  color: var(--ko-cyan-strong);
+  background: var(--ko-metal-950);
+  font: 600 var(--ko-fs-14) var(--ko-font-ui);
+  letter-spacing: var(--ko-track-label);
+}
+
+/* Phones: smaller controls, and the bar may wrap. */
+@media (max-width: 760px) {
+  .sd-shortcuts { --ko-control-h: 52px; --ko-icon: 18px; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 2 * var(--ko-edge)); }
+  .sd-shortcuts > .sd-shortcut { flex: 1 1 22%; gap: var(--ko-sp-8); padding: 0 var(--ko-sp-8); }
+  .sd-shortcuts .sd-shortcut__label { font-size: var(--ko-fs-14); }
+  .sd-shortcuts .bridge-mode { flex: 1 1 140px; }
+  .sd-shortcuts .bridge-mode__reset { flex: 0 0 var(--ko-control-h); }
+}

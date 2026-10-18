@@ -35,8 +35,9 @@ function ModeControls({mode, identity, locked = false, connection, onMode, onRes
       </div>
       <span className="bridge-mode__status" role="status">{status}</span>
     </div>
-    <button className="sd-shortcut bridge-mode__reset" type="button" disabled={locked} onClick={onReset} aria-label="Reset pilot" title={`Reset ${identity.callsign}'s pilot`}>
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+    <button className="sd-shortcut bridge-mode__reset" type="button" disabled={locked} onClick={onReset} aria-label="Reset pilot" title={`Reset ${identity.callsign}'s pilot and start onboarding again`}>
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 8M4 4v6h6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      <span className="bridge-mode__reset-label" aria-hidden="true">Reset</span>
     </button>
   </>;
 }

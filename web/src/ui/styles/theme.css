@@ -1,0 +1,64 @@
+/* KO.rbit — shared design tokens. The single source for colors, type, spacing,
+   radii and control sizes. CSS reads these directly; the in-world canvas screens
+   read them through getComputedStyle (see ui/components/spaceship/textures.ts).
+   The cockpit is always a dark scene, so there is one dark theme. */
+
+:root {
+  /* Color */
+  --ko-cyan: #22e5ff;
+  --ko-cyan-strong: #b8f6ff;
+  --ko-cyan-line: rgba(34, 229, 255, 0.45);
+  --ko-cyan-faint: rgba(34, 229, 255, 0.16);
+  --ko-cyan-fill: rgba(34, 229, 255, 0.22);
+  --ko-orange: #ff7a1a;
+  --ko-orange-strong: #ffc08f;
+  --ko-go: #5dffa8;
+  --ko-danger: #ff6b6b;
+  --ko-text: #eef9ff;
+  /* At least 80% white: 4.5:1+ on the panel backgrounds below. */
+  --ko-text-muted: rgba(238, 249, 255, 0.82);
+  --ko-on-cyan: #021018;
+  --ko-metal-950: #01060b;
+  --ko-metal-900: #040d16;
+  --ko-metal-800: #0a1824;
+  --ko-metal-700: #14283a;
+  --ko-panel: linear-gradient(180deg, rgba(14, 30, 44, 0.86), rgba(4, 12, 20, 0.92));
+  --ko-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  --ko-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 0, 0, 0.6);
+  --ko-glow-primary: 0 0 18px rgba(34, 229, 255, 0.45);
+
+  /* Type: two families, one scale */
+  --ko-font-display: 'Orbitron', 'Rajdhani', system-ui, sans-serif;
+  --ko-font-ui: 'Rajdhani', 'Avenir Next Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --ko-fs-12: 12px;
+  --ko-fs-14: 14px;
+  --ko-fs-16: 16px;
+  --ko-fs-20: 20px;
+  --ko-fs-28: 28px;
+  --ko-track-label: 0.08em;
+  --ko-track-caps: 0.18em;
+
+  /* Spacing */
+  --ko-sp-4: 4px;
+  --ko-sp-8: 8px;
+  --ko-sp-12: 12px;
+  --ko-sp-16: 16px;
+  --ko-sp-24: 24px;
+  --ko-sp-32: 32px;
+
+  /* Shape and controls */
+  --ko-radius-sm: 4px;
+  --ko-radius-md: 8px;
+  --ko-cut: 10px;
+  --ko-control-h: 68px;
+  --ko-icon: 24px;
+  --ko-focus-ring: 0 0 0 2px var(--ko-metal-950), 0 0 0 4px var(--ko-cyan-strong);
+  --ko-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Screen edges: nothing important closer than 16px, bottom bar lifted 24px. */
+  --ko-edge: 16px;
+  --ko-edge-t: max(env(safe-area-inset-top), var(--ko-edge));
+  --ko-edge-r: max(env(safe-area-inset-right), var(--ko-edge));
+  --ko-edge-l: max(env(safe-area-inset-left), var(--ko-edge));
+  --ko-edge-b: calc(env(safe-area-inset-bottom) + var(--ko-sp-24));
+}

@@ -1,6 +1,7 @@
 import { StrictMode, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { SoundShell } from "./audio/SoundShell";
+import "./ui/styles/theme.css";
 import "./ui/styles/brand.css";
 import "./ui/styles/button-feedback.css";
 

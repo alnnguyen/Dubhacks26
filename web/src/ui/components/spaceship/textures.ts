@@ -5,10 +5,25 @@ import * as THREE from 'three';
  * prototype ships with zero binary assets. Swap for authored textures later.
  */
 
-const CYAN = '#5fe1ff';
-const CYAN_DIM = 'rgba(95,225,255,0.35)';
-const ORANGE = '#ff9a4a';
-const WHITE = '#e8f8ff';
+/** Theme tokens from ui/styles/theme.css, read once (canvas can't use CSS variables). */
+let palette: { cyan: string; cyanDim: string; cyanFaint: string; orange: string; text: string; go: string; danger: string; ui: string; display: string } | null = null;
+function theme() {
+  if (palette) return palette;
+  const css = typeof document === 'undefined' ? null : getComputedStyle(document.documentElement);
+  const v = (name: string, fallback: string) => css?.getPropertyValue(name).trim() || fallback;
+  palette = {
+    cyan: v('--ko-cyan', '#22e5ff'),
+    cyanDim: v('--ko-cyan-line', 'rgba(34,229,255,0.45)'),
+    cyanFaint: v('--ko-cyan-faint', 'rgba(34,229,255,0.16)'),
+    orange: v('--ko-orange', '#ff7a1a'),
+    text: v('--ko-text', '#eef9ff'),
+    go: v('--ko-go', '#5dffa8'),
+    danger: v('--ko-danger', '#ff6b6b'),
+    ui: v('--ko-font-ui', 'Rajdhani, sans-serif'),
+    display: v('--ko-font-display', 'Orbitron, sans-serif'),
+  };
+  return palette;
+}
 
 function makeCanvas(w: number, h: number) {
   const c = document.createElement('canvas');
@@ -188,183 +203,188 @@ export interface ScreenData {
 
 export type ScreenKind = 'tactical' | 'graph' | 'grid' | 'systems' | 'nav' | 'bars' | 'pilot';
 
-function frame(g: CanvasRenderingContext2D, w: number, h: number, title: string, alert?: boolean) {
+/*
+ * The cockpit screens render at roughly a third of their canvas size at 1280x800,
+ * so text is drawn ~3x larger than it should appear (34–40px ≈ 12–14px on screen).
+ * Each screen keeps one title and a few large elements; no small labels.
+ */
+function frame(g: CanvasRenderingContext2D, w: number, h: number, title: string, titlePx: number, alert?: boolean) {
+  const t = theme();
   const bg = g.createLinearGradient(0, 0, 0, h);
   bg.addColorStop(0, '#04131f');
   bg.addColorStop(1, '#020a12');
   g.fillStyle = bg;
   g.fillRect(0, 0, w, h);
-  g.strokeStyle = alert ? 'rgba(255,154,74,0.6)' : CYAN_DIM;
-  g.lineWidth = 2;
+  g.strokeStyle = alert ? t.orange : t.cyanDim;
+  g.lineWidth = 3;
   g.strokeRect(6, 6, w - 12, h - 12);
-  g.fillStyle = alert ? ORANGE : CYAN;
-  g.font = '600 18px monospace';
-  g.fillText(title, 18, 30);
-  g.fillStyle = CYAN_DIM;
-  g.fillRect(18, 38, w - 36, 1);
+  g.fillStyle = alert ? t.orange : t.cyan;
+  g.font = `700 ${titlePx}px ${t.ui}`;
+  g.textBaseline = 'alphabetic';
+  g.fillText(title, 22, 18 + titlePx);
+  return 30 + titlePx;
 }
 
 function scanlines(g: CanvasRenderingContext2D, w: number, h: number, t: number) {
-  g.fillStyle = 'rgba(0,0,0,0.18)';
+  g.fillStyle = 'rgba(0,0,0,0.14)';
   for (let y = 0; y < h; y += 4) g.fillRect(0, y, w, 1);
   const sy = ((t * 60) % (h + 60)) - 30;
   const grd = g.createLinearGradient(0, sy - 30, 0, sy + 30);
-  grd.addColorStop(0, 'rgba(95,225,255,0)');
-  grd.addColorStop(0.5, 'rgba(95,225,255,0.07)');
-  grd.addColorStop(1, 'rgba(95,225,255,0)');
+  grd.addColorStop(0, 'rgba(34,229,255,0)');
+  grd.addColorStop(0.5, 'rgba(34,229,255,0.06)');
+  grd.addColorStop(1, 'rgba(34,229,255,0)');
   g.fillStyle = grd;
   g.fillRect(0, sy - 30, w, 60);
 }
 
+const STATUS_COPY: Record<string, [string, string]> = {
+  online: ['READY', 'FOR DEPLOYMENT'],
+  connecting: ['LINKING', 'ESTABLISHING UPLINK'],
+  offline: ['STANDBY', 'NO SERVER LINK'],
+};
+
 const draws: Record<ScreenKind, (g: CanvasRenderingContext2D, w: number, h: number, t: number, d: ScreenData) => void> = {
   tactical(g, w, h, t, d) {
-    frame(g, w, h, 'TACTICAL // COMMAND', d.alert);
-    const cx = w * 0.5;
-    const cy = h * 0.58;
-    g.strokeStyle = 'rgba(95,225,255,0.18)';
-    g.lineWidth = 1;
-    for (let x = 18; x < w - 18; x += 32) {
-      g.beginPath();
-      g.moveTo(x, 46);
-      g.lineTo(x, h - 14);
-      g.stroke();
-    }
-    for (let y = 50; y < h - 14; y += 32) {
-      g.beginPath();
-      g.moveTo(18, y);
-      g.lineTo(w - 18, y);
-      g.stroke();
-    }
-    g.strokeStyle = CYAN;
-    g.lineWidth = 2;
+    // The console in front hides the lower third of this screen; keep content up top.
+    const th = theme();
+    const top = frame(g, w, h, 'TACTICAL', 36, d.alert);
+    const visible = h * 0.64;
+    const cx = w * 0.66;
+    const cy = (top + visible) * 0.5;
+    const rx = w * 0.24;
+    const ry = (visible - top) * 0.36;
+    g.strokeStyle = th.cyan;
+    g.lineWidth = 4;
     g.beginPath();
-    g.ellipse(cx, cy, w * 0.3, h * 0.2, -0.25, 0, Math.PI * 2);
-    g.stroke();
-    g.strokeStyle = CYAN_DIM;
-    g.beginPath();
-    g.ellipse(cx, cy, w * 0.18, h * 0.11, -0.25, 0, Math.PI * 2);
+    g.ellipse(cx, cy, rx, ry, -0.25, 0, Math.PI * 2);
     g.stroke();
     const a = t * 0.6;
-    const px = cx + Math.cos(a) * w * 0.3 * Math.cos(-0.25) - Math.sin(a) * h * 0.2 * Math.sin(-0.25);
-    const py = cy + Math.cos(a) * w * 0.3 * Math.sin(-0.25) + Math.sin(a) * h * 0.2 * Math.cos(-0.25);
-    g.fillStyle = ORANGE;
+    const px = cx + Math.cos(a) * rx * Math.cos(-0.25) - Math.sin(a) * ry * Math.sin(-0.25);
+    const py = cy + Math.cos(a) * rx * Math.sin(-0.25) + Math.sin(a) * ry * Math.cos(-0.25);
+    g.fillStyle = th.orange;
     g.beginPath();
-    g.arc(px, py, 5, 0, Math.PI * 2);
+    g.arc(px, py, 10, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = WHITE;
-    g.font = '14px monospace';
-    g.fillText(`CONTACTS ${String(d.contacts ?? 0).padStart(2, '0')}`, 18, h - 22);
-    g.fillText(`T+${t.toFixed(1)}`, w - 110, h - 22);
+    // One large readout: contacts in range.
+    g.fillStyle = th.text;
+    g.font = `700 80px ${th.display}`;
+    g.fillText(String(d.contacts ?? 0).padStart(2, '0'), 22, top + 82);
+    g.fillStyle = th.cyan;
+    g.font = `700 34px ${th.ui}`;
+    g.fillText('CONTACTS', 22, top + 124);
     scanlines(g, w, h, t);
   },
-  graph(g, w, h, t) {
-    frame(g, w, h, 'SUBSPACE SIGNAL');
-    g.strokeStyle = CYAN;
-    g.lineWidth = 2;
+  graph(g, w, h, t, d) {
+    const th = theme();
+    const top = frame(g, w, h, 'SIGNAL', 34, d.alert);
+    g.strokeStyle = th.cyan;
+    g.lineWidth = 5;
     g.beginPath();
-    for (let x = 18; x < w - 18; x += 3) {
+    for (let x = 22; x < w - 22; x += 4) {
       const u = x / w;
-      const y = h * 0.62 - (Math.sin(u * 13 + t * 2) * 0.5 + Math.sin(u * 31 - t * 3.1) * 0.3 + Math.exp(-((u - 0.45) ** 2) * 60) * 2.2) * h * 0.12;
-      if (x === 18) g.moveTo(x, y);
+      const y = top + (h - top) * 0.38 - (Math.sin(u * 9 + t * 2) * 0.5 + Math.exp(-((u - 0.45) ** 2) * 40) * 1.6) * (h - top) * 0.16;
+      if (x === 22) g.moveTo(x, y);
       else g.lineTo(x, y);
     }
     g.stroke();
-    for (let i = 0; i < 16; i++) {
-      const v = (Math.sin(i * 1.7 + t * 2.3) * 0.5 + 0.5) * 0.8 + 0.1;
-      g.fillStyle = i % 5 === 0 ? ORANGE : CYAN_DIM;
-      g.fillRect(18 + i * ((w - 36) / 16), h - 20 - v * 50, (w - 36) / 16 - 4, v * 50);
+    const n = 8;
+    const bw = (w - 44) / n;
+    for (let i = 0; i < n; i++) {
+      const v = (Math.sin(i * 1.7 + t * 2.3) * 0.5 + 0.5) * 0.75 + 0.25;
+      g.fillStyle = i === 5 ? th.orange : th.cyanDim;
+      g.fillRect(22 + i * bw, h - 22 - v * 70, bw - 10, v * 70);
     }
     scanlines(g, w, h, t);
   },
   grid(g, w, h, t) {
-    frame(g, w, h, 'CREW // SYS');
-    const cols = 8;
-    const rows = 4;
+    // Desk-mounted and seen edge-on: pattern only, no labels.
+    const th = theme();
+    frame(g, w, h, '', 0);
+    const cols = 4;
+    const rows = 2;
     const cw = (w - 36) / cols;
-    const ch = (h - 60) / rows;
+    const ch = (h - 36) / rows;
     for (let r = 0; r < rows; r++) {
       for (let col = 0; col < cols; col++) {
         const on = Math.sin(r * 3.1 + col * 1.7 + Math.floor(t * 2) * 0.9) > -0.3;
-        g.strokeStyle = on ? CYAN : CYAN_DIM;
-        g.lineWidth = 1.5;
-        const x = 18 + col * cw + 4;
-        const y = 48 + r * ch + 4;
-        g.strokeRect(x, y, cw - 8, ch - 8);
-        if (on) {
-          g.fillStyle = 'rgba(95,225,255,0.25)';
-          g.fillRect(x + 4, y + (ch - 8) * 0.5, cw - 16, (ch - 8) * 0.4);
-        }
+        g.fillStyle = on ? th.cyanDim : th.cyanFaint;
+        g.fillRect(18 + col * cw + 6, 18 + r * ch + 6, cw - 12, ch - 12);
       }
     }
-    scanlines(g, w, h, t);
   },
   systems(g, w, h, t) {
-    frame(g, w, h, 'SYSTEMS');
-    const labels = ['SHIELD', 'REACTOR', 'COMMS', 'SENSORS', 'HULL'];
+    const th = theme();
+    const top = frame(g, w, h, 'SYSTEMS', 40);
+    // The seat in front hides the bottom of this screen: two large rows.
+    const labels = ['SHIELD', 'REACTOR'];
+    const row = (h * 0.78 - top) / labels.length;
     labels.forEach((l, i) => {
-      const y = 62 + i * ((h - 80) / labels.length);
-      const v = 0.55 + Math.sin(t * 0.8 + i * 1.3) * 0.15 + i * 0.05;
-      g.fillStyle = WHITE;
-      g.font = '14px monospace';
-      g.fillText(l, 18, y + 10);
-      g.fillStyle = 'rgba(95,225,255,0.15)';
-      g.fillRect(120, y, w - 140, 12);
-      g.fillStyle = i === 1 ? ORANGE : CYAN;
-      g.fillRect(120, y, (w - 140) * Math.min(v, 1), 12);
+      const y = top + i * row + row * 0.5;
+      const v = 0.62 + Math.sin(t * 0.8 + i * 1.3) * 0.14 + i * 0.06;
+      g.fillStyle = th.text;
+      g.font = `700 44px ${th.ui}`;
+      g.textBaseline = 'middle';
+      g.fillText(l, 22, y);
+      g.fillStyle = th.cyanFaint;
+      g.fillRect(230, y - 18, w - 252, 36);
+      g.fillStyle = i === 1 ? th.orange : th.cyan;
+      g.fillRect(230, y - 18, (w - 252) * Math.min(v, 1), 36);
+      g.textBaseline = 'alphabetic';
     });
     scanlines(g, w, h, t);
   },
   nav(g, w, h, t) {
-    frame(g, w, h, 'NAV // ORBIT');
-    const cx = w * 0.5;
-    const cy = h * 0.58;
-    const r = Math.min(w, h) * 0.32;
-    g.strokeStyle = CYAN_DIM;
-    g.lineWidth = 1.5;
-    for (let i = 1; i <= 3; i++) {
-      g.beginPath();
-      g.arc(cx, cy, (r * i) / 3, 0, Math.PI * 2);
-      g.stroke();
-    }
-    g.strokeStyle = CYAN;
-    g.lineWidth = 2;
+    const th = theme();
+    const top = frame(g, w, h, 'NAV', 40);
+    const r = (h - top) * 0.4;
+    const cx = w - 22 - r - 8;
+    const cy = (top + h) * 0.5;
+    g.strokeStyle = th.cyanDim;
+    g.lineWidth = 3;
+    g.beginPath();
+    g.arc(cx, cy, r, 0, Math.PI * 2);
+    g.stroke();
+    g.strokeStyle = th.cyan;
+    g.lineWidth = 8;
     g.beginPath();
     g.arc(cx, cy, r, t * 0.5, t * 0.5 + 1.2);
     g.stroke();
-    for (let i = 0; i < 24; i++) {
-      const a = (i / 24) * Math.PI * 2;
-      g.beginPath();
-      g.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-      g.lineTo(cx + Math.cos(a) * (r + (i % 6 === 0 ? 12 : 5)), cy + Math.sin(a) * (r + (i % 6 === 0 ? 12 : 5)));
-      g.stroke();
-    }
-    g.fillStyle = WHITE;
-    g.font = '13px monospace';
-    g.fillText('ALT 412.6 KM', 18, h - 20);
-    g.fillText(`HDG ${(((t * 7) % 360) | 0).toString().padStart(3, '0')}`, w - 96, h - 20);
+    // One large readout: heading.
+    g.fillStyle = th.text;
+    g.font = `700 80px ${th.display}`;
+    g.fillText(String(((t * 7) % 360) | 0).padStart(3, '0'), 22, h - 70);
+    g.fillStyle = th.cyan;
+    g.font = `700 36px ${th.ui}`;
+    g.fillText('HEADING', 22, h - 26);
     scanlines(g, w, h, t);
   },
   bars(g, w, h, t) {
-    frame(g, w, h, 'PWR');
-    for (let i = 0; i < 10; i++) {
+    // Desk-mounted and seen edge-on: pattern only, no labels.
+    const th = theme();
+    frame(g, w, h, '', 0);
+    for (let i = 0; i < 6; i++) {
       const v = Math.sin(t * 1.6 + i) * 0.3 + 0.6;
-      g.fillStyle = i === 7 ? ORANGE : CYAN;
-      g.fillRect(16 + i * ((w - 32) / 10), h - 14 - v * (h - 60), (w - 32) / 10 - 5, v * (h - 60));
+      g.fillStyle = i === 4 ? th.orange : th.cyan;
+      g.fillRect(18 + i * ((w - 36) / 6), h - 18 - v * (h - 44), (w - 36) / 6 - 8, v * (h - 44));
     }
   },
   pilot(g, w, h, t, d) {
-    frame(g, w, h, 'PILOT ID', d.alert);
-    g.fillStyle = d.alert ? ORANGE : WHITE;
-    g.font = '700 46px monospace';
-    g.fillText(d.callsign ?? '—', 18, h * 0.5);
-    g.font = '16px monospace';
-    g.fillStyle = d.status === 'online' ? '#5dffa8' : d.status === 'offline' ? '#ff5a5a' : ORANGE;
-    g.fillText(`● ${String(d.status ?? '').toUpperCase()}`, 18, h * 0.5 + 34);
-    g.fillStyle = CYAN_DIM;
-    for (let i = 0; i < 24; i++) {
-      const v = Math.abs(Math.sin(i * 0.7 + t * 3));
-      g.fillRect(18 + i * 18, h - 22 - v * 26, 10, v * 26);
-    }
+    // Deployment status. The pilot's name lives on the HUD badge, not here.
+    const th = theme();
+    const top = frame(g, w, h, 'STATUS', 34, d.alert);
+    const [big, small] = d.alert ? ['CHALLENGE', 'INCOMING'] : STATUS_COPY[String(d.status)] ?? STATUS_COPY.connecting;
+    const color = d.alert ? th.orange : d.status === 'online' ? th.go : d.status === 'offline' ? th.danger : th.orange;
+    const mid = top + (h - top) * 0.42;
+    g.fillStyle = color;
+    g.beginPath();
+    g.arc(40, mid - 22, 14, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = th.text;
+    g.font = `800 ${big.length > 7 ? 52 : 64}px ${th.display}`;
+    g.fillText(big, 70, mid);
+    g.fillStyle = color;
+    g.font = `700 38px ${th.ui}`;
+    g.fillText(small, 22, mid + 60);
     scanlines(g, w, h, t);
   },
 };

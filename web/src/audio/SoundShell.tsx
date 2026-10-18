@@ -36,9 +36,9 @@ function SoundSession({ children }: { children: ReactNode }) {
   async function enable() { gameAudio.setMuted(false); await gameAudio.unlock(); }
   return <>{children}<aside className="sb-sound" aria-label="Game audio" data-audio-control>
     <div className="sb-sound__dock">
-      {!unlocked ? <button type="button" onClick={() => void enable()}>{unavailable ? 'Retry sound' : 'Enable sound'}</button> :
-        <button type="button" aria-label="Mute game audio" aria-pressed={settings.muted} onClick={() => gameAudio.setMuted(!settings.muted)}>{settings.muted ? 'SOUND OFF' : 'SOUND ON'}</button>}
-      <button type="button" aria-label="Audio settings" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>MIX</button>
+      {!unlocked ? <button type="button" onClick={() => void enable()}><SpeakerIcon muted /><span>{unavailable ? 'Retry sound' : 'Enable sound'}</span></button> :
+        <button type="button" aria-label="Mute game audio" aria-pressed={settings.muted} onClick={() => gameAudio.setMuted(!settings.muted)}><SpeakerIcon muted={settings.muted} /><span>{settings.muted ? 'SOUND OFF' : 'SOUND ON'}</span></button>}
+      <button type="button" aria-label="Audio settings" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}><SlidersIcon /><span>MIX</span></button>
     </div>
     {open && <section className="sb-sound__panel" id={panelId} aria-label="Audio mixer">
       <div className="sb-sound__heading"><strong>SHIP AUDIO</strong><button type="button" aria-label="Close audio settings" onClick={() => setOpen(false)}>×</button></div>
@@ -50,4 +50,19 @@ function SoundSession({ children }: { children: ReactNode }) {
       <button type="button" onClick={() => { void enable().then(() => gameAudio.play('click')); }}>TEST SOUND</button>
     </section>}
   </aside></>;
+}
+
+function SpeakerIcon({ muted = false }: { muted?: boolean }) {
+  return <svg className="sb-sound__icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+    <path d="M4 9h4l5-4v14l-5-4H4z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    {muted ? <path d="M17 9l5 6M22 9l-5 6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      : <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />}
+  </svg>;
+}
+
+function SlidersIcon() {
+  return <svg className="sb-sound__icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+    <path d="M6 4v16M12 4v16M18 4v16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity=".55" />
+    <path d="M3.5 14h5M9.5 8h5M15.5 16h5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+  </svg>;
 }
