@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react(), basicSsl()],
   // Allow HTTPS tunnels (needed for phone tilt on iOS) to reach the dev/preview server.
   server: {
-    host: true, port: 5173, https: {}, allowedHosts: ['.trycloudflare.com'],
+    host: true, port: 5173, https: {}, allowedHosts: ['.trycloudflare.com', '.ngrok-free.app', '.ngrok-free.dev'],
     proxy: {
       // Local fixture only. Do not expose server credentials through public tunnels.
       '/copilot': {
