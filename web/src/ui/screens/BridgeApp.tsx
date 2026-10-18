@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { loadPilotIdentity, type PilotIdentity } from '../../app/pilotIdentity';
 import '../../app/flight.css';
-import { OnboardingScreen } from './OnboardingScreen';
+import { OnboardingFlow } from '../../onboarding';
 import { SpaceshipHome } from './SpaceshipHome';
 
 /** Default app shell: one-time onboarding, then Ally cockpit. */
@@ -9,7 +9,7 @@ export function BridgeApp() {
   const [identity, setIdentity] = useState<PilotIdentity | null>(() => loadPilotIdentity());
 
   if (!identity) {
-    return <OnboardingScreen onComplete={setIdentity} />;
+    return <OnboardingFlow onComplete={setIdentity} />;
   }
 
   return (
