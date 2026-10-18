@@ -19,3 +19,6 @@ tmp/
 welcome.mp3
 
 .vibe-wise
+
+# Vite prebundle cache
+web/.vite/
