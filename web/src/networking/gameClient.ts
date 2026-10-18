@@ -11,6 +11,12 @@ import type {
   PlayerState,
   PlayerView,
   ProjectileLanded,
+  ArenaFrame,
+  BodyPose,
+  SaberAim,
+  SaberCalibration,
+  SaberResolved,
+  SaberStatus,
   Weapon,
   World,
 } from "../../../server/src/contracts"
@@ -24,6 +30,12 @@ export type {
   PlayerState,
   PlayerView,
   ProjectileLanded,
+  ArenaFrame,
+  BodyPose,
+  SaberAim,
+  SaberCalibration,
+  SaberResolved,
+  SaberStatus,
   Weapon,
   World,
 }
@@ -47,6 +59,8 @@ export interface SocketLike {
   connected: boolean
   on(event: string, listener: (...args: any[]) => void): unknown
   timeout(ms: number): { emit(event: string, payload: unknown, ack: (err: Error | null, reply: any) => void): unknown }
+  /** Fire-and-forget emits that are dropped rather than buffered while offline. */
+  volatile: { emit(event: string, payload: unknown): unknown }
   disconnect(): unknown
 }
 
@@ -70,6 +84,18 @@ export interface GameClient {
   onLobby(listener: (lobby: LobbyView) => void): () => void
   onView(listener: (view: PlayerView | null) => void): () => void
   onProjectileLanded(listener: (event: ProjectileLanded) => void): () => void
+  /** Both players' bodies and blades in the arena, every server tick. */
+  onArena(listener: (frame: ArenaFrame) => void): () => void
+  onSaberResolved(listener: (event: SaberResolved) => void): () => void
+  /** Your own paired phone's readings, relayed by the server for the setup checks. */
+  onPhoneAim(listener: (aim: SaberAim) => void): () => void
+  /** Store what the laptop's guided setup measured about your phone. */
+  calibrateSaber(calibration: SaberCalibration): Promise<ClientReply>
+  /**
+   * Stream your own body from the laptop camera (~20 Hz). No reply; a stale
+   * pose is useless, so nothing is sent while offline. This module numbers them.
+   */
+  sendBodyPose(pose: Omit<BodyPose, "seq">): void
   /** Stored on the phone and sent on every join, so it survives reloads. */
   setCallsign(callsign: string): Promise<ClientReply>
   challenge(pilotId: string): Promise<ClientReply>
@@ -107,6 +133,11 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   const lobbyListeners = new Set<(lobby: LobbyView) => void>()
   const viewListeners = new Set<(view: PlayerView | null) => void>()
   const landedListeners = new Set<(event: ProjectileLanded) => void>()
+  const arenaListeners = new Set<(frame: ArenaFrame) => void>()
+  const phoneAimListeners = new Set<(aim: SaberAim) => void>()
+  const resolvedListeners = new Set<(event: SaberResolved) => void>()
+  // Page-load time, like command IDs, so poses after a reload are newer than any before it.
+  let nextPose = now()
 
   function setStatus(next: ConnectionStatus) {
     if (next === status) return
@@ -145,6 +176,9 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   socket.on("lobby", (next: LobbyView) => setLobby(next))
   socket.on("view", (next: PlayerView | null) => setView(next))
   socket.on("projectileLanded", (event: ProjectileLanded) => landedListeners.forEach((listener) => listener(event)))
+  socket.on("arena", (frame: ArenaFrame) => arenaListeners.forEach((listener) => listener(frame)))
+  socket.on("phoneAim", (aim: SaberAim) => phoneAimListeners.forEach((listener) => listener(aim)))
+  socket.on("saberResolved", (event: SaberResolved) => resolvedListeners.forEach((listener) => listener(event)))
 
   function send(payload: Payload): Promise<ClientReply> {
     const commandId = `c${nextCommand++}`
@@ -173,6 +207,14 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     onLobby: (listener) => subscribe(lobbyListeners, listener),
     onView: (listener) => subscribe(viewListeners, listener),
     onProjectileLanded: (listener) => subscribe(landedListeners, listener),
+    onArena: (listener) => subscribe(arenaListeners, listener),
+    onPhoneAim: (listener) => subscribe(phoneAimListeners, listener),
+    calibrateSaber: (calibration) => send({ type: "calibrateSaber", calibration }),
+    onSaberResolved: (listener) => subscribe(resolvedListeners, listener),
+    sendBodyPose: (pose) => {
+      if (status !== "online" || !socket.connected) return
+      socket.volatile.emit("bodyPose", { ...pose, seq: nextPose++ })
+    },
     setCallsign: (callsign) => {
       writeStorage(storage, CALLSIGN_KEY, callsign)
       return send({ type: "setCallsign", callsign })

@@ -10,11 +10,25 @@ const marsPreview = search.get('arena') === 'mars';
 const devMars = search.get('dev') === 'mars';
 // Standalone astronaut character creator: /avatar-creator (or /?avatar=1).
 const avatarCreator = window.location.pathname.replace(/\/+$/, '') === '/avatar-creator' || search.has('avatar');
+// Phone lightsaber controller, opened from the laptop's pair code: /?saber=CODE
+const saberCode = search.get('saber');
+// The saber arena with synthetic fighters, no camera/phone/server: /?dev=arena
+const devArena = search.get('dev') === 'arena';
 
 const Screen = avatarCreator
   ? lazy(async () => {
       const m = await import('./features/avatars/components/AvatarCreator');
       return { default: m.AvatarCreator };
+    })
+  : devArena
+  ? lazy(async () => {
+      const m = await import('./arena3d/ArenaPreview');
+      return { default: m.ArenaPreview };
+    })
+  : saberCode
+  ? lazy(async () => {
+      const m = await import('./saber/SaberPhone');
+      return { default: () => <m.SaberPhone code={saberCode} /> };
     })
   : devMars
   ? lazy(async () => {

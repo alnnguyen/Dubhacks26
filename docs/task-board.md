@@ -4,6 +4,8 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 
 ## Doing
 
+- B (Justin), branch `saber-duel`, 2026-10-17 ~23:50: **laptop + iPhone lightsaber duel in a shared 3D arena** (PLAN.md, docs/contracts.md). Server 3D collision/pairing, laptop arena (`web/src/arena3d`), phone saber (`web/src/saber`, route `/?saber=CODE`) implemented. Verified: server tests, web tests/typecheck/build, scripted 2-laptop + 2-phone socket duel against the real server (block then hit). **Not yet run on real laptops/iPhones or viewed in a browser** — first check axis directions (raise right arm / point phone up) and `/?dev=arena`. The earlier phone-camera version is saved as `git stash@{0}`.
+
 - C (Alan) + Alex QA: phone framing + gestures on **duel HUD** (FlightApp / LiveDuel) and full harness at `/?debug=camera` or `/?camera=1`. Hand lock + wide rear merged into alex-dev Oct 17. Checklist in `docs/qa-checklist.md`. Gun/saber deferred.
 - D (Alex): Grok Bot bonus session (template in `docs/sponsor-evidence.md`). Live Photon/Voice on real challenges **blocked on B**.
 - A (Ally): **pull `alex-dev`** — Alan’s latest camera is merged; cockpit default + turn-to-look remain on ally paths. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
