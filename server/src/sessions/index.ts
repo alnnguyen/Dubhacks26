@@ -12,7 +12,7 @@ import type {
   WorldId,
 } from "../contracts.js";
 import { COMMAND_ID_PATTERN, IN_MATCH_COMMAND_TYPES, Match, type InMatchCommandType } from "../game/match.js";
-import { RULES, WORLD_IDS } from "../game/rules.js";
+import { RULES } from "../game/rules.js";
 
 const PLAYER_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 const CALLSIGN_PATTERN = /^[A-Z0-9][A-Z0-9 _-]{0,13}$/;
@@ -67,7 +67,8 @@ export class Lobby {
   private pickWorld: () => WorldId;
 
   constructor(private events: LobbyEvents, options: LobbyOptions = {}) {
-    this.pickWorld = options.pickWorld ?? (() => WORLD_IDS[Math.floor(Math.random() * WORLD_IDS.length)]);
+    // Every match is on Mars (the only built arena). Tests can still inject a world.
+    this.pickWorld = options.pickWorld ?? (() => "mars");
   }
 
   join(playerId: unknown, callsign?: unknown): JoinResult {

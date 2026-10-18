@@ -4,6 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useTexture } from '@react-three/drei';
 import { CAMERA_POSES } from './cockpitLayout';
 import type { GraphicsQuality } from '../../state/lobbyTypes';
+import { bindUniforms } from '../../../three/bindUniforms'
 
 /*
  * Earth shading adapted from ulanch/earth (MIT, (c) 2025 Alex Ulanch):
@@ -186,11 +187,11 @@ function Earth({ quality }: { quality: GraphicsQuality }) {
       <group ref={globe} rotation={[0, placement.yaw, 0]}>
         <mesh>
           <sphereGeometry args={[PLANET_R, seg, seg / 2]} />
-          <shaderMaterial vertexShader={EARTH_VERT} fragmentShader={EARTH_FRAG} uniforms={uniforms} />
+          <shaderMaterial vertexShader={EARTH_VERT} fragmentShader={EARTH_FRAG} uniforms={uniforms} ref={bindUniforms(uniforms)} />
         </mesh>
         <mesh scale={1.006}>
           <sphereGeometry args={[PLANET_R, seg, seg / 2]} />
-          <shaderMaterial vertexShader={EARTH_VERT} fragmentShader={CLOUD_FRAG} uniforms={uniforms} transparent depthWrite={false} />
+          <shaderMaterial vertexShader={EARTH_VERT} fragmentShader={CLOUD_FRAG} uniforms={uniforms} ref={bindUniforms(uniforms)} transparent depthWrite={false} />
         </mesh>
       </group>
       <mesh scale={1.025}>
@@ -198,7 +199,7 @@ function Earth({ quality }: { quality: GraphicsQuality }) {
         <shaderMaterial
           vertexShader={ATMO_VERT}
           fragmentShader={ATMO_FRAG}
-          uniforms={atmoUniforms}
+          uniforms={atmoUniforms} ref={bindUniforms(atmoUniforms)}
           side={THREE.BackSide}
           blending={THREE.AdditiveBlending}
           transparent
@@ -252,7 +253,7 @@ function Stars({ count, warp }: { count: number; warp: number }) {
   });
   return (
     <points geometry={geometry} frustumCulled={false}>
-      <shaderMaterial vertexShader={STAR_VERT} fragmentShader={STAR_FRAG} uniforms={uniforms} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
+      <shaderMaterial vertexShader={STAR_VERT} fragmentShader={STAR_FRAG} uniforms={uniforms} ref={bindUniforms(uniforms)} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
     </points>
   );
 }

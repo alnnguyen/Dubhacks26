@@ -41,21 +41,21 @@ docs/                      Team, interface, QA, deployment and evidence notes
 
 ## Current status
 
-**Integrated on `alex-dev` (Oct 17):** Ally’s 3D cockpit (default), Alan’s camera (hand lock / wide rear / rock retune), Alex LiveDuel `/?pvp=1`, Justin’s Socket.IO match + `web/src/networking` (`createGameClient`, gun/rock weapons), D Photon/Voice fixtures.
+**Integrated on `alex-dev` (Oct 17):** Ally’s 3D cockpit + immersive Mars arena (NASA MOLA Jezero; opponent cutout), Justin’s lobby/challenges/networking client (rock + gun), Alan’s camera (hand lock / wide rear), Alex Motion onboarding, LiveDuel rehearsal `/?pvp=1`, D Photon/Voice fixtures.
 
-**Server (B / Justin):** demo match with rock + gun. Verified commands in [server/README.md](server/README.md):
+**Server (B / Justin):** authoritative match + lobby (mars-arena tip pins every match to Mars). Verified commands in [server/README.md](server/README.md):
 
 ```bash
 cd server && npm install && npm test
 ```
 
-**Web (A cockpit + C camera):** Ally’s spaceship lobby is the default app. Alan’s camera harness: `/?debug=camera` or legacy `/?camera=1`. Live duel rehearsal: `/?pvp=1` (still uses a direct socket; next step is adopt Justin’s `createGameClient`).
+**Web:** default `/` is onboarding → cockpit (`BridgeApp`; next glue is FlightApp’s real lobby). Other routes: `/?camera=1` / `/?debug=camera` (Alan harness), `/?dev=mars` (camera + Mars, no match), `/?arena=mars` (scene only), `/?pvp=1` (LiveDuel rehearsal). Real challenge → briefing → duel lives in `FlightApp`.
 
 ```bash
-# Web (cockpit / camera / pvp rehearsal)
+# Web
 cd web && npm install && npm test && npm run dev
 
-# Authoritative demo match (B)
+# Authoritative server (B)
 cd server && npm install && npm test && npm run dev
 ```
 
