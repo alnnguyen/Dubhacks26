@@ -41,7 +41,7 @@ export function FlightApp() {
 
   if (state.phase === 'cockpit') return <>
     <SpaceshipHome onEnterBattle={beginBriefing} />
-    <div className="flight-demo-label">LOCAL REHEARSAL · mock pilots · real Grok Voice in briefing</div>
+    <div className="flight-demo-label" style={{pointerEvents:"auto"}}>LOCAL REHEARSAL · <a href="/?pvp=1" style={{color:"#91e3ff"}}>Open real two-player duel →</a></div>
   </>;
   return <main className="flight-flow">
     <header className="flight-header"><span>FLIGHT SYSTEMS / {state.phase.toUpperCase()}</span><button onClick={reset}>Return to cockpit</button></header>

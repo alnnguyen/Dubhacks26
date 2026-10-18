@@ -8,6 +8,7 @@ export default defineConfig({
   server: {
     host: true, port: 5173, https: {}, allowedHosts: ['.trycloudflare.com'],
     proxy: {
+      '/socket.io': { target: process.env.GAME_PROXY_TARGET || 'http://127.0.0.1:3001', ws: true, changeOrigin: true },
       // Local fixture only. Do not expose server credentials through public tunnels.
       '/copilot': {
         target: 'http://127.0.0.1:8787', changeOrigin: true,
