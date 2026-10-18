@@ -25,6 +25,11 @@ export function platformHeightAt(x: number, z: number): number | null {
  */
 export const arrivalVeil = { value: 0 };
 
+/** Whole-sky brightness (sky, cloud decks and puffs) and the current lightning flash. */
+export const SKY_DIM = 0.78;
+const skyDim = { value: SKY_DIM };
+const lightning = { flash: { value: 0 }, pos: { value: new THREE.Vector3(600, -30, -700) } };
+
 const color = (hex: string) => new THREE.Color(hex);
 const SUN_DIR = new THREE.Vector3(...render.sunDirection).normalize();
 
@@ -38,12 +43,16 @@ float fbm(vec2 p){float n=0.,a=.5;for(int i=0;i<5;i++){n+=noise(p)*a;p=p*2.03+11
 /** Vertical gradient sampled from the cinematic's final cloud frame. */
 const VEIL = /* glsl */ `
 uniform float uVeil;uniform vec3 uVeilLow;uniform vec3 uVeilMid;uniform vec3 uVeilTop;
+uniform float uDim;uniform float uFlash;uniform vec3 uFlashPos;const vec3 FLASH=vec3(.78,.88,1.);
 vec3 veilColor(float h){return h<0.?mix(uVeilMid,uVeilLow,clamp(-h*3.,0.,1.)):mix(uVeilMid,uVeilTop,clamp(h*2.,0.,1.));}
 `;
 
 function veilUniforms() {
   return {
     uVeil: arrivalVeil,
+    uDim: skyDim,
+    uFlash: lightning.flash,
+    uFlashPos: lightning.pos,
     uVeilLow: { value: color(render.arrivalFog.low) },
     uVeilMid: { value: color(render.arrivalFog.mid) },
     uVeilTop: { value: color(render.arrivalFog.top) },
@@ -62,6 +71,9 @@ void main(){
  float s=max(dot(d,uSunDir),0.);
  // ~1/900 of Earth's sunlight: a small, cool disk with a faint scattering halo.
  c+=uSun*(pow(s,2400.)*2.2+pow(s,90.)*.18+pow(s,8.)*.05);
+ c*=uDim;
+ vec3 fd=normalize(uFlashPos-cameraPosition);float fa=max(dot(d,fd),0.);
+ c+=FLASH*uFlash*(pow(fa,14.)*3.2+pow(fa,3.)*.45);
  c=mix(c,veilColor(h),uVeil*uUseVeil);
  gl_FragColor=vec4(c,1.);
 }`;
@@ -130,16 +142,18 @@ void main(){
  float far=smoothstep(250.,2000.,dist);
  c=mix(c,uHorizon,far);
  if(uLayer>.5)a*=1.-far*.7;
+ c*=uDim;
+ c+=FLASH*uFlash*exp(-distance(p,uFlashPos.xz)/480.)*(uLayer>.5?2.6:1.2);
  c=mix(c,veilColor(-.1),uVeil);
  gl_FragColor=vec4(c,a);
 }`;
 
-const puffVertex = /* glsl */ `varying vec2 vUv;varying float vDist;varying float vSeed;
+const puffVertex = /* glsl */ `varying vec2 vUv;varying float vDist;varying float vSeed;varying vec3 vWP;
 void main(){vUv=uv;vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
  vec2 size=vec2(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz));
- vSeed=fract(instanceMatrix[3].x*.013+instanceMatrix[3].z*.007);
+ vSeed=fract(instanceMatrix[3].x*.013+instanceMatrix[3].z*.007);vWP=(modelMatrix*instanceMatrix*vec4(0.,0.,0.,1.)).xyz;
  center.xy+=position.xy*size;vDist=-center.z;gl_Position=projectionMatrix*center;}`;
-const puffFragment = /* glsl */ `varying vec2 vUv;varying float vDist;varying float vSeed;
+const puffFragment = /* glsl */ `varying vec2 vUv;varying float vDist;varying float vSeed;varying vec3 vWP;
 uniform vec3 uShade;uniform vec3 uLit;uniform vec3 uHorizon;uniform float uOpacity;uniform float uNear;
 ${NOISE}${VEIL}
 void main(){
@@ -148,6 +162,8 @@ void main(){
  float shape=smoothstep(1.,.25,length(p*vec2(1.,1.25))+(n-.5)*.7);
  vec3 c=mix(uShade,uLit,smoothstep(-.2,1.,vUv.y+n*.4-.2));
  c=mix(c,uHorizon,smoothstep(300.,1800.,vDist)*.85);
+ c*=uDim;
+ c+=FLASH*uFlash*exp(-distance(vWP.xz,uFlashPos.xz)/420.)*2.8;
  c=mix(c,veilColor(0.),uVeil);
  // Fade puffs the camera is about to pass through.
  float a=shape*uOpacity*smoothstep(uNear,uNear*3.,vDist);
@@ -445,6 +461,35 @@ function Platform() {
   );
 }
 
+/**
+ * Distant lightning inside the storm clouds: every 4–10 s a quick double
+ * flicker somewhere on the horizon lights the clouds around it, with a faint
+ * matching flash of light on the platform.
+ */
+function Lightning({ reducedMotion }: { reducedMotion: boolean }) {
+  const light = useRef<THREE.DirectionalLight>(null);
+  const next = useRef(2.5);
+  const start = useRef(-10);
+  useEffect(() => () => { lightning.flash.value = 0; }, []);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    if (t >= next.current) {
+      start.current = t;
+      next.current = t + 4 + Math.random() * 6;
+      // Ahead of or behind the duel (along z), where both players' cameras look.
+      const side = Math.random() < 0.5 ? -1 : 1;
+      lightning.pos.value.set((Math.random() - 0.5) * 1100, 20 + Math.random() * 70, side * (450 + Math.random() * 450));
+      light.current?.position.copy(lightning.pos.value).normalize().multiplyScalar(40);
+    }
+    const age = t - start.current;
+    // Two quick strokes, then a fading afterglow.
+    const flash = age < 0 ? 0 : age < 0.08 ? 1 : age < 0.14 ? 0.25 : age < 0.22 ? 0.85 : Math.max(0, 0.5 * Math.exp(-(age - 0.22) * 9));
+    lightning.flash.value = reducedMotion ? flash * 0.35 : flash;
+    if (light.current) light.current.intensity = lightning.flash.value * 2.5;
+  });
+  return <directionalLight ref={light} color="#cfe6ff" intensity={0} />;
+}
+
 export function NeptuneEnvironment({ reducedMotion = false }: { reducedMotion?: boolean }) {
   useEffect(() => () => { arrivalVeil.value = 0; }, []);
   const sun = SUN_DIR.clone().multiplyScalar(40);
@@ -472,6 +517,7 @@ export function NeptuneEnvironment({ reducedMotion = false }: { reducedMotion?: 
         <NeptuneSky veiled={false} />
       </Environment>
       <Cloudscape reducedMotion={reducedMotion} />
+      <Lightning reducedMotion={reducedMotion} />
       <Platform />
     </>
   );
