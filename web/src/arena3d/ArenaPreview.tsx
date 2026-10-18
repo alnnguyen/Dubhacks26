@@ -28,7 +28,7 @@ function body(): Vec3[] {
   return j
 }
 
-// Mirrors the server's placement: slot 2 stands 1.3 m away, turned around, hips 1 m up.
+// Mirrors the server's placement when engaged: slot 1 at the center hex, slot 2 one hex (1.3 m) away, turned around.
 function toWorld(p: Vec3, slot: PlayerSlot): Vec3 {
   return slot === 1 ? [p[0], p[1] + 1, p[2]] : [-p[0], p[1] + 1, 1.3 - p[2]]
 }
@@ -56,9 +56,11 @@ export function ArenaPreview() {
       const a = (angle * Math.PI) / 180
       const j = body()
       frameRef.current = {
+        serverMs: performance.now(),
+        engaged: true,
         players: [
-          { slot: 1, joints: j.map((p) => toWorld(p, 1)), blade: blade(1, j[16], [Math.sin(a), 0, Math.cos(a)]), swinging: phase > 0.5 && phase < 0.65 },
-          { slot: 2, joints: j.map((p) => toWorld(p, 2)), blade: blade(2, [-0.455, -0.05, 0.336], [0, 1, 0]), swinging: false },
+          { slot: 1, cell: { q: 0, r: 0 }, facing: [0, 1], joints: j.map((p) => toWorld(p, 1)), blade: blade(1, j[16], [Math.sin(a), 0, Math.cos(a)]), swinging: phase > 0.5 && phase < 0.65 },
+          { slot: 2, cell: { q: 0, r: 1 }, facing: [0, -1], joints: j.map((p) => toWorld(p, 2)), blade: blade(2, [-0.455, -0.05, 0.336], [0, 1, 0]), swinging: false },
         ],
       }
       const cycle = Math.floor(t / 2)
@@ -74,7 +76,7 @@ export function ArenaPreview() {
 
   return (
     <main className="arena-duel">
-      <ArenaScene frameRef={frameRef} flashRef={flashRef} mySlot={view} />
+      <ArenaScene getFrame={() => frameRef.current} flashRef={flashRef} mySlot={view} board={{ hexSize: 1.3 / Math.sqrt(3), radius: 2 }} />
       <div className="arena-hud">
         <p className="arena-note">Dev preview: synthetic fighters (blue = the viewing player). Not a match.</p>
         <button type="button" className="arena-leave" onClick={() => setView(view === 1 ? 2 : 1)}>

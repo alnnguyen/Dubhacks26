@@ -14,8 +14,14 @@ class FakeSocket {
     this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener])
   }
   timeout(_ms: number) {
-    return { emit: (event: string, payload: unknown, ack: Ack) => this.acks.push({ event, payload, ack }) }
+    return {
+      emit: (event: string, payload: unknown, ack: Ack) => {
+        this.acks.push({ event, payload, ack })
+        if (event === "saberStep") this.stepAcks.push({ payload, ack })
+      },
+    }
   }
+  stepAcks: { payload: any; ack: Ack }[] = []
   emit() {}
   disconnect() {
     this.connected = false
@@ -45,6 +51,20 @@ describe("saber client", () => {
     expect(client.status()?.callsign).toBe("NOVA")
     client.sendAim(aim)
     expect(socket.volatileSent).toHaveLength(1)
+  })
+
+  it("sends a thumb swipe as a step with a fresh id and returns the server's reply", async () => {
+    const { socket, client } = setup()
+    expect(await client.step("forward")).toEqual({ status: "offline" })
+    socket.fire("connect")
+    socket.acks[0].ack(null, { ok: true, status: { callsign: "NOVA", match: null } })
+    const reply = client.step("left")
+    const sent = socket.stepAcks[0]
+    expect(sent.payload.direction).toBe("left")
+    sent.ack(null, { commandId: sent.payload.stepId, status: "rejected", reason: "blocked" })
+    expect(await reply).toMatchObject({ status: "rejected", reason: "blocked" })
+    void client.step("left")
+    expect(socket.stepAcks[1].payload.stepId).not.toBe(sent.payload.stepId)
   })
 
   it("doesn't send aims before pairing", () => {

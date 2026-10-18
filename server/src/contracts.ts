@@ -36,14 +36,18 @@ export interface BodyPose {
   // The 33 MediaPipe pose joints, hip-centered, in the player's body frame:
   // x right, y up, z forward (toward their screen, i.e. toward the opponent).
   joints: Vec3[];
-  // Which way the player wants to walk, in their own frame (x right, z toward
-  // the rival), each -1..1, from the free hand's pinch-and-nudge or keys.
-  // The server moves them at walking speed; it owns their position.
-  move: { x: number; z: number };
   // The player stood still on their spot during setup.
   calibrated: boolean;
   // The laptop's guided setup, relayed to the player's phone so it can show the same step.
   setup: SetupProgress | null;
+}
+
+// One step to a neighboring hex, relative to the way the player faces (forward is toward the rival).
+export type StepDirection = "forward" | "back" | "left" | "right";
+
+export interface HexCell {
+  q: number;
+  r: number;
 }
 
 export type SetupStep =
@@ -53,9 +57,6 @@ export type SetupStep =
   | "up"
   | "right"
   | "reach"
-  | "open"
-  | "pinch"
-  | "nudge"
   | "done";
 
 export interface SetupProgress {
@@ -106,6 +107,10 @@ export interface ArenaBlade {
 
 export interface ArenaPlayer {
   slot: PlayerSlot;
+  // The hex the player stands in (or is stepping to).
+  cell: HexCell;
+  // Which way they face, a horizontal unit vector (world x, z): always toward the rival.
+  facing: [number, number];
   // World-frame joints; null while the body isn't tracked.
   joints: Vec3[] | null;
   blade: ArenaBlade | null;
@@ -114,7 +119,12 @@ export interface ArenaPlayer {
 
 // Both players in world coordinates, sent to both laptops on every server tick.
 export interface ArenaFrame {
+  // Server time of the tick (ms), so laptops can blend between frames smoothly
+  // despite network jitter. Only differences matter; clocks aren't synced.
+  serverMs: number;
   players: ArenaPlayer[];
+  // The players are in neighboring hexes: only then do swings count.
+  engaged: boolean;
 }
 
 export interface SaberResolved {
@@ -196,6 +206,9 @@ export interface PlayerView {
   phase: MatchPhase;
   world: World;
   result: MatchResult | null;
+  // The hex board, so laptops draw the same one: cell size (center to corner, m), radius in
+  // cells, and how long a step glides (laptops start your own glide the moment a step is accepted).
+  board: { hexSize: number; radius: number; stepMs: number };
   you: PlayerState;
   rival: PlayerState;
 }
@@ -256,7 +269,8 @@ export type Command =
   | { commandId: string; type: "challenge"; pilotId: string }
   | { commandId: string; type: "acceptChallenge" | "declineChallenge" | "cancelChallenge"; challengeId: string }
   | { commandId: string; type: "setCallsign"; callsign: string }
-  | { commandId: string; type: "calibrateSaber"; calibration: SaberCalibration };
+  | { commandId: string; type: "calibrateSaber"; calibration: SaberCalibration }
+  | { commandId: string; type: "step"; direction: StepDirection };
 
 export type CommandType = Command["type"];
 
@@ -272,6 +286,8 @@ export type RejectReason =
   | "projectile_in_flight"
   | "not_blocking"
   | "pilot_unavailable"
+  // A step off the board, or into the rival's hex.
+  | "blocked"
   | "challenge_unavailable";
 
 export type CommandReply =
@@ -301,6 +317,8 @@ export interface ServerToClientEvents {
   saberStatus: (status: SaberStatus) => void;
   // To the pilot's laptop: their own phone's latest reading, for the setup checks.
   phoneAim: (aim: SaberAim) => void;
+  // To both laptops, the moment a step is accepted (ahead of the next arena frame).
+  stepped: (event: { slot: PlayerSlot; cell: HexCell }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -310,4 +328,6 @@ export interface ClientToServerEvents {
   // From a phone: become the saber of the pilot with this pair code.
   pairSaber: (request: { code: string }, reply: (result: PairReply) => void) => void;
   saberAim: (aim: SaberAim) => void;
+  // From a paired phone: the thumb swiped. Goes through the same validated, deduplicated step command as the laptop's keys.
+  saberStep: (request: { stepId: string; direction: StepDirection }, reply: (result: CommandReply) => void) => void;
 }

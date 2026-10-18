@@ -4,6 +4,7 @@ import { Canvas, useFrame } from "@react-three/fiber"
 import { Bloom, EffectComposer } from "@react-three/postprocessing"
 import type { ArenaFrame, PlayerSlot, Vec3 } from "../../../server/src/contracts"
 import { MarsEnvironment, loadTerrainSampler } from "../arena/mars/MarsEnvironment"
+import { boardCells, hexCorners, hexToWorld, type Board } from "./hexBoard"
 
 /**
  * The shared saber arena as this laptop sees it: both players as glowing
@@ -17,6 +18,10 @@ import { MarsEnvironment, loadTerrainSampler } from "../arena/mars/MarsEnvironme
 export const toThree = (v: Vec3): THREE.Vector3 => new THREE.Vector3(v[0], v[1], -v[2])
 
 export type ImpactFlash = { kind: "blocked" | "hit"; at: Vec3; startedMs: number }
+
+// The swing trail: about this much of the blade's recent path, as a fading ribbon.
+const TRAIL_MS = 120
+const TRAIL_POINTS = 24
 
 const COLORS: Record<"you" | "rival", string> = { you: "#4cc3ff", rival: "#ff4b3a" }
 
@@ -111,13 +116,48 @@ function Blade({ frameRef, slot, color }: { frameRef: RefObject<ArenaFrame | nul
     const c = new THREE.Color(color).multiplyScalar(2.2)
     return new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.55, toneMapped: false, depthWrite: false })
   }, [color])
+  const trailColor = useMemo(() => new THREE.Color(color).multiplyScalar(2.5), [color])
+  const trail = useRef<{ atMs: number; hilt: THREE.Vector3; tip: THREE.Vector3 }[]>([])
+  const trailMesh = useRef<THREE.Mesh>(null)
+  const trailGeometry = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(TRAIL_POINTS * 2 * 3), 3))
+    g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(TRAIL_POINTS * 2 * 4), 4))
+    // Two triangles between each pair of consecutive blade positions.
+    const index: number[] = []
+    for (let i = 0; i < TRAIL_POINTS - 1; i++) {
+      const [h0, t0, h1, t1] = [i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 3]
+      index.push(h0, t0, t1, h0, t1, h1)
+    }
+    g.setIndex(index)
+    g.setDrawRange(0, 0)
+    return g
+  }, [])
+  const trailMaterial = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    [],
+  )
 
   useFrame(() => {
-    const blade = frameRef.current?.players.find((p) => p.slot === slot)?.blade ?? null
+    const player = frameRef.current?.players.find((p) => p.slot === slot)
+    const blade = player?.blade ?? null
     for (const mesh of [core.current, glow.current, hilt.current]) if (mesh) mesh.visible = Boolean(blade)
-    if (!blade) return
+    if (!blade) {
+      trail.current = []
+      trailGeometry.setDrawRange(0, 0)
+      return
+    }
     const a = toThree(blade.hilt)
     const b = toThree(blade.tip)
+    updateTrail(a, b, player?.swinging ?? false)
     if (core.current) placeBetween(core.current, a, b)
     if (glow.current) placeBetween(glow.current, a, b)
     if (hilt.current) {
@@ -126,8 +166,33 @@ function Blade({ frameRef, slot, color }: { frameRef: RefObject<ArenaFrame | nul
     }
   })
 
+  // A ribbon through the blade's recent positions: bright while swinging, a faint wake otherwise.
+  function updateTrail(hiltNow: THREE.Vector3, tipNow: THREE.Vector3, swinging: boolean) {
+    const now = performance.now()
+    const points = [...trail.current, { atMs: now, hilt: hiltNow, tip: tipNow }]
+      .filter((p) => now - p.atMs <= TRAIL_MS)
+      .slice(-TRAIL_POINTS)
+    trail.current = points
+    const position = trailGeometry.getAttribute("position") as THREE.BufferAttribute
+    const colors = trailGeometry.getAttribute("color") as THREE.BufferAttribute
+    const strength = swinging ? 0.85 : 0.2
+    points.forEach((p, i) => {
+      // Older positions fade out; the tip end glows more than the hilt end.
+      const fade = (1 - (now - p.atMs) / TRAIL_MS) * strength
+      position.setXYZ(i * 2, p.hilt.x, p.hilt.y, p.hilt.z)
+      position.setXYZ(i * 2 + 1, p.tip.x, p.tip.y, p.tip.z)
+      colors.setXYZW(i * 2, trailColor.r, trailColor.g, trailColor.b, fade * 0.25)
+      colors.setXYZW(i * 2 + 1, trailColor.r, trailColor.g, trailColor.b, fade)
+    })
+    position.needsUpdate = true
+    colors.needsUpdate = true
+    trailGeometry.setDrawRange(0, Math.max(0, points.length - 1) * 6)
+    trailGeometry.computeBoundingSphere()
+  }
+
   return (
     <group>
+      <mesh ref={trailMesh} geometry={trailGeometry} material={trailMaterial} frustumCulled={false} />
       <mesh ref={core} material={coreMaterial}>
         <cylinderGeometry args={[0.014, 0.014, 1, 12]} />
       </mesh>
@@ -192,13 +257,14 @@ function ShoulderCamera({ frameRef, mySlot, groundY }: {
   groundY: number
 }) {
   const target = useRef(new THREE.Vector3())
-  useFrame(({ camera }) => {
-    const forward = new THREE.Vector3(0, 0, mySlot === 1 ? -1 : 1)
-    const right = new THREE.Vector3(mySlot === 1 ? 1 : -1, 0, 0)
-    const me = frameRef.current?.players.find((p) => p.slot === mySlot)?.joints
-    const hips = me
-      ? toThree(me[23]).add(toThree(me[24])).multiplyScalar(0.5)
-      : toThree([0, 1, mySlot === 1 ? 0 : 1.3])
+  useFrame(({ camera }, delta) => {
+    const player = frameRef.current?.players.find((p) => p.slot === mySlot)
+    // Always behind you, looking toward your rival: it swings around as you circle.
+    const [fx, fz] = player?.facing ?? [0, mySlot === 1 ? 1 : -1]
+    const forward = toThree([fx, 0, fz])
+    const right = toThree([fz, 0, -fx])
+    const me = player?.joints
+    const hips = me ? toThree(me[23]).add(toThree(me[24])).multiplyScalar(0.5) : toThree([0, 1, mySlot === 1 ? -1.3 : 1.3])
     // The camera isn't inside the arena's ground group, so it adds the ground height itself.
     hips.y += groundY
     const aim = hips.clone().addScaledVector(forward, AIM_AHEAD).add(new THREE.Vector3(0, AIM_HEIGHT, 0))
@@ -207,8 +273,10 @@ function ShoulderCamera({ frameRef, mySlot, groundY }: {
       .addScaledVector(forward, -CAMERA_DISTANCE * Math.cos(CAMERA_PITCH))
       .addScaledVector(right, SHOULDER_OFFSET)
       .add(new THREE.Vector3(0, CAMERA_DISTANCE * Math.sin(CAMERA_PITCH), 0))
-    camera.position.lerp(desired, 0.12)
-    target.current.lerp(aim, 0.12)
+    // Follow with the same feel at any frame rate (~130 ms to catch up most of the way).
+    const follow = 1 - Math.exp(-delta / 0.13)
+    camera.position.lerp(desired, follow)
+    target.current.lerp(aim, follow)
     camera.lookAt(target.current)
   })
   return null
@@ -218,15 +286,93 @@ type FightersProps = {
   frameRef: RefObject<ArenaFrame | null>
   flashRef: RefObject<ImpactFlash | null>
   mySlot: PlayerSlot
+  board: Board
 }
 
 /** Stands the arena on the Mars terrain at its center. */
 function MarsFighters(props: FightersProps) {
   const sampler = use(loadTerrainSampler())
-  return <Fighters {...props} groundY={sampler.heightAt(0, -0.65)} />
+  return <Fighters {...props} groundY={sampler.heightAt(0, 0)} />
 }
 
-function Fighters({ frameRef, flashRef, mySlot, groundY }: FightersProps & { groundY: number }) {
+const HEX_LINE = new THREE.Color("#ffd7a0")
+
+/**
+ * The hex board on the ground: faint outlines, your cell blue, your rival's
+ * red; while you're engaged (neighboring cells) both glow and a link joins them.
+ */
+function HexBoard({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFrame | null>; mySlot: PlayerSlot; board: Board }) {
+  const cells = useMemo(() => boardCells(board.radius), [board.radius])
+  const outline = useMemo(() => {
+    // One line segment list for every hex edge.
+    const corners = hexCorners(board.hexSize * 0.96)
+    const points: number[] = []
+    for (const cell of cells) {
+      const [cx, cz] = hexToWorld(cell, board.hexSize)
+      for (let i = 0; i < 6; i++) {
+        const [ax, az] = corners[i]
+        const [bx, bz] = corners[(i + 1) % 6]
+        points.push(cx + ax, 0.02, -(cz + az), cx + bx, 0.02, -(cz + bz))
+      }
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute("position", new THREE.Float32BufferAttribute(points, 3))
+    return g
+  }, [cells, board.hexSize])
+  const fill = useMemo(() => {
+    const shape = new THREE.Shape(hexCorners(board.hexSize * 0.92).map(([x, z]) => new THREE.Vector2(x, z)))
+    return new THREE.ShapeGeometry(shape)
+  }, [board.hexSize])
+  const mine = useRef<THREE.Mesh>(null)
+  const theirs = useRef<THREE.Mesh>(null)
+  const link = useRef<THREE.Mesh>(null)
+  const mineMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: COLORS.you, transparent: true, opacity: 0.25, depthWrite: false }), [])
+  const theirsMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: COLORS.rival, transparent: true, opacity: 0.25, depthWrite: false }), [])
+  const rim = (board.radius + 0.75) * board.hexSize * Math.sqrt(3)
+
+  useFrame(() => {
+    const frame = frameRef.current
+    const place = (mesh: THREE.Mesh | null, slot: PlayerSlot) => {
+      const cell = frame?.players.find((p) => p.slot === slot)?.cell
+      if (!mesh) return null
+      mesh.visible = Boolean(cell)
+      if (!cell) return null
+      const [x, z] = hexToWorld(cell, board.hexSize)
+      mesh.position.set(x, 0.015, -z)
+      return mesh.position
+    }
+    const a = place(mine.current, mySlot)
+    const b = place(theirs.current, mySlot === 1 ? 2 : 1)
+    const engaged = Boolean(frame?.engaged)
+    mineMaterial.opacity = engaged ? 0.55 : 0.25
+    theirsMaterial.opacity = engaged ? 0.55 : 0.25
+    if (link.current) {
+      link.current.visible = engaged && a !== null && b !== null
+      if (link.current.visible) placeBetween(link.current, a!.clone().setY(0.03), b!.clone().setY(0.03))
+    }
+  })
+
+  return (
+    <group>
+      <lineSegments geometry={outline}>
+        <lineBasicMaterial color={HEX_LINE} transparent opacity={0.35} />
+      </lineSegments>
+      {/* The shape is drawn in x, z; laying it flat this way keeps its visible side facing up (z flips to three's -z). */}
+      <mesh ref={mine} geometry={fill} material={mineMaterial} rotation={[-Math.PI / 2, 0, 0]} />
+      <mesh ref={theirs} geometry={fill} material={theirsMaterial} rotation={[-Math.PI / 2, 0, 0]} />
+      <mesh ref={link}>
+        <cylinderGeometry args={[0.02, 0.02, 1, 8]} />
+        <meshBasicMaterial color={new THREE.Color(3, 1.2, 0.8)} toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[rim - 0.05, rim, 96]} />
+        <meshBasicMaterial color="#ffd7a0" transparent opacity={0.45} />
+      </mesh>
+    </group>
+  )
+}
+
+function Fighters({ frameRef, flashRef, mySlot, board, groundY }: FightersProps & { groundY: number }) {
   const rivalSlot: PlayerSlot = mySlot === 1 ? 2 : 1
   return (
     <group position={[0, groundY, 0]}>
@@ -236,22 +382,27 @@ function Fighters({ frameRef, flashRef, mySlot, groundY }: FightersProps & { gro
       <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} />
       <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} />
       <Impact flashRef={flashRef} />
-      {/* The two calibrated spots. */}
-      {[0, 1.3].map((z) => (
-        <mesh key={z} position={[0, 0.01, -z]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.32, 0.36, 48]} />
-          <meshBasicMaterial color="#ffd7a0" transparent opacity={0.5} />
-        </mesh>
-      ))}
+      <HexBoard frameRef={frameRef} mySlot={mySlot} board={board} />
     </group>
   )
 }
 
-export function ArenaScene({ frameRef, flashRef, mySlot }: {
-  frameRef: RefObject<ArenaFrame | null>
+/** Reads the frame to draw once per rendered frame, before anything else draws. */
+function FrameSampler({ getFrame, frameRef }: { getFrame: () => ArenaFrame | null; frameRef: RefObject<ArenaFrame | null> }) {
+  useFrame(() => {
+    frameRef.current = getFrame()
+  }, -1)
+  return null
+}
+
+export function ArenaScene({ getFrame, flashRef, mySlot, board }: {
+  /** The arena to draw right now: blended server frames, with your own fighter drawn locally. */
+  getFrame: () => ArenaFrame | null
   flashRef: RefObject<ImpactFlash | null>
   mySlot: PlayerSlot
+  board: Board
 }) {
+  const frameRef = useRef<ArenaFrame | null>(null)
   return (
     <Canvas
       className="arena-canvas"
@@ -260,6 +411,7 @@ export function ArenaScene({ frameRef, flashRef, mySlot }: {
       camera={{ fov: 55, near: 0.05, far: 400, position: [0, 2, 2.5] }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
+      <FrameSampler getFrame={getFrame} frameRef={frameRef} />
       <Suspense
         fallback={
           // Plain floor while the Mars terrain loads, so the duel is playable immediately.
@@ -267,12 +419,12 @@ export function ArenaScene({ frameRef, flashRef, mySlot }: {
             <color attach="background" args={["#1b0f0b"]} />
             <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
             <gridHelper args={[10, 20, "#a8643c", "#4a2a1a"]} />
-            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} groundY={0} />
+            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} />
           </>
         }
       >
         <MarsEnvironment quality="low" obstacles={[]} />
-        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} />
+        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} />
       </Suspense>
       <EffectComposer multisampling={0} enableNormalPass={false}>
         <Bloom mipmapBlur intensity={0.9} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.55} />

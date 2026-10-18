@@ -47,7 +47,15 @@ const view = (health: number): PlayerView => {
     saber: { swinging: false, cooldownEndsInMs: null, paired: false, phoneLive: false, bodyReady: false, saberReady: false },
   })
   const world = { id: "mars" as const, name: "Mars", gravityMps2: 3.7, rockFlightMs: 1302 }
-  return { matchId: "m1", phase: "active", world, result: null, you: player(1), rival: player(2) }
+  return {
+    matchId: "m1",
+    phase: "active",
+    world,
+    result: null,
+    board: { hexSize: 0.75, radius: 2, stepMs: 110 },
+    you: player(1),
+    rival: player(2),
+  }
 }
 
 const pilot = (id: string) => ({ id, callsign: id.toUpperCase(), status: "available" as const, wins: 0, losses: 0 })
@@ -168,7 +176,7 @@ describe("game state", () => {
 })
 
 describe("arena stream", () => {
-  const pose = { tracked: true, joints: [], move: { x: 0, z: 0 }, calibrated: true, setup: null }
+  const pose = { tracked: true, joints: [], calibrated: true, setup: null }
 
   it("streams body poses with increasing seq from page-load time", () => {
     setup()
@@ -192,9 +200,15 @@ describe("arena stream", () => {
     const outcomes: unknown[] = []
     client.onArena((f) => frames.push(f))
     client.onSaberResolved((e) => outcomes.push(e))
-    socket.fire("arena", { players: [] })
+    socket.fire("arena", { serverMs: 0, engaged: false, players: [] })
     socket.fire("saberResolved", { attackerSlot: 2, outcome: "blocked", damage: 0 })
-    expect(frames).toEqual([{ players: [] }])
+    expect(frames).toEqual([{ serverMs: 0, engaged: false, players: [] }])
+    const steps: unknown[] = []
+    client.onStepped((e) => steps.push(e))
+    socket.fire("stepped", { slot: 1, cell: { q: 0, r: 0 } })
+    expect(steps).toEqual([{ slot: 1, cell: { q: 0, r: 0 } }])
+    void client.step("left")
+    expect(socket.last("command").payload).toMatchObject({ type: "step", direction: "left" })
     const readings: unknown[] = []
     client.onPhoneAim((a) => readings.push(a))
     socket.fire("phoneAim", { seq: 1, tracked: true, top: [0, 0, 1], rate: 0 })

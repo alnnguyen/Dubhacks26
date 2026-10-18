@@ -19,6 +19,7 @@ function newMatch(events: Partial<MatchEvents> = {}): Match {
     projectileLanded: (e) => landings.push(e),
     saberResolved: () => {},
     arenaFrame: () => {},
+    stepped: () => {},
     finished: (r) => results.push(r),
     ...events,
   });
@@ -141,6 +142,7 @@ describe("rock", () => {
       projectileLanded: () => {},
       saberResolved: () => {},
       arenaFrame: () => {},
+      stepped: () => {},
       finished: () => {},
     });
     moon.handleCommand(1, { commandId: "r1", type: "ready" });

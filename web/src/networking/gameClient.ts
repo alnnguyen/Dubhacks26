@@ -17,6 +17,7 @@ import type {
   SaberCalibration,
   SaberResolved,
   SaberStatus,
+  StepDirection,
   Weapon,
   World,
 } from "../../../server/src/contracts"
@@ -36,6 +37,7 @@ export type {
   SaberCalibration,
   SaberResolved,
   SaberStatus,
+  StepDirection,
   Weapon,
   World,
 }
@@ -91,6 +93,10 @@ export interface GameClient {
   onPhoneAim(listener: (aim: SaberAim) => void): () => void
   /** Store what the laptop's guided setup measured about your phone. */
   calibrateSaber(calibration: SaberCalibration): Promise<ClientReply>
+  /** A step was accepted (yours or your rival's), ahead of the next arena frame. */
+  onStepped(listener: (event: { slot: 1 | 2; cell: { q: number; r: number } }) => void): () => void
+  /** One step to a neighboring hex, relative to the way you face (forward is toward your rival). */
+  step(direction: StepDirection): Promise<ClientReply>
   /**
    * Stream your own body from the laptop camera (~20 Hz). No reply; a stale
    * pose is useless, so nothing is sent while offline. This module numbers them.
@@ -135,6 +141,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   const landedListeners = new Set<(event: ProjectileLanded) => void>()
   const arenaListeners = new Set<(frame: ArenaFrame) => void>()
   const phoneAimListeners = new Set<(aim: SaberAim) => void>()
+  const steppedListeners = new Set<(event: { slot: 1 | 2; cell: { q: number; r: number } }) => void>()
   const resolvedListeners = new Set<(event: SaberResolved) => void>()
   // Page-load time, like command IDs, so poses after a reload are newer than any before it.
   let nextPose = now()
@@ -178,6 +185,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   socket.on("projectileLanded", (event: ProjectileLanded) => landedListeners.forEach((listener) => listener(event)))
   socket.on("arena", (frame: ArenaFrame) => arenaListeners.forEach((listener) => listener(frame)))
   socket.on("phoneAim", (aim: SaberAim) => phoneAimListeners.forEach((listener) => listener(aim)))
+  socket.on("stepped", (event: { slot: 1 | 2; cell: { q: number; r: number } }) => steppedListeners.forEach((listener) => listener(event)))
   socket.on("saberResolved", (event: SaberResolved) => resolvedListeners.forEach((listener) => listener(event)))
 
   function send(payload: Payload): Promise<ClientReply> {
@@ -209,7 +217,9 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     onProjectileLanded: (listener) => subscribe(landedListeners, listener),
     onArena: (listener) => subscribe(arenaListeners, listener),
     onPhoneAim: (listener) => subscribe(phoneAimListeners, listener),
+    onStepped: (listener) => subscribe(steppedListeners, listener),
     calibrateSaber: (calibration) => send({ type: "calibrateSaber", calibration }),
+    step: (direction) => send({ type: "step", direction }),
     onSaberResolved: (listener) => subscribe(resolvedListeners, listener),
     sendBodyPose: (pose) => {
       if (status !== "online" || !socket.connected) return

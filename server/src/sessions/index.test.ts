@@ -24,6 +24,7 @@ beforeEach(() => {
       projectileLanded: (playerIds, event) => landed.push({ playerIds, event }),
       saberResolved: () => {},
       arenaFrame: () => {},
+      stepped: () => {},
     },
     { pickWorld: () => "moon" },
   );
@@ -178,6 +179,21 @@ describe("matches", () => {
     assert.equal(lobby.matchView(ALICE), null);
     const view = lobby.lobbyView(ALICE);
     assert.deepEqual([view.you.wins, view.pilots[0].losses, view.pilots[0].status], [1, 1, "available"]);
+  });
+
+  test("a step goes through the command path, and a retried commandId doesn't step twice", () => {
+    assert.equal(send(ALICE, { type: "step", direction: "forward" }).status, "rejected", "not in a match");
+    startMatch();
+    assert.equal(send(ALICE, { type: "step", direction: "forward" }, "step-1").status, "accepted");
+    // The retry repeats the first reply instead of stepping again (or being buffered).
+    assert.equal(send(ALICE, { type: "step", direction: "forward" }, "step-1").status, "accepted");
+    // One more is buffered mid-glide; a third is refused.
+    assert.equal(send(ALICE, { type: "step", direction: "left" }, "step-2").status, "accepted");
+    assert.deepEqual(send(ALICE, { type: "step", direction: "left" }, "step-3"), {
+      commandId: "step-3",
+      status: "rejected",
+      reason: "busy",
+    });
   });
 
   test("leaving an unfinished match forfeits it to the opponent", () => {

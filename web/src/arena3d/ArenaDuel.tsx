@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from "react"
-import { FilesetResolver, HandLandmarker, PoseLandmarker } from "@mediapipe/tasks-vision"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision"
 import QRCode from "qrcode"
-import type { ArenaFrame, PlayerView, SaberAim, SetupStep, Vec3 } from "../../../server/src/contracts"
+import type { ArenaFrame, PlayerView, SaberAim, SetupStep, StepDirection, Vec3 } from "../../../server/src/contracts"
 import type { GameClient } from "../networking"
-import { HAND_MODEL_URL, handsFromLandmarker, WASM_ROOT } from "../camera/mediapipeVision"
+import { WASM_ROOT } from "../camera/mediapipeVision"
 import { placement, worldToBody } from "./bodyFrame"
+import { createArenaBuffer, pushFrame, sampleFrame } from "./arenaBuffer"
 import { createStabilizer, stabilize } from "./bodyStabilizer"
-import { createJoystick, pickFreeHand, tickJoystick } from "./pinchJoystick"
+import { withLocalFighter } from "./localFighter"
+import { glideRoot, onOwnStep, reconcile, type OwnGlide } from "./ownGlide"
 import { ArenaScene, type ImpactFlash } from "./ArenaScene"
 import {
   applyCameraFix,
@@ -23,52 +25,42 @@ import "./arena3d.css"
 // The full model's 3D world landmarks are steadier than lite's, and a laptop can afford it.
 const POSE_MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task"
-const BODY_SEND_MS = 50
-const LEFT_WRIST = 15
-const RIGHT_WRIST = 16
+// As often as the server ticks, so the hilt (wrist) is never a tick behind.
+const BODY_SEND_MS = 33
 // A phone reading older than this doesn't count for setup checks.
 const PHONE_FRESH_MS = 300
 
-/** Body (pose) and fingers (hands, for pinch-and-nudge walking), GPU first. */
-async function createTrackers(): Promise<{ pose: PoseLandmarker; hands: HandLandmarker }> {
+/** Body tracking, GPU first. */
+async function createPoseTracker(): Promise<PoseLandmarker> {
   const fileset = await FilesetResolver.forVisionTasks(WASM_ROOT)
   const create = (delegate: "GPU" | "CPU") =>
-    Promise.all([
-      PoseLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate },
-        runningMode: "VIDEO",
-        numPoses: 1,
-        minPoseDetectionConfidence: 0.5,
-        minPosePresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      }),
-      HandLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate },
-        runningMode: "VIDEO",
-        numHands: 2,
-        minHandDetectionConfidence: 0.5,
-        minHandPresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
-      }),
-    ])
+    PoseLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate },
+      runningMode: "VIDEO",
+      numPoses: 1,
+      minPoseDetectionConfidence: 0.5,
+      minPosePresenceConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    })
   try {
-    const [pose, hands] = await create("GPU")
-    return { pose, hands }
+    return await create("GPU")
   } catch {
-    const [pose, hands] = await create("CPU")
-    return { pose, hands }
+    return await create("CPU")
   }
 }
 
-/** Held movement keys to a walking intent in the player's frame. */
-function keysToMove(keys: Set<string>): { x: number; z: number } {
-  const has = (...k: string[]) => k.some((key) => keys.has(key))
-  return {
-    x: (has("d", "arrowright") ? 1 : 0) - (has("a", "arrowleft") ? 1 : 0),
-    z: (has("w", "arrowup") ? 1 : 0) - (has("s", "arrowdown") ? 1 : 0),
-  }
+/** Keyboard fallback: one step per press of WASD or an arrow key. */
+const STEP_KEYS: Record<string, StepDirection> = {
+  w: "forward",
+  arrowup: "forward",
+  s: "back",
+  arrowdown: "back",
+  a: "left",
+  arrowleft: "left",
+  d: "right",
+  arrowright: "right",
 }
-const MOVE_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"])
+const BLOCKED_TOAST_MS = 900
 
 // Setup steps shown as a checklist (the final "done" isn't a step to do).
 const CHECKLIST: SetupStep[] = STEP_ORDER.filter((step) => step !== "done")
@@ -89,7 +81,13 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
   onLeave: () => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  // Latest raw frame (for effect positions) and the buffer the scene plays back smoothly.
   const frameRef = useRef<ArenaFrame | null>(null)
+  const bufferRef = useRef(createArenaBuffer())
+  // This laptop's own body and phone reading, to draw your fighter without the server round trip.
+  const ownRef = useRef<{ joints: Vec3[] | null; top: Vec3 | null; topAtMs: number }>({ joints: null, top: null, topAtMs: 0 })
+  const slotRef = useRef(view.you.slot)
+  slotRef.current = view.you.slot
   const flashRef = useRef<ImpactFlash | null>(null)
   const wizardRef = useRef<WizardState>(createWizard(performance.now()))
   const phoneRef = useRef<{ aim: SaberAim; atMs: number } | null>(null)
@@ -100,28 +98,40 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
   const [error, setError] = useState<string | null>(null)
   const [bodySeen, setBodySeen] = useState(false)
   const [qr, setQr] = useState<string | null>(null)
-  // The pinched hand's nudge, for the on-screen joystick; null while not pinched.
-  const [stick, setStick] = useState<{ x: number; y: number } | null>(null)
-  // Keyboard fallback: hold WASD or arrow keys to walk.
-  const keysRef = useRef(new Set<string>())
+  // Your own step glide, started the moment the server accepts a step (see ownGlide).
+  const ownGlideRef = useRef<OwnGlide | null>(null)
+  const boardRef = useRef(view.board)
+  boardRef.current = view.board
+  const [toast, setToast] = useState<string | null>(null)
+  const toastTimer = useRef<number | undefined>(undefined)
+  const [engaged, setEngaged] = useState(false)
+
+  // Flicks and keys both go through the server's validated step command.
+  const step = useCallback(
+    (direction: StepDirection) => {
+      void client.step(direction).then((reply) => {
+        if (reply.status !== "rejected" || reply.reason !== "blocked") return
+        setToast(direction === "forward" ? "Your rival is there" : "Edge of the arena")
+        window.clearTimeout(toastTimer.current)
+        toastTimer.current = window.setTimeout(() => setToast(null), BLOCKED_TOAST_MS)
+      })
+    },
+    [client],
+  )
+  const stepRef = useRef(step)
+  stepRef.current = step
 
   useEffect(() => {
     const onDown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase()
-      if (!MOVE_KEYS.has(key) || event.target instanceof HTMLInputElement) return
+      const direction = STEP_KEYS[event.key.toLowerCase()]
+      if (!direction || event.repeat || event.target instanceof HTMLInputElement) return
       event.preventDefault()
-      keysRef.current.add(key)
+      stepRef.current(direction)
     }
-    const onUp = (event: KeyboardEvent) => keysRef.current.delete(event.key.toLowerCase())
-    // Switching windows mid-press would otherwise leave you walking.
-    const onBlur = () => keysRef.current.clear()
     window.addEventListener("keydown", onDown)
-    window.addEventListener("keyup", onUp)
-    window.addEventListener("blur", onBlur)
     return () => {
       window.removeEventListener("keydown", onDown)
-      window.removeEventListener("keyup", onUp)
-      window.removeEventListener("blur", onBlur)
+      window.clearTimeout(toastTimer.current)
     }
   }, [])
   const { you, rival } = view
@@ -141,9 +151,19 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
   useEffect(() => {
     const offArena = client.onArena((frame) => {
       frameRef.current = frame
+      setEngaged(frame.engaged)
+      bufferRef.current = pushFrame(bufferRef.current, frame, performance.now())
+    })
+    // Your own accepted steps start gliding right away, ahead of the frames.
+    const offStepped = client.onStepped((event) => {
+      if (event.slot !== slotRef.current) return
+      const { hexSize, stepMs } = boardRef.current
+      ownGlideRef.current = onOwnStep(ownGlideRef.current, event.cell, hexSize, stepMs, performance.now())
     })
     const offPhone = client.onPhoneAim((aim) => {
-      phoneRef.current = { aim, atMs: performance.now() }
+      const now = performance.now()
+      phoneRef.current = { aim, atMs: now }
+      if (aim.tracked) ownRef.current = { ...ownRef.current, top: aim.top, topAtMs: now }
     })
     // Clash sparks between the blades; a hit flashes at the defender's chest.
     const offResolved = client.onSaberResolved((event) => {
@@ -160,6 +180,7 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
     })
     return () => {
       offArena()
+      offStepped()
       offPhone()
       offResolved()
     }
@@ -169,22 +190,19 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
     if (!running) return
     let cancelled = false
     let raf = 0
-    let trackers: { pose: PoseLandmarker; hands: HandLandmarker } | null = null
+    let tracker: PoseLandmarker | null = null
     let stream: MediaStream | null = null
     let lastVideoTime = -1
     let lastSent = 0
     let stabilizer = createStabilizer()
-    let joystick = createJoystick()
-    let shownStick: { x: number; y: number } | null = null
 
     function loop() {
       const video = videoRef.current
-      if (cancelled || !video || !trackers) return
+      if (cancelled || !video || !tracker) return
       if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
         lastVideoTime = video.currentTime
         const now = performance.now()
-        const result = trackers.pose.detectForVideo(video, now)
-        const hands = handsFromLandmarker(trackers.hands.detectForVideo(video, now + 0.001))
+        const result = tracker.detectForVideo(video, now)
         const world = result.worldLandmarks[0]
         const image = result.landmarks[0]
         const aspect = video.videoWidth / video.videoHeight || 16 / 9
@@ -202,18 +220,17 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
           const stable = stabilize(stabilizer, fixed, visibility, now)
           stabilizer = stable.state
           body = stable.joints
+          ownRef.current = { ...ownRef.current, joints: body }
         } else {
+          ownRef.current = { ...ownRef.current, joints: null }
           stabilizer = createStabilizer()
         }
 
         // The free hand, matched to where the body tracker sees the free wrist.
-        const freeIndex = before.hand ? mirrorIndex(before.hand === "right" ? LEFT_WRIST : RIGHT_WRIST, mirrorX) : null
-        const freeWrist = freeIndex !== null && image ? image[freeIndex] : null
-        const freeHand = pickFreeHand(hands, freeWrist ? { x: freeWrist.x, y: freeWrist.y } : null)
 
         const phone = phoneRef.current
         const freshPhone = phone && phone.aim.tracked && now - phone.atMs <= PHONE_FRESH_MS ? phone.aim : null
-        const wizard = tickWizard(before, { nowMs: now, body, placement: place, phone: freshPhone, freeHand, aspect })
+        const wizard = tickWizard(before, { nowMs: now, body, placement: place, phone: freshPhone })
         wizardRef.current = wizard
         if (wizard.step !== before.step || Math.abs(wizard.progress - before.progress) > 0.05) setWizard(wizard)
 
@@ -227,26 +244,11 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
           })
         }
 
-        // Pinch-and-nudge walks once setup has measured the free hand; held keys work any time.
-        let move = keysToMove(keysRef.current)
-        if (wizard.move) {
-          const stepped = tickJoystick(joystick, freeHand, aspect, wizard.move, mirrorX, now)
-          joystick = stepped.state
-          if (joystick.pinched) move = stepped.move
-          const offset = stepped.offset
-          const changed = !offset !== !shownStick || (offset && shownStick && Math.hypot(offset.x - shownStick.x, offset.y - shownStick.y) > 0.04)
-          if (changed) {
-            shownStick = offset
-            setStick(offset ? { x: offset.x / wizard.move.nudge, y: offset.y / wizard.move.nudge } : null)
-          }
-        }
-
         if (now - lastSent >= BODY_SEND_MS) {
           lastSent = now
           client.sendBodyPose({
             tracked: body !== null,
             joints: body ?? [],
-            move,
             calibrated: wizard.baseline !== null,
             setup: { step: wizard.step, progress: wizard.progress },
           })
@@ -266,7 +268,7 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
         const video = videoRef.current!
         video.srcObject = stream
         await video.play()
-        trackers = await createTrackers()
+        tracker = await createPoseTracker()
         if (cancelled) return
         setLoading(false)
         loop()
@@ -282,11 +284,33 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
     return () => {
       cancelled = true
       cancelAnimationFrame(raf)
-      trackers?.pose.close()
-      trackers?.hands.close()
+      tracker?.close()
       stream?.getTracks().forEach((track) => track.stop())
     }
   }, [running, client])
+
+  // What the scene draws each frame: server frames played back smoothly, with your own fighter drawn locally.
+  const getFrame = useCallback(() => {
+    const now = performance.now()
+    const frame = sampleFrame(bufferRef.current, now)
+    if (!frame) return null
+    const own = ownRef.current
+    const wizard = wizardRef.current
+    const fresh = own.joints && own.top && now - own.topAtMs <= PHONE_FRESH_MS && wizard.forward
+    // Where your own step glide has you: frames only overrule it when they keep disagreeing.
+    const { hexSize, stepMs } = boardRef.current
+    const myCell = frame.players.find((p) => p.slot === slotRef.current)?.cell
+    if (myCell) ownGlideRef.current = reconcile(ownGlideRef.current, myCell, hexSize, now)
+    const root = ownGlideRef.current ? glideRoot(ownGlideRef.current, hexSize, stepMs, now) : undefined
+    return withLocalFighter(
+      frame,
+      slotRef.current,
+      fresh
+        ? { joints: own.joints!, top: own.top!, forward: wizard.forward!, mirror: wizard.mirrorAim, hand: wizard.hand ?? "right" }
+        : null,
+      root,
+    )
+  }, [])
 
   function redoSetup() {
     const fresh = createWizard(performance.now())
@@ -302,7 +326,7 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
 
   return (
     <main className="arena-duel">
-      <ArenaScene frameRef={frameRef} flashRef={flashRef} mySlot={you.slot} />
+      <ArenaScene getFrame={getFrame} flashRef={flashRef} mySlot={you.slot} board={view.board} />
 
       <div className="arena-hud">
         <div className="arena-bars">
@@ -373,23 +397,15 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
         </section>
       ) : null}
 
-      {stick ? (
-        <div className="arena-stick" aria-hidden>
-          <div
-            className="arena-stick-knob"
-            style={{ transform: `translate(${clampUnit(stick.x) * 34}px, ${-clampUnit(stick.y) * 34}px)` }}
-          />
-        </div>
-      ) : null}
+      {engaged && wizard.step === "done" ? <div className="arena-engaged">ENGAGED</div> : null}
+      {toast ? <div className="arena-toast" role="status">{toast}</div> : null}
       {wizard.step === "done" ? (
-        <p className="arena-controls">Walk: pinch your free hand and nudge it · let go to stop · or hold WASD / arrow keys</p>
+        <p className="arena-controls">Swipe on your phone with your thumb to move: ↑ in · ↓ out · ← → circle · or WASD</p>
       ) : null}
       <video ref={videoRef} className={`arena-self ${running ? "" : "hidden"}`} playsInline muted autoPlay />
     </main>
   )
 }
-
-const clampUnit = (v: number) => Math.max(-1, Math.min(1, v))
 
 function midpoint(a: Vec3, b: Vec3): Vec3 {
   return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]

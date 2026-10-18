@@ -18,6 +18,7 @@ import type {
   SaberResolved,
   SetupProgress,
   SetupStep,
+  StepDirection,
   Vec3,
   Weapon,
   WorldId,
@@ -35,7 +36,10 @@ import {
   RIGHT_WRIST,
   scale,
   sub,
+  worldToDirection,
+  type Facing,
 } from "./saber3d.js";
+import { BOARD_RADIUS, HEX_SIZE, hexDistance, hexToWorld, neighborToward, onBoard, sameHex, type Hex } from "./hex.js";
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -56,7 +60,7 @@ interface Player {
   projectile: { weapon: Weapon; landsAt: number } | null;
   reconnectEndsAt: number | null;
   saber: Saber;
-  timers: { windup?: Timer; block?: Timer; projectile?: Timer; reconnect?: Timer };
+  timers: { windup?: Timer; block?: Timer; projectile?: Timer; reconnect?: Timer; step?: Timer };
 }
 
 // One player's saber inputs and swing. Times are server receive times.
@@ -66,12 +70,17 @@ interface Saber {
   paired: boolean;
   // From the laptop's guided setup; no blade without it.
   calibration: SaberCalibration | null;
-  // The blade and the player's hips at the previous tick, to sweep from and
-  // to tell a swing from simply moving.
+  // The blade at the previous tick, to sweep from, and its tip in the player's
+  // own body frame, to tell a swing from stepping or turning to face the rival.
   lastBlade: ArenaBlade | null;
-  lastRoot: Vec3 | null;
-  // Where walking has taken the player from their spot (body frame: x right, z forward).
-  position: { x: number; z: number };
+  lastBodyTip: Vec3 | null;
+  // The hex the player stands in (or is stepping to), and the glide there from the last one.
+  cell: Hex;
+  glide: { from: [number, number]; startedAt: number };
+  // No new step until this time: the glide plus a short pause.
+  stepReadyAt: number;
+  // One step asked for mid-glide, taken the moment the current one lands.
+  queuedStep: StepDirection | null;
   swinging: boolean;
   cooldownEndsAt: number | null;
   // Readiness last announced, so a change re-sends the views.
@@ -79,13 +88,18 @@ interface Saber {
 }
 
 const HANDS: readonly Hand[] = ["left", "right"];
+const STEP_DIRECTIONS: readonly StepDirection[] = ["forward", "back", "left", "right"];
+// Start two cells apart, straight across the center from each other.
+const START_CELLS: Record<PlayerSlot, Hex> = { 1: { q: 0, r: -1 }, 2: { q: 0, r: 1 } };
 
-const SETUP_STEPS: readonly SetupStep[] = ["stand", "phone", "forward", "up", "right", "reach", "open", "pinch", "nudge", "done"];
+const SETUP_STEPS: readonly SetupStep[] = ["stand", "phone", "forward", "up", "right", "reach", "done"];
 
 export interface MatchEvents {
   changed: () => void;
   projectileLanded: (event: ProjectileLanded) => void;
   saberResolved: (event: SaberResolved) => void;
+  // A step was accepted: sent at once, ahead of the next arena frame.
+  stepped: (event: { slot: PlayerSlot; cell: Hex }) => void;
   // Both players in the arena, every tick.
   arenaFrame: (frame: ArenaFrame) => void;
   finished: (result: MatchResult) => void;
@@ -153,7 +167,7 @@ export class Match {
       blockCooldownEndsAt: null,
       projectile: null,
       reconnectEndsAt: null,
-      saber: newSaber(),
+      saber: newSaber(START_CELLS[slot]),
       timers: {},
     });
   }
@@ -243,6 +257,58 @@ export class Match {
     return null;
   }
 
+  // One step to a neighboring hex, relative to the player's facing: forward is
+  // toward the rival, left/right circle around them. Allowed from the briefing
+  // on so players can practise during setup.
+  step(slot: PlayerSlot, direction: unknown): RejectReason | null {
+    if (this.phase === "finished") return "match_not_active";
+    if (!STEP_DIRECTIONS.includes(direction as StepDirection)) return "invalid_command";
+    const player = this.players.get(slot)!;
+    const now = Date.now();
+    // Mid-glide: remember one step and take it the moment this one lands, so quick swipes aren't lost.
+    if (now < player.saber.stepReadyAt) {
+      if (player.saber.queuedStep) return "busy";
+      player.saber.queuedStep = direction as StepDirection;
+      player.timers.step = setTimeout(() => {
+        const queued = player.saber.queuedStep;
+        player.saber.queuedStep = null;
+        if (queued && this.phase !== "finished") this.stepTo(player, queued, Date.now());
+      }, player.saber.stepReadyAt - now);
+      return null;
+    }
+    return this.stepTo(player, direction as StepDirection, now);
+  }
+
+  // The one way a player changes hex.
+  private stepTo(player: Player, direction: StepDirection, now: number): RejectReason | null {
+    const rival = this.players.get(player.slot === 1 ? 2 : 1)!;
+    if (now < player.saber.stepReadyAt) return "busy";
+
+    const [fx, fz] = this.facing(player, now);
+    // Body-frame direction to world: right of facing (fx, fz) is (fz, -fx).
+    const world: Record<StepDirection, [number, number]> = {
+      forward: [fx, fz],
+      back: [-fx, -fz],
+      right: [fz, -fx],
+      left: [-fz, fx],
+    };
+    const target = neighborToward(player.saber.cell, world[direction]);
+    // The rival's cell is theirs even while they're still gliding into it.
+    if (!onBoard(target) || sameHex(target, rival.saber.cell)) return "blocked";
+
+    player.saber.glide = { from: this.rootXZ(player, now), startedAt: now };
+    player.saber.cell = target;
+    player.saber.stepReadyAt = now + SABER.stepMs + SABER.stepCooldownMs;
+    // Laptops start your glide on this instead of waiting for the next tick and smooth playback.
+    this.events.stepped({ slot: player.slot, cell: target });
+    return null;
+  }
+
+  // Neighboring hexes: the only time swings count.
+  get engaged(): boolean {
+    return hexDistance(this.players.get(1)!.saber.cell, this.players.get(2)!.saber.cell) === 1;
+  }
+
   // The player's current setup step, for their phone.
   setupProgress(slot: PlayerSlot): SetupProgress | null {
     return this.players.get(slot)!.saber.body.pose?.setup ?? null;
@@ -303,6 +369,7 @@ export class Match {
       phase: snapshot.phase,
       world: snapshot.world,
       result: snapshot.result,
+      board: { hexSize: HEX_SIZE, radius: BOARD_RADIUS, stepMs: SABER.stepMs },
       you: snapshot.players.find((p) => p.slot === slot)!,
       rival: snapshot.players.find((p) => p.slot !== slot)!,
     };
@@ -402,9 +469,8 @@ export class Match {
     const elapsedMs = this.lastTickAt === null ? SABER.tickMs : Math.max(1, now - this.lastTickAt);
     this.lastTickAt = now;
     const players = [...this.players.values()].sort((a, b) => a.slot - b.slot);
-    // Walk first, so this tick's bodies and blades are where the players now stand.
-    if (this.phase !== "finished") for (const p of players) this.walk(p, now, elapsedMs);
-    const fighting = this.phase === "active" && players.every((p) => this.armed(p, now));
+    // Swings count only between fully set-up players in neighboring hexes.
+    const fighting = this.phase === "active" && this.engaged && players.every((p) => this.armed(p, now));
     const blades = new Map(players.map((p) => [p.slot, this.blade(p, now)]));
     const previous = new Map(players.map((p) => [p.slot, p.saber.lastBlade]));
 
@@ -417,11 +483,10 @@ export class Match {
         saber.swinging = false;
         continue;
       }
-      // Measured against the player's own hips, so dashing with the blade held out isn't a swing.
-      const rootNow = this.freshBody(attacker, now) ? this.root(attacker, now) : null;
-      const rootThen = saber.lastRoot ?? rootNow;
-      const moved = rootNow && rootThen ? sub(rootNow, rootThen) : ([0, 0, 0] as Vec3);
-      const speed = length(sub(sub(to.tip, from.tip), moved)) / (elapsedMs / 1000);
+      // Measured in the player's own body frame, so stepping or turning with the blade held still isn't a swing.
+      const tipNow = this.bodyTip(attacker, to, now);
+      const tipThen = saber.lastBodyTip ?? tipNow;
+      const speed = length(sub(tipNow, tipThen)) / (elapsedMs / 1000);
       const coolingDown = saber.cooldownEndsAt !== null && now < saber.cooldownEndsAt;
       if (!saber.swinging) saber.swinging = speed >= SABER.swingStartSpeed && !coolingDown;
       else if (speed < SABER.swingEndSpeed) saber.swinging = false;
@@ -455,12 +520,17 @@ export class Match {
 
     for (const p of players) {
       p.saber.lastBlade = blades.get(p.slot) ?? null;
-      p.saber.lastRoot = this.freshBody(p, now) ? this.root(p, now) : null;
+      const blade = blades.get(p.slot) ?? null;
+      p.saber.lastBodyTip = blade ? this.bodyTip(p, blade, now) : null;
     }
     this.announceReadiness();
     this.events.arenaFrame({
+      serverMs: now,
+      engaged: this.engaged,
       players: players.map((p) => ({
         slot: p.slot,
+        cell: p.saber.cell,
+        facing: this.facing(p, now),
         joints: this.worldJoints(p, now),
         blade: blades.get(p.slot) ?? null,
         swinging: p.saber.swinging,
@@ -497,27 +567,44 @@ export class Match {
     return this.bodyReady(p, now) && this.saberReady(p, now);
   }
 
-  // Moves the player by their latest walking intent; none (or stale input) stands still.
-  private walk(p: Player, now: number, elapsedMs: number): void {
-    const move = this.freshBody(p, now)?.move;
-    if (!move) return;
-    const step = (SABER.walkSpeed * elapsedMs) / 1000;
-    const { position } = p.saber;
-    p.saber.position = clampPosition({ x: position.x + move.x * step, z: position.z + move.z * step });
+  // Where the player's hips are over the board (x, z), gliding from the last hex into the current one.
+  private rootXZ(p: Player, now: number): [number, number] {
+    const to = hexToWorld(p.saber.cell);
+    const { from, startedAt } = p.saber.glide;
+    const t = Math.max(0, Math.min(1, (now - startedAt) / SABER.stepMs));
+    // Ease-out cubic: most of the move happens in the first few frames, so a step feels instant.
+    const eased = 1 - (1 - t) ** 3;
+    return [from[0] + (to[0] - from[0]) * eased, from[1] + (to[1] - from[1]) * eased];
   }
 
-  // The player's hips in the world: their spot, moved by walking.
-  private root(p: Player, _now: number): Vec3 {
-    const { x, z } = p.saber.position;
-    const spot: Vec3 = [0, SABER.hipHeight, p.slot === 1 ? 0 : SABER.separation];
-    return add(spot, directionToWorld([x, 0, z], p.slot));
+  private root(p: Player, now: number): Vec3 {
+    const [x, z] = this.rootXZ(p, now);
+    return [x, SABER.hipHeight, z];
+  }
+
+  private bodyTip(p: Player, blade: ArenaBlade, now: number): Vec3 {
+    return worldToDirection(sub(blade.tip, this.root(p, now)), this.facing(p, now));
+  }
+
+  // Each player always faces the other, so they can circle around each other.
+  private facing(p: Player, now: number): Facing {
+    const rival = this.players.get(p.slot === 1 ? 2 : 1)!;
+    const [x, z] = this.rootXZ(p, now);
+    const [rx, rz] = this.rootXZ(rival, now);
+    const dx = rx - x;
+    const dz = rz - z;
+    const d = Math.hypot(dx, dz);
+    // Never on top of each other, but face the default way if it happens.
+    if (d < 1e-6) return p.slot === 1 ? [0, 1] : [0, -1];
+    return [dx / d, dz / d];
   }
 
   private worldJoints(p: Player, now: number): Vec3[] | null {
     const pose = this.freshBody(p, now);
     if (!pose) return null;
     const root = this.root(p, now);
-    return pose.joints.map((j) => bodyToWorld(j, p.slot, root));
+    const facing = this.facing(p, now);
+    return pose.joints.map((j) => bodyToWorld(j, facing, root));
   }
 
   // Hilt at the saber hand's wrist; blade along the phone's direction.
@@ -527,7 +614,7 @@ export class Match {
     const joints = aim && calibration ? this.worldJoints(p, now) : null;
     if (!aim || !calibration || !joints) return null;
     const hilt = joints[calibration.hand === "left" ? LEFT_WRIST : RIGHT_WRIST];
-    const dir = directionToWorld(bodyDirection(aim.top, calibration), p.slot);
+    const dir = directionToWorld(bodyDirection(aim.top, calibration), this.facing(p, now));
     return { hilt, tip: add(hilt, scale(dir, SABER.bladeLength / length(dir))) };
   }
 
@@ -566,9 +653,10 @@ export class Match {
       this.cancelProjectile(player);
       this.clearBlock(player);
       player.saber.swinging = false;
+      player.saber.queuedStep = null;
+      clearTimeout(player.timers.step);
       player.saber.lastBlade = null;
-      player.saber.lastRoot = null;
-      player.saber.position = { x: 0, z: 0 };
+      player.saber.lastBodyTip = null;
       clearTimeout(player.timers.windup);
       clearTimeout(player.timers.reconnect);
       player.windupEndsAt = null;
@@ -599,24 +687,18 @@ function parseCommand(command: unknown): { commandId: string; type: InMatchComma
   return { commandId, type: type as InMatchCommandType };
 }
 
-// Walking stays inside the arena and never brings the two players' hips closer than minHipGap.
-function clampPosition(p: { x: number; z: number }): { x: number; z: number } {
-  const forwardLimit = (SABER.separation - SABER.minHipGap) / 2;
-  return {
-    x: Math.max(-SABER.maxStepX, Math.min(SABER.maxStepX, p.x)),
-    z: Math.max(-SABER.maxStepBack, Math.min(forwardLimit, p.z)),
-  };
-}
-
-function newSaber(): Saber {
+function newSaber(cell: Hex): Saber {
   return {
     body: { seq: -1, at: null, pose: null },
     aim: { seq: -1, at: null, aim: null },
     paired: false,
     calibration: null,
     lastBlade: null,
-    lastRoot: null,
-    position: { x: 0, z: 0 },
+    lastBodyTip: null,
+    cell,
+    glide: { from: hexToWorld(cell), startedAt: 0 },
+    stepReadyAt: 0,
+    queuedStep: null,
     swinging: false,
     cooldownEndsAt: null,
     announced: "",
@@ -636,21 +718,15 @@ const isSeq = (seq: unknown): seq is number => typeof seq === "number" && Number
 // Joints are hip-centered, so a few meters covers any real body.
 function parseBodyPose(raw: unknown): BodyPose | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const { seq, tracked, joints, calibrated, move } = raw as Record<string, unknown>;
+  const { seq, tracked, joints, calibrated } = raw as Record<string, unknown>;
   if (!isSeq(seq) || typeof tracked !== "boolean" || typeof calibrated !== "boolean") return null;
-  if (typeof move !== "object" || move === null) return null;
-  const { x: mx, z: mz } = move as Record<string, unknown>;
-  if (!isNumberIn(mx, -1, 1) || !isNumberIn(mz, -1, 1)) return null;
-  // A diagonal can't walk faster than straight.
-  const length2 = Math.hypot(mx, mz);
-  const walk = length2 > 1 ? { x: mx / length2, z: mz / length2 } : { x: mx, z: mz };
   const setup = parseSetup((raw as Record<string, unknown>).setup);
   if (setup === undefined) return null;
-  if (!tracked) return { seq, tracked, joints: [], move: walk, calibrated, setup };
+  if (!tracked) return { seq, tracked, joints: [], calibrated, setup };
   if (!Array.isArray(joints) || joints.length !== JOINT_COUNT) return null;
   const parsed = joints.map((j) => parseVec3(j, 3));
   if (parsed.some((j) => j === null)) return null;
-  return { seq, tracked, joints: parsed as Vec3[], move: walk, calibrated, setup };
+  return { seq, tracked, joints: parsed as Vec3[], calibrated, setup };
 }
 
 // undefined is malformed; null is no setup running.

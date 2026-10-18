@@ -18,16 +18,11 @@ export const SABER = {
   bladeRadius: 0.03,
   torsoRadius: 0.17,
   headRadius: 0.12,
-  // Hip centers of the two calibrated spots, this far apart along z: an
-  // outstretched arm plus blade reaches the other torso without stepping.
-  separation: 1.3,
+  // Hips stand this high over the center of their hex (hex spacing is in hex.ts).
   hipHeight: 1.0,
-  // Walking speed at a full pinch-and-nudge (m/s).
-  walkSpeed: 1.1,
-  // How far walking can move you from your spot, and the closest the two hips may get.
-  maxStepX: 1.2,
-  maxStepBack: 1.0,
-  minHipGap: 0.6,
+  // A step glides to the next hex over stepMs; the next step can start stepCooldownMs after it lands.
+  stepMs: 110,
+  stepCooldownMs: 60,
   // Tip speed that starts a swing, and the lower speed that ends it.
   swingStartSpeed: 2.5,
   swingEndSpeed: 1.2,

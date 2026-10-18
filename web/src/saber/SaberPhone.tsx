@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { SetupStep, Vec3 } from "../../../server/src/contracts"
+import type { SetupStep, StepDirection, Vec3 } from "../../../server/src/contracts"
 import { INSTRUCTIONS } from "../arena3d/setupWizard"
-import { angularSpeed, topEdgeDirection } from "./aimMath"
+import { angularSpeed, smoothDirection, topEdgeDirection, type DirectionFilter } from "./aimMath"
 import { createSaberAudio } from "./saberAudio"
 import { createSaberClient, type SaberClient } from "./saberClient"
+import { createSwipe, swipeEnd, swipeMove, swipeStart } from "./swipePad"
 import "./saber.css"
 
-const AIM_SEND_MS = 33
+// About 60 a second, as fast as the phone's sensors report and the server accepts.
+const AIM_SEND_MS = 16
 
 type PermissionResult = "granted" | "denied"
 type WithPermission = { requestPermission?: () => Promise<PermissionResult> }
@@ -30,8 +32,12 @@ export function SaberPhone({ code }: { code: string }) {
   const [error, setError] = useState<string | null>(null)
   const [sensing, setSensing] = useState(false)
   const topRef = useRef<Vec3 | null>(null)
+  const filterRef = useRef<DirectionFilter | null>(null)
   const rateRef = useRef(0)
   const lastStepRef = useRef<SetupStep | null>(null)
+  const padRef = useRef<HTMLDivElement>(null)
+  // The last swipe, for a quick arrow flash: refused swipes flash red.
+  const [swipeFlash, setSwipeFlash] = useState<{ direction: StepDirection; blocked: boolean; key: number } | null>(null)
 
   useEffect(() => {
     const client = createSaberClient(code)
@@ -59,7 +65,9 @@ export function SaberPhone({ code }: { code: string }) {
     if (!enabled || !client) return
     const onOrient = (e: DeviceOrientationEvent) => {
       if (e.alpha == null || e.beta == null) return
-      topRef.current = topEdgeDirection(e.alpha, e.beta)
+      const smoothed = smoothDirection(filterRef.current, topEdgeDirection(e.alpha, e.beta), performance.now())
+      filterRef.current = smoothed.filter
+      topRef.current = smoothed.top
       setSensing(true)
     }
     const onMotion = (e: DeviceMotionEvent) => {
@@ -76,6 +84,48 @@ export function SaberPhone({ code }: { code: string }) {
       window.removeEventListener("deviceorientation", onOrient)
       window.removeEventListener("devicemotion", onMotion)
       window.clearInterval(timer)
+    }
+  }, [enabled, client, audio])
+
+  // Thumb swipes on the pad: native listeners so the page never scrolls or zooms mid-duel.
+  useEffect(() => {
+    const pad = padRef.current
+    if (!enabled || !client || !pad) return
+    let swipe = createSwipe()
+    const point = (t: Touch) => ({ id: t.identifier, x: t.clientX, y: t.clientY, t: performance.now() })
+    const onStart = (e: TouchEvent) => {
+      e.preventDefault()
+      swipe = swipeStart(swipe, point(e.changedTouches[0]), e.touches.length)
+    }
+    const onMove = (e: TouchEvent) => {
+      e.preventDefault()
+      for (const t of Array.from(e.changedTouches)) {
+        const moved = swipeMove(swipe, point(t))
+        swipe = moved.state
+        if (!moved.step) continue
+        const direction = moved.step
+        const key = performance.now()
+        audio.whoosh()
+        setSwipeFlash({ direction, blocked: false, key })
+        void client.step(direction).then((reply) => {
+          if (reply.status !== "rejected" || reply.reason !== "blocked") return
+          audio.thud()
+          setSwipeFlash((current) => (current?.key === key ? { ...current, blocked: true } : current))
+        })
+      }
+    }
+    const onEnd = (e: TouchEvent) => {
+      swipe = swipeEnd(e.touches.length)
+    }
+    pad.addEventListener("touchstart", onStart, { passive: false })
+    pad.addEventListener("touchmove", onMove, { passive: false })
+    pad.addEventListener("touchend", onEnd)
+    pad.addEventListener("touchcancel", onEnd)
+    return () => {
+      pad.removeEventListener("touchstart", onStart)
+      pad.removeEventListener("touchmove", onMove)
+      pad.removeEventListener("touchend", onEnd)
+      pad.removeEventListener("touchcancel", onEnd)
     }
   }, [enabled, client, audio])
 
@@ -160,6 +210,21 @@ export function SaberPhone({ code }: { code: string }) {
           ) : null}
         </section>
       )}
+      {enabled ? (
+        // Thumb swipes move you: up toward your rival, down away, left/right to circle.
+        <div ref={padRef} className="saber-pad" aria-label="Swipe to move">
+          <span className="up">↑</span>
+          <span className="down">↓</span>
+          <span className="left">←</span>
+          <span className="right">→</span>
+          {swipeFlash ? (
+            <span key={swipeFlash.key} className={`flash ${swipeFlash.direction} ${swipeFlash.blocked ? "blocked" : ""}`}>
+              {{ forward: "↑", back: "↓", left: "←", right: "→" }[swipeFlash.direction]}
+            </span>
+          ) : null}
+          <p>Swipe with your thumb to move</p>
+        </div>
+      ) : null}
       {error ? <p className="saber-error">{error}</p> : null}
     </main>
   )

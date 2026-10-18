@@ -58,6 +58,9 @@ export async function startServer(config: Config, options: LobbyOptions = {}): P
       arenaFrame: (playerIds, frame) => {
         for (const id of playerIds) socketsByPlayerId.get(id)?.volatile.emit("arena", frame);
       },
+      stepped: (playerIds, event) => {
+        for (const id of playerIds) socketsByPlayerId.get(id)?.emit("stepped", event);
+      },
     },
     options,
   );
@@ -125,6 +128,17 @@ export async function startServer(config: Config, options: LobbyOptions = {}): P
       const accepted = lobby.handleSaberAim(saberOf, aim);
       // The pilot's laptop checks the phone's readings during setup.
       if (accepted) socketsByPlayerId.get(saberOf)?.volatile.emit("phoneAim", accepted);
+    });
+
+    // A thumb swipe on the phone: a step for the pilot it's paired to, through the normal command path.
+    socket.on("saberStep", (request, reply) => {
+      if (typeof reply !== "function") return;
+      const stepId = String(request?.stepId ?? "");
+      if (saberOf === null || phonesByPlayerId.get(saberOf) !== socket) {
+        reply({ commandId: stepId, status: "rejected", reason: "not_joined" });
+        return;
+      }
+      reply(lobby.handleCommand(saberOf, { commandId: stepId, type: "step", direction: request?.direction }));
     });
 
     socket.on("disconnect", () => {

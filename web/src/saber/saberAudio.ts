@@ -12,6 +12,10 @@ export interface SaberAudio {
   hit(): void
   /** A setup step passed. */
   chime(): void
+  /** A swipe was sent: a quick step. */
+  whoosh(): void
+  /** A step was refused: the edge of the arena or the rival's hex. */
+  thud(): void
   hurt(): void
 }
 
@@ -97,6 +101,14 @@ export function createSaberAudio(): SaberAudio {
     chime() {
       if (!ctx) return
       tone(ctx, 880, 1320, 0.18, 0.3, "sine")
+    },
+    whoosh() {
+      if (!ctx) return
+      noiseBurst(ctx, 0.12, 1400, 0.35)
+    },
+    thud() {
+      if (!ctx) return
+      tone(ctx, 110, 60, 0.18, 0.5, "triangle")
     },
   }
 }

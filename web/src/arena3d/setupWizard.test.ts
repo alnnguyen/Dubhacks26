@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest"
 import type { Vec3 } from "../../../server/src/contracts"
-import type { HandTrack } from "../vision/types"
 import {
   applyCameraFix,
   calibrationOf,
   CAMERA_GIVE_UP_MS,
   createWizard,
-  HAND_GIVE_UP_MS,
   tickWizard,
   type WizardInput,
   type WizardState,
@@ -30,22 +28,12 @@ const LEVEL_AT_SCREEN: Vec3 = [0, 1, 0]
 const UP: Vec3 = [0, 0, 1]
 const EAST: Vec3 = [1, 0, 0]
 
-/** A free hand: wrist to middle knuckle 0.1 tall, thumb and index tips `gap` apart, pinch point shifted by `dx`, `dy`. */
-function hand(gap: number, dx = 0, dy = 0): HandTrack {
-  const lm = Array.from({ length: 21 }, () => ({ x: 0.3 + dx, y: 0.5 + dy }))
-  lm[0] = { x: 0.3 + dx, y: 0.6 + dy }
-  lm[9] = { x: 0.3 + dx, y: 0.5 + dy }
-  lm[4] = { x: 0.3 + dx - gap / 2, y: 0.45 + dy }
-  lm[8] = { x: 0.3 + dx + gap / 2, y: 0.45 + dy }
-  return { id: "free", landmarks: lm }
-}
-
-type Input = Omit<WizardInput, "nowMs" | "freeHand" | "aspect"> & { freeHand?: HandTrack | null }
+type Input = Omit<WizardInput, "nowMs">
 
 /** Feed the same input for `ms` at ~30 fps. */
 function holdFor(state: WizardState, input: Input, startMs: number, ms: number): [WizardState, number] {
   let now = startMs
-  for (; now <= startMs + ms; now += 33) state = tickWizard(state, { freeHand: null, aspect: 1, ...input, nowMs: now })
+  for (; now <= startMs + ms; now += 33) state = tickWizard(state, { ...input, nowMs: now })
   return [state, now]
 }
 
@@ -68,16 +56,6 @@ function runSetup(poses: {
   ;[s, t] = holdFor(s, { body: poses.right.body, placement, phone: { top: poses.right.top, rate: 5 } }, t, 800)
   expect(s.step).toBe("reach")
   ;[s, t] = holdFor(s, { body: poses.reach, placement, phone: { top: LEVEL_AT_SCREEN, rate: 5 } }, t, 600)
-  expect(s.step).toBe("open")
-  const idle = { body: body(), placement, phone: { top: LEVEL_AT_SCREEN, rate: 5 } }
-  ;[s, t] = holdFor(s, { ...idle, freeHand: hand(0.09) }, t, 800)
-  expect(s.step).toBe("pinch")
-  ;[s, t] = holdFor(s, { ...idle, freeHand: hand(0.01) }, t, 800)
-  expect(s.step).toBe("nudge")
-  // Pinched, nudging 0.05 image heights (half a hand size) back and forth.
-  for (let i = 0; i < 60 && s.step === "nudge"; i++) {
-    ;[s, t] = holdFor(s, { ...idle, freeHand: hand(0.01, i % 2 ? 0.05 : 0, 0) }, t, 33)
-  }
   return s
 }
 
@@ -92,10 +70,6 @@ describe("setup wizard", () => {
     expect(s.baseline).toEqual(placement)
     expect(calibrationOf(s)).toEqual({ forward: [0, 1], hand: "right", mirror: false, done: true })
     expect(s.cameraFix).toEqual({ mirrorX: false, flipZ: false })
-    expect(s.move!.open).toBeCloseTo(0.9)
-    expect(s.move!.pinch).toBeCloseTo(0.1)
-    // Biggest nudge 0.5 hand sizes; full speed at 70% of it.
-    expect(s.move!.nudge).toBeCloseTo(0.35)
     expect(s.notes).toEqual([])
   })
 
@@ -144,21 +118,6 @@ describe("setup wizard", () => {
     expect(s.step).toBe("right")
     expect(s.hand).toBe("right")
     expect(s.notes).toHaveLength(1)
-  })
-
-  it("skips the movement steps with defaults when the free hand never shows", () => {
-    let s: WizardState = { ...createWizard(0), step: "open", forward: [0, 1], hand: "right" }
-    ;[s] = holdFor(s, { body: body(), placement, phone: null }, 0, HAND_GIVE_UP_MS + 100)
-    expect(s.step).toBe("done")
-    expect(s.move).not.toBeNull()
-    expect(s.notes[0]).toMatch(/free hand/)
-  })
-
-  it("an open hand that keeps flickering doesn't count as steady", () => {
-    let s: WizardState = { ...createWizard(0), step: "open" }
-    let t = 0
-    for (let i = 0; i < 40; i++) [s, t] = holdFor(s, { body: body(), placement, phone: null, freeHand: hand(i % 2 ? 0.09 : 0.05) }, t, 33)
-    expect(s.step).toBe("open")
   })
 
   it("sends a calibration as soon as there is a heading, marked done only at the end", () => {

@@ -1,4 +1,5 @@
 import type { Vec3 } from "../../../server/src/contracts"
+import { oneEuro, type OneEuro } from "../arena3d/oneEuro"
 
 /**
  * Phone orientation for the saber. The blade comes out of the phone's top edge,
@@ -18,6 +19,21 @@ export function topEdgeDirection(alphaDeg: number, betaDeg: number): Vec3 {
   const a = alphaDeg * DEG
   const b = betaDeg * DEG
   return [-Math.sin(a) * Math.cos(b), Math.cos(a) * Math.cos(b), Math.sin(b)]
+}
+
+/**
+ * Light smoothing of the top-edge direction: steadies sensor jitter when held
+ * still, keeps up with a fast swing. Renormalized so it stays a direction.
+ */
+export type DirectionFilter = [OneEuro, OneEuro, OneEuro]
+
+const DIRECTION_FILTER = { minCutoff: 3, beta: 1, dCutoff: 1 }
+
+export function smoothDirection(filter: DirectionFilter | null, top: Vec3, nowMs: number): { filter: DirectionFilter; top: Vec3 } {
+  const next = [0, 1, 2].map((k) => oneEuro(filter?.[k] ?? null, top[k], nowMs, DIRECTION_FILTER)) as DirectionFilter
+  const v: Vec3 = [next[0]!.value, next[1]!.value, next[2]!.value]
+  const length = Math.hypot(...v) || 1
+  return { filter: next, top: [v[0] / length, v[1] / length, v[2] / length] }
 }
 
 /** Angular speed from devicemotion's rotationRate (degrees/s), for the hum. */

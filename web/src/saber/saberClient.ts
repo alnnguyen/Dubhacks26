@@ -1,6 +1,6 @@
 import { io } from "socket.io-client"
 import type { SocketLike } from "../networking/gameClient"
-import type { PairReply, SaberAim, SaberResolved, SaberStatus } from "../../../server/src/contracts"
+import type { CommandReply, PairReply, SaberAim, SaberResolved, SaberStatus, StepDirection } from "../../../server/src/contracts"
 
 export type SaberConnection = "connecting" | "paired" | "invalid_code" | "offline"
 
@@ -13,6 +13,8 @@ export interface SaberClient {
   onResolved(listener: (event: SaberResolved) => void): () => void
   /** ~30 Hz, no reply; dropped while not paired. This module numbers them. */
   sendAim(aim: Omit<SaberAim, "seq">): void
+  /** A thumb swipe: one step for this phone's pilot. Resolves with the server's reply, or offline when not paired. */
+  step(direction: StepDirection): Promise<CommandReply | { status: "offline" }>
   close(): void
 }
 
@@ -22,7 +24,7 @@ export interface SaberClient {
  */
 export function createSaberClient(
   code: string,
-  createSocket: () => SocketLike & { emit(event: string, payload: unknown): unknown } = () => io(),
+  createSocket: () => SocketLike & { emit(event: string, payload: unknown, ack?: (reply: any) => void): unknown } = () => io(),
 ): SaberClient {
   const socket = createSocket()
   let connection: SaberConnection = "connecting"
@@ -30,6 +32,8 @@ export function createSaberClient(
   let status: SaberStatus | null = null
   // Page-load time, so aims after a reload are newer than any before it.
   let nextSeq = Date.now()
+  // Swipe ids from page-load time too, so a reload never reuses one the server already answered.
+  let nextStep = Date.now()
   const changeListeners = new Set<() => void>()
   const resolvedListeners = new Set<(event: SaberResolved) => void>()
   const changed = () => changeListeners.forEach((listener) => listener())
@@ -80,6 +84,15 @@ export function createSaberClient(
     sendAim: (aim) => {
       if (connection !== "paired" || !socket.connected) return
       socket.volatile.emit("saberAim", { ...aim, seq: nextSeq++ })
+    },
+    step: (direction) => {
+      if (connection !== "paired" || !socket.connected) return Promise.resolve({ status: "offline" as const })
+      const stepId = `s${nextStep++}`
+      return new Promise((resolve) => {
+        socket.timeout(3000).emit("saberStep", { stepId, direction }, (err: Error | null, reply: CommandReply) => {
+          resolve(err ? { status: "offline" } : reply)
+        })
+      })
     },
     close: () => void socket.disconnect(),
   }

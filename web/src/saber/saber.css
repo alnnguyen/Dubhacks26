@@ -65,7 +65,6 @@ body {
 }
 
 .saber-step {
-  margin-top: auto;
   padding: 18px;
   border-radius: 18px;
   background: #0d1a2b;
@@ -97,3 +96,83 @@ body {
   margin: 0;
   color: #ffb4a8;
 }
+
+/* Thumb swipe pad: fills the rest of the screen; no scrolling or zooming. */
+.saber-pad {
+  position: relative;
+  flex: 1;
+  min-height: 38dvh;
+  border-radius: 22px;
+  background: radial-gradient(circle at 50% 50%, #12233a, #070d18 70%);
+  border: 1px solid #2f4a68;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+
+.saber-pad span {
+  position: absolute;
+  font-size: 34px;
+  color: rgba(120, 180, 255, 0.25);
+}
+
+.saber-pad .up {
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.saber-pad .down {
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.saber-pad .left {
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.saber-pad .right {
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.saber-pad p {
+  position: absolute;
+  inset: auto 0 50% 0;
+  transform: translateY(50%);
+  margin: 0;
+  text-align: center;
+  color: #5f7898;
+  pointer-events: none;
+}
+
+/* The swipe that just fired: bright, then fades; red if the server refused it. */
+.saber-pad .flash {
+  inset: 0;
+  transform: none;
+  display: grid;
+  place-items: center;
+  font-size: 120px;
+  font-weight: 800;
+  color: #6fd0ff;
+  text-shadow: 0 0 30px rgba(73, 184, 255, 0.9);
+  animation: saber-pad-flash 0.35s ease-out forwards;
+}
+
+.saber-pad .flash.blocked {
+  color: #ff6a4a;
+  text-shadow: 0 0 30px rgba(255, 90, 60, 0.9);
+}
+
+@keyframes saber-pad-flash {
+  to {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+

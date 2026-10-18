@@ -10,6 +10,7 @@ import type {
   ProjectileLanded,
   RejectReason,
   ArenaFrame,
+  HexCell,
   SaberAim,
   SaberResolved,
   SaberStatus,
@@ -60,6 +61,8 @@ export interface LobbyEvents {
   saberResolved: (playerIds: string[], event: SaberResolved) => void;
   // Both players in the arena, every server tick, to both laptops.
   arenaFrame: (playerIds: string[], frame: ArenaFrame) => void;
+  // A step was accepted, to both laptops at once.
+  stepped: (playerIds: string[], event: { slot: PlayerSlot; cell: HexCell }) => void;
 }
 
 export interface LobbyOptions {
@@ -242,6 +245,10 @@ export class Lobby {
         if (!pilot.match) return "not_in_match";
         return pilot.match.match.setSaberCalibration(pilot.match.slot, command.calibration);
       }
+      case "step": {
+        if (!pilot.match) return "not_in_match";
+        return pilot.match.match.step(pilot.match.slot, command.direction);
+      }
       case "setCallsign": {
         const callsign = normalizeCallsign(command.callsign);
         if (!callsign) return "invalid_command";
@@ -336,6 +343,7 @@ export class Lobby {
         projectileLanded: (event) => this.events.projectileLanded([challenger.playerId, defender.playerId], event),
         saberResolved: (event) => this.events.saberResolved([challenger.playerId, defender.playerId], event),
         arenaFrame: (frame) => this.events.arenaFrame([challenger.playerId, defender.playerId], frame),
+        stepped: (event) => this.events.stepped([challenger.playerId, defender.playerId], event),
         finished: (result) => {
           if (result.winner === null) return;
           seats[result.winner].wins += 1;
