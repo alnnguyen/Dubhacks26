@@ -188,6 +188,7 @@ export interface MatchResult {
 
 export interface MatchSnapshot {
   matchId: string;
+  round?: number; // Starts at 1; increments when both pilots rematch.
   phase: MatchPhase;
   // Counts down once both players are set up, before each round (the first and each rematch);
   // swings and steps don't count until it ends. null before both are set up, and after.
@@ -200,6 +201,7 @@ export interface MatchSnapshot {
 // What one phone receives: its own player as "you", the opponent as "rival".
 export interface PlayerView {
   matchId: string;
+  round?: number;
   phase: MatchPhase;
   startsInMs: number | null;
   world: World;

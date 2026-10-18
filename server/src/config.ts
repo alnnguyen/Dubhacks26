@@ -16,3 +16,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   return { port, allowedOrigins };
 }
+
+/** Replay HTTP uploads follow the same explicit origin list as game HTTP transport. */
+export function isAllowedOrigin(origin: string | undefined, allowedOrigins: string[]): boolean {
+  return !origin || allowedOrigins.includes(origin) || allowedOrigins.includes("*");
+}

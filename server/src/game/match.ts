@@ -127,6 +127,7 @@ export class Match {
   private players = new Map<PlayerSlot, Player>();
   private phase: MatchPhase = "waiting";
   private result: MatchResult | null = null;
+  private round = 1;
   private saberStart: SaberStart = { startsAtMs: null, unlocked: false };
   get saberCombatReady(): boolean { return this.phase === "active" && this.saberStart.unlocked; }
   get saberStartsInMs(): number | null {
@@ -394,6 +395,7 @@ export class Match {
       }));
     return {
       matchId: this.matchId,
+      round: this.round,
       phase: this.phase,
       startsInMs: this.saberStartsInMs,
       world: world(this.worldId),
@@ -406,6 +408,7 @@ export class Match {
     const snapshot = this.toSnapshot();
     return {
       matchId: snapshot.matchId,
+      round: snapshot.round,
       phase: snapshot.phase,
       startsInMs: snapshot.startsInMs,
       world: snapshot.world,
@@ -449,6 +452,7 @@ export class Match {
   // pairing, calibration and the live body and phone streams carry over, so the countdown
   // usually starts on the next tick.
   private startRematch(): void {
+    this.round++;
     for (const p of this.players.values()) {
       const { body, aim, paired, calibration } = p.saber;
       p.saber = { ...newSaber(START_CELLS[p.slot]), body, aim, paired, calibration };

@@ -3,7 +3,7 @@ import { createReplayRecorder, type RecordedReplay } from './recorder';
 import { createArenaRecording, type ArenaRecording } from './arenaRecording';
 import type { GameClient } from '../networking';
 
-export function useReplay(matchId: string | undefined, client: GameClient, enabled: boolean) {
+export function useReplay(matchId: string | undefined, client: GameClient, enabled: boolean, round = 1) {
   const [stored, setStored] = useState<{ matchId: string; clip: RecordedReplay } | null>(null);
   const [status, setStatus] = useState('');
   const [arena, setArena] = useState<ArenaRecording | null>(null);
@@ -20,9 +20,9 @@ export function useReplay(matchId: string | undefined, client: GameClient, enabl
       if (view && view.matchId === matchId && view.phase === 'finished') { capture.finish(view, performance.now()); setArena(capture.snapshot()); }
     });
     return () => { offFrame(); offImpact(); offView(); capture.discard(); current.dispose(); if (recorder.current === current) recorder.current = null; };
-  }, [matchId, client]);
+  }, [matchId, client, round]);
   useEffect(() => { if (!enabled) motion.current?.pause(); }, [enabled]);
-  const start = useCallback((video: HTMLVideoElement) => recorder.current?.start(video) ?? (() => {}), [matchId]);
+  const start = useCallback((video: HTMLVideoElement) => recorder.current?.start(video) ?? (() => {}), [matchId, round]);
   const discard = useCallback(() => { recorder.current?.dispose(); motion.current?.discard(); motion.current = null; setStored(null); setArena(null); setStatus('Replay discarded.'); }, []);
   return { clip: stored && stored.matchId === matchId ? stored.clip : null, arena, status, start, discard };
 }
