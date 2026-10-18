@@ -17,7 +17,10 @@ const initiationPreview = search.get("dev") === "initiation";
 const explore = search.has('explore');
 const soundCheck = search.get('audio') === 'check';
 const neptunePreview=search.get('arena')==='neptune'||search.get('journey')==='neptune';
-const Screen = neptunePreview
+const hudPreview=search.get('dev')==='hud';
+const Screen = hudPreview
+  ? lazy(async()=>{const m=await import('./arena3d/HudPreview');return {default:m.HudPreview};})
+  : neptunePreview
   ? lazy(async()=>{const m=await import('./arena/neptune/NeptunePreview');return {default:m.NeptunePreview};})
   : soundCheck
   ? lazy(async () => { const m = await import('./audio/SoundCheck'); return { default: m.SoundCheck }; })

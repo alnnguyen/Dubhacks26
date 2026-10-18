@@ -291,3 +291,9 @@ Necessary checks only: frontend build/typecheck passed; 50 focused replay/record
 - Resolved six conflicted files (see docs/contracts.md for the decisions) and threaded the arena world into the cinematic replay and exploration copy.
 - Checks actually run after resolution: web `tsc --noEmit` clean; web vitest 193 passed, 1 opt-in live test skipped; `vite build` OK (existing large ExploreApp chunk warning); server `tsc` clean; server tests 111/111.
 - Not verified: a live two-client match on Mars and on Neptune through the new direct-to-setup flow, phone hold-to-ignite on a real iPhone, replay capture on Neptune, exploration → challenge → Neptune travel. Not deployed or pushed.
+
+## Arena battle HUD — `feature/arena-health-ui` (not merged)
+
+- Brand-kit HUD over the arena (`web/src/arena3d/BattleHud.tsx`, `battle-hud.css`): name plates, segmented health with damage trail, stamina with the recover-at-40 mark, hit/knockback/guard-break/stun call-outs, combat log, LYRA line, K.O. → winner card (rematch controls kept). Display only; avatars, combat rules and networking unchanged.
+- No round timer exists on the server, so the centre clock shows elapsed duel time and the winner card shows DUEL TIME (mockup "time left" needs a backend timer first).
+- Preview: `/?dev=hud` (scripted duel over the synthetic arena). Checks: web typecheck, vitest, build; headless screenshots at 1440×900. Not yet seen in a live two-player match.
