@@ -52,7 +52,7 @@ export type DuelHudProps = {
    * in via segmentation. Defaults to true when the world is Mars.
    */
   immersive?: boolean
-  /** Arena formations (e.g. from the room scan). Defaults to a Jezero layout. */
+  /** Optional custom arena formations. Defaults to a Jezero layout. */
   arenaObstacles?: ArenaObstacle[]
 }
 

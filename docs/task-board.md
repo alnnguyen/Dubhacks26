@@ -56,6 +56,12 @@ Full text: `server/src/integrations/HANDOFF.md`.
 
 ## Integrated local rehearsal — October 17
 
-- A/C/D composition on alex-dev: cockpit → world/Voice briefing → **duel HUD** camera → result → cockpit. Duel mode hides lab chrome; `/?camera=1` remains full MediaPipe harness.
-- Provider proofs (Photon fixtures, Grok TTS/S2S/narration) recorded in `docs/sponsor-evidence.md`.
-- B blocker unchanged until `createGamePort` exists.
+- A/C/D composition on alex-dev: cockpit → server-backed world/Voice briefing → **duel HUD** camera → result → cockpit. Duel mode hides lab chrome; `/?camera=1` remains the full MediaPipe harness.
+- Provider proofs (Photon fixtures, Grok TTS/S2S/narration) are recorded in `docs/sponsor-evidence.md`.
+- The server-backed lobby, accepted match, Mars selection, readiness, and combat are integrated. Provider-specific Photon/Voice flows and full two-phone/device validation remain separate follow-up checks.
+
+## Planetary travel roulette — integrated on `mars-arena`
+
+- The accepted server match enters the cockpit roulette when a pilot engages. Mars is selected deterministically; the travel video then hands off to the existing server-backed Mars briefing. The arena starts when the server reports both players ready. Room scanning is intentionally skipped.
+- The existing MediaPipe opponent segmentation, hand/pose tracking, touch controls, server-authoritative combat, and Mars arena remain the live duel path.
+- The 3.6-second roulette, locally supplied planet textures, Sun map, flight video, and texture attribution are committed with the feature. Mobile Safari and real two-device behavior still require manual verification.

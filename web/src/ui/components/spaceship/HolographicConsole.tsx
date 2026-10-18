@@ -5,7 +5,8 @@ import { LAYOUT } from './cockpitLayout';
 import { makeRadialTexture } from './textures';
 import type { AnchorRegistry } from './anchors';
 import type { NearbyPilot } from '../../state/lobbyTypes';
-import { bindUniforms } from '../../../three/bindUniforms'
+import { bindUniforms } from '../../../three/bindUniforms';
+import type { CinematicPhase } from '../../cinematics/sequence';
 
 const CYAN = new THREE.Color(0.35, 0.86, 1.0);
 const ORANGE = new THREE.Color(1.0, 0.55, 0.2);
@@ -98,6 +99,7 @@ export interface HolographicConsoleProps {
   interactive: 'globe' | 'blips' | 'none';
   alert: boolean;
   boost: boolean;
+  cinematicPhase?: CinematicPhase;
   reducedMotion: boolean;
   quality: 'high' | 'low';
   anchors: AnchorRegistry;
@@ -196,7 +198,7 @@ function Blip({
   );
 }
 
-export function HolographicConsole({ pilots, selectedId, interactive, alert, boost, reducedMotion, quality, anchors, onActivate, onSelect }: HolographicConsoleProps) {
+export function HolographicConsole({ pilots, selectedId, interactive, alert, boost, cinematicPhase = 'idle', reducedMotion, quality, anchors, onActivate, onSelect }: HolographicConsoleProps) {
   const { center, radius: R } = LAYOUT.hologram;
   const globe = useRef<THREE.Group>(null);
   const rings = useRef<THREE.Group>(null);
@@ -205,6 +207,8 @@ export function HolographicConsole({ pilots, selectedId, interactive, alert, boo
   const [hover, setHover] = useState(false);
   const color = useMemo(() => CYAN.clone(), []);
   const intensity = useRef(1);
+  const globeScale = useRef(1);
+  const cinematic = cinematicPhase !== 'idle';
 
   const globeU = useMemo(() => ({ uTime: { value: 0 }, uColor: { value: color }, uIntensity: { value: 1 } }), [color]);
   const discU = useMemo(() => ({ uSweep: { value: 0 }, uColor: { value: color }, uIntensity: { value: 1 } }), [color]);
@@ -228,11 +232,14 @@ export function HolographicConsole({ pilots, selectedId, interactive, alert, boo
 
   useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime;
-    const speed = reducedMotion ? 0.25 : 1;
+    const speed = reducedMotion ? 0.25 : cinematic ? 1.65 : 1;
     sweep.current = (sweep.current + dt * 1.6 * speed) % TAU;
-    color.lerp(alert ? ORANGE : CYAN, 1 - Math.exp(-dt * 4));
-    const target = (boost ? 1.45 : 1) * (hover && interactive === 'globe' ? 1.25 : 1) * (alert ? 1.1 + Math.sin(t * 6) * 0.15 : 1);
+    color.lerp(alert || cinematic ? ORANGE : CYAN, 1 - Math.exp(-dt * 4));
+    const target = (cinematic ? cinematicPhase === 'activating' ? 2.0 : 0.15 : boost ? 1.45 : 1) * (hover && interactive === 'globe' ? 1.25 : 1) * (alert ? 1.1 + Math.sin(t * 6) * 0.15 : 1);
     intensity.current = THREE.MathUtils.damp(intensity.current, target, 5, dt);
+    const globeTarget = cinematic ? cinematicPhase === 'activating' ? 1.18 : 0.025 : 1;
+    globeScale.current = THREE.MathUtils.damp(globeScale.current, globeTarget, cinematicPhase === 'activating' ? 3 : 5, dt);
+    if (globe.current) globe.current.scale.setScalar(globeScale.current);
     globeU.uTime.value = t * speed;
     globeU.uIntensity.value = intensity.current;
     discU.uSweep.value = sweep.current;
@@ -302,28 +309,32 @@ export function HolographicConsole({ pilots, selectedId, interactive, alert, boo
       </group>
 
       {/* Radar plane with sweep, and nearby pilot blips */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[R * 1.2, 64]} />
-        <shaderMaterial vertexShader={DISC_VERT} fragmentShader={DISC_FRAG} uniforms={discU} ref={bindUniforms(discU)} side={THREE.DoubleSide} {...additive} />
-      </mesh>
-      <mesh position={[0, 0.02, 0]}>
-        <octahedronGeometry args={[0.018, 0]} />
-        <meshBasicMaterial color={[2.5, 2.6, 2.8]} toneMapped={false} />
-      </mesh>
-      {pilots.map((p, i) => (
-        <Blip
-          key={p.id}
-          pilot={p}
-          index={i}
-          radius={R * 1.15}
-          selected={p.id === selectedId}
-          interactive={interactive === 'blips'}
-          sweep={sweep}
-          anchors={anchors}
-          onSelect={onSelect}
-        />
-      ))}
-      <pointLight color={alert ? '#ff9a4a' : '#5fd8ff'} intensity={boost ? 2.6 : 1.8} distance={2.6} decay={2} />
+      {cinematicPhase === 'idle' && (
+        <>
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[R * 1.2, 64]} />
+            <shaderMaterial vertexShader={DISC_VERT} fragmentShader={DISC_FRAG} uniforms={discU} ref={bindUniforms(discU)} side={THREE.DoubleSide} {...additive} />
+          </mesh>
+          <mesh position={[0, 0.02, 0]}>
+            <octahedronGeometry args={[0.018, 0]} />
+            <meshBasicMaterial color={[2.5, 2.6, 2.8]} toneMapped={false} />
+          </mesh>
+          {pilots.map((p, i) => (
+            <Blip
+              key={p.id}
+              pilot={p}
+              index={i}
+              radius={R * 1.15}
+              selected={p.id === selectedId}
+              interactive={interactive === 'blips'}
+              sweep={sweep}
+              anchors={anchors}
+              onSelect={onSelect}
+            />
+          ))}
+        </>
+      )}
+      <pointLight color={cinematic || alert ? '#ff9a4a' : '#5fd8ff'} intensity={cinematic ? 3 : boost ? 2.6 : 1.8} distance={2.6} decay={2} />
     </group>
   );
 }
