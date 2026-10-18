@@ -20,9 +20,6 @@ import '../../onboarding/onboarding.css';
 
 const SpaceshipScene = lazy(() => import('../components/spaceship/SpaceshipScene').then((m) => ({ default: m.SpaceshipScene })));
 const ExploreApp = lazy(() => import('./ExploreApp').then((m) => ({ default: m.ExploreApp })));
-const HyperspaceTunnel = lazy(() =>
-  import('../../onboarding/HyperspaceTunnel').then((m) => ({ default: m.HyperspaceTunnel })),
-);
 
 export interface SpaceshipHomeProps {
   /** Real lobby adapter from the multiplayer module. Uses local mocks when omitted. */
@@ -41,7 +38,8 @@ export interface SpaceshipHomeProps {
 
 /** Time for CameraController to ease into the seat before the drive warp. */
 const SEAT_EASE_MS = 1600;
-const SEAT_WARP_MS = 2000;
+/** Forward push + fade from the seat into flight (replaces the hyperspace tunnel cut). */
+const SEAT_PUSH_MS = 1100;
 
 type BridgePhase = 'bridge' | 'boarding' | 'warping' | 'drive';
 
@@ -157,6 +155,8 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
   }, [view, phase, settings.reducedMotion]);
 
   const sitInPilot = useCallback(() => {
+    // Warm the flight-mode code while the camera eases into the seat.
+    void import('./ExploreApp');
     setView('pilot');
     setPhase('boarding');
   }, []);
@@ -172,6 +172,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
 
   const navigate = useCallback((v: LobbyView) => {
     if (v === 'pilot') {
+      void import('./ExploreApp');
       setView('pilot');
       setPhase('boarding');
       return;
@@ -359,21 +360,18 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
 
       <div
         className="sd-launch"
-        data-active={(challenge.kind === 'launching' && !travelActive) || phase === 'warping'}
-        aria-hidden={(challenge.kind !== 'launching' || travelActive) && phase !== 'warping'}
+        data-active={challenge.kind === 'launching' && !travelActive}
+        aria-hidden={challenge.kind !== 'launching' || travelActive}
       >
-        <p>{phase === 'warping' ? 'Opening the void…' : 'Expanding domain…'}</p>
+        <p>Expanding domain…</p>
       </div>
 
+      {/* Seat → flight: the camera pushes toward the glass while the cockpit fades into the void flight mode boots from. */}
       {phase === 'warping' && (
-        <Suspense fallback={<div className="ob-warp" />}>
-          <HyperspaceTunnel
-            active
-            caption="Launching free flight…"
-            durationMs={settings.reducedMotion ? 400 : SEAT_WARP_MS}
-            onFinished={() => setPhase('drive')}
-          />
-        </Suspense>
+        <div className="sd-seat-launch" aria-hidden style={{ animationDuration: `${settings.reducedMotion ? 250 : SEAT_PUSH_MS}ms` }}
+          onAnimationEnd={(e) => { if (e.target === e.currentTarget) setPhase('drive'); }}>
+          <p>Engaging flight systems</p>
+        </div>
       )}
 
       <div className="sd-launch" data-active={challenge.kind === 'launching' && !travelActive} aria-hidden={challenge.kind !== 'launching' || travelActive}>
