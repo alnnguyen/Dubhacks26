@@ -4,6 +4,7 @@ import type { ClientToServerEvents, ServerToClientEvents, MatchSnapshot, Command
 import type { BattleCommand } from '../vision/types';
 import { CameraDebugPage } from '../camera/CameraDebugPage';
 import { commandBridge } from './liveCommands';
+import { accentCss, loadPilotIdentity } from './pilotIdentity';
 import './flight.css';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -16,6 +17,10 @@ function storedPilot() {
 }
 export function LiveDuel() {
   const [pilot] = useState(storedPilot);
+  const identity = loadPilotIdentity();
+  const callsign = identity?.callsign ?? 'PILOT';
+  const shipName = identity?.shipName ?? 'UNNAMED HULL';
+  const accent = identity?.accent ?? 'cyan';
   const socketRef = useRef<GameSocket | null>(null);
   const snapshotRef = useRef<MatchSnapshot | null>(null);
   const slotRef = useRef<PlayerSlot | null>(null);
@@ -75,16 +80,18 @@ export function LiveDuel() {
   const elapsed = Math.max(0, now - receivedAt);
   const remaining = (ms: number | null | undefined) => Math.max(0, (ms ?? 0) - elapsed);
   const result = snapshot?.result;
-  return <main className="flight-flow">
+  return <main className="flight-flow" style={{ ['--ob-accent' as string]: accentCss(accent) }}>
     <header className="flight-header"><span>LIVE TWO-PLAYER / MARS</span><a href="/">Back to cockpit</a></header>
     <section className="flight-panel">
       <h1>Two-player duel</h1>
       <p>Both players open this same link. Each presses Join duel. The second join starts the round automatically.</p>
-      <p className="flight-notice">Real shared combat · one demo room · Mars only. Cockpit invitations, Photon and Voice are not connected to this live mode yet.</p>
+      <p className="flight-notice" style={{ borderColor: accentCss(accent) }}>
+        Flying as <strong>{callsign}</strong> aboard <strong>{shipName}</strong>. Real shared combat · one demo room · Mars only. Cockpit invitations, Photon and Voice are not connected to this live mode yet.
+      </p>
       <p role="status">{note}</p>
       {!joined && <button className="flight-primary" onClick={() => { const s = socketRef.current; if (s?.connected) { s.disconnect(); s.connect(); } else s?.connect(); }}>Join duel / Reconnect</button>}
-      <p><strong data-testid="live-phase">{snapshot?.phase ?? 'not joined'}</strong> · {slot ? `You are Pilot ${slot}` : 'No pilot slot'} · {connected ? 'network connected' : 'network disconnected'}</p>
-      <div className="flight-health"><strong data-testid="self-health">Your health: {self?.health ?? '—'}</strong><strong data-testid="rival-health">Rival health: {rival?.health ?? '—'}</strong></div>
+      <p><strong data-testid="live-phase">{snapshot?.phase ?? 'not joined'}</strong> · {slot ? `You are Pilot ${slot} (${callsign})` : 'No pilot slot'} · {connected ? 'network connected' : 'network disconnected'}</p>
+      <div className="flight-health"><strong data-testid="self-health">{callsign}: {self?.health ?? '—'}</strong><strong data-testid="rival-health">Rival health: {rival?.health ?? '—'}</strong></div>
       <p>Throw cooldown: {(remaining(self?.throwCooldownEndsInMs) / 1000).toFixed(1)} s · shield {self?.block.active ? 'UP' : 'down'} · rival {rival?.connected ? 'connected' : 'not connected'}</p>
       {active && <div className="controls"><button onClick={() => sendType('throwRock')}>Throw rock</button><button onClick={() => sendType('startBlock')}>Block (up to 1.5s)</button><button onClick={() => sendType('endBlock')}>Lower shield</button><button disabled={!lastCommand} onClick={() => lastCommand && send(lastCommand)}>Retry last command</button></div>}
       {snapshot?.phase === 'waiting' && <p>Send this link to Alan. His Join duel will activate your match.</p>}

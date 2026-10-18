@@ -14,6 +14,10 @@ export type PilotStatus = 'available' | 'in-duel' | 'away';
 export interface PilotProfile {
   id: string;
   callsign: string;
+  /** Display-only hull name from onboarding. */
+  shipName?: string;
+  /** Hardcoded accent: cyan | amber | violet. */
+  accent?: 'cyan' | 'amber' | 'violet';
   rank: string;
   /** Wins / losses, display only. */
   record: { wins: number; losses: number };

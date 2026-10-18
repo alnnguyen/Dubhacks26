@@ -1,0 +1,173 @@
+.ob-root {
+  min-height: 100dvh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  box-sizing: border-box;
+  color: #e8f4ff;
+  background:
+    radial-gradient(ellipse at 20% 0%, color-mix(in srgb, var(--ob-accent, #3de0ff) 28%, transparent), transparent 55%),
+    radial-gradient(ellipse at 80% 100%, rgba(20, 40, 80, 0.55), transparent 50%),
+    linear-gradient(160deg, #050b14, #0a1628 55%, #071018);
+  font: 16px/1.45 system-ui, sans-serif;
+}
+
+.ob-panel {
+  width: min(420px, 100%);
+  padding: 1.5rem 1.35rem 1.75rem;
+  border: 1px solid color-mix(in srgb, var(--ob-accent, #3de0ff) 35%, #2a4060);
+  border-radius: 14px;
+  background: rgba(6, 14, 26, 0.88);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.ob-eyebrow {
+  margin: 0;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  color: color-mix(in srgb, var(--ob-accent, #3de0ff) 80%, #fff);
+}
+
+.ob-title {
+  margin: 0.35rem 0 0.5rem;
+  font-size: clamp(1.6rem, 5vw, 2rem);
+  line-height: 1.15;
+}
+
+.ob-lede {
+  margin: 0 0 1.25rem;
+  color: #9db4cc;
+  font-size: 0.92rem;
+}
+
+.ob-form {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.ob-field {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8eabc4;
+}
+
+.ob-field input {
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #f2f8ff;
+  background: #0c1828;
+  border: 1px solid #35506a;
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+}
+
+.ob-field input:focus {
+  outline: 2px solid color-mix(in srgb, var(--ob-accent, #3de0ff) 70%, #fff);
+  outline-offset: 1px;
+}
+
+.ob-accents {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ob-accents legend {
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8eabc4;
+  margin-bottom: 0.45rem;
+}
+
+.ob-accent-row {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ob-accent {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: #0c1828;
+  border: 1px solid #35506a;
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+}
+
+.ob-accent[data-active='true'] {
+  border-color: var(--swatch, #3de0ff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--swatch, #3de0ff) 50%, transparent);
+}
+
+.ob-swatch {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: var(--swatch, #3de0ff);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--swatch, #3de0ff) 55%, transparent);
+}
+
+.ob-preview {
+  display: flex;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.85rem;
+  border-radius: 10px;
+  background: rgba(12, 24, 40, 0.9);
+  border: 1px solid #2c425c;
+}
+
+.ob-preview-emblem {
+  width: 3rem;
+  height: 3rem;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #041018;
+  background: var(--ob-accent, #3de0ff);
+}
+
+.ob-preview strong {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.ob-preview p {
+  margin: 0.15rem 0 0;
+  color: #9db4cc;
+  font-size: 0.88rem;
+}
+
+.ob-preview em {
+  font-style: normal;
+  color: #d7e8f8;
+}
+
+.ob-submit {
+  font: inherit;
+  font-weight: 600;
+  color: #041018;
+  background: var(--ob-accent, #3de0ff);
+  border: 0;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+}
+
+.ob-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

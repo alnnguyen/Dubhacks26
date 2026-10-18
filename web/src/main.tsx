@@ -18,8 +18,8 @@ const Screen = live
         return { default: m.CameraDebugPage };
       })
     : lazy(async () => {
-        const m = await import('./ui/screens/SpaceshipHome');
-        return { default: m.SpaceshipHome };
+        const m = await import('./ui/screens/BridgeApp');
+        return { default: m.BridgeApp };
       });
 
 const root = document.getElementById('root');
