@@ -60,6 +60,19 @@ export function savePilotIdentity(identity: PilotIdentity): PilotIdentity {
   return next;
 }
 
+/**
+ * A callsign changed after onboarding (cockpit settings): stored with the rest of
+ * the identity so a reload keeps it. Returns the sanitized callsign, or null if
+ * nothing usable was typed.
+ */
+export function savePilotCallsign(raw: string): string | null {
+  const callsign = sanitizeCallsign(raw);
+  if (!callsign) return null;
+  const identity = loadPilotIdentity();
+  if (identity) savePilotIdentity({ ...identity, callsign });
+  return callsign;
+}
+
 export function clearPilotIdentity(): void {
   try {
     localStorage.removeItem(PILOT_STORAGE_KEY);
