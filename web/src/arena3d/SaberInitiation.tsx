@@ -43,6 +43,9 @@ export interface SaberInitiationProps {
   saberUrl: string;
   notes: string[];
   error: string | null;
+  /** Local replay opt-in. Off until the pilot presses the toggle. */
+  replayEnabled?: boolean;
+  onReplayEnabled?: (enabled: boolean) => void;
   extraOptions?: ReactNode;
   onStart: () => void;
   onRedo: () => void;
@@ -110,6 +113,12 @@ export function SaberInitiation(p: SaberInitiationProps) {
       {missingStart && <p className="si-error" role="alert">The match host needs the updated countdown server. Rejoin after the host updates.</p>}
       {p.error && <p className="si-error" role="alert">{p.error}</p>}
       {!p.running && <div className="si-actions"><button type="button" className="si-primary" onClick={p.onStart}>{p.error ? "Retry camera" : "Start camera"}<span>↗</span></button></div>}
+      {p.onReplayEnabled && <div className="si-replay-optin">
+        <button type="button" className="si-replay-toggle" aria-pressed={!!p.replayEnabled} onClick={() => p.onReplayEnabled?.(!p.replayEnabled)}>
+          {p.replayEnabled ? "Recording on" : "Record this duel"}
+        </button>
+        <p>Everyone visible must agree. Upload is a separate choice after the duel.</p>
+      </div>}
       <details className="si-setup-options"><summary>Setup options</summary>{p.extraOptions}<div className="si-actions"><button type="button" className="si-redo" onClick={() => setMovementOpen(v => !v)}>{movementOpen ? "Back to setup" : "Movement controls"}</button>{p.running && <button type="button" className="si-redo" onClick={p.onRedo} disabled={p.loading}>Restart setup</button>}</div>{p.notes.map(n=><p className="si-notes" key={n}>{n}</p>)}</details>
     </div>
     <div className="si-live-window" data-panel={panel}>

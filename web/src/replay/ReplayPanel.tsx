@@ -121,11 +121,13 @@ export function ReplayPanel({ client, matchId, clip, status, onDiscard, arena, b
         <a href={url} download={`duel-${matchId}.${clip.video.type.includes('mp4') ? 'mp4' : 'webm'}`}>Save original ({Math.round(clip.duration)}s)</a>
         <button disabled={busy} onClick={() => { stopReel(); onDiscard(); }}>Discard local recording</button>
       </div>
-      {!result && <>
-        <label className="replay-consent"><input type="checkbox" checked={consent} disabled={busy} onChange={e => setConsent(e.target.checked)} />
-          Everyone visible agrees to send this silent webcam clip to Perceptron for highlight analysis.</label>
+      {!result && <div className="replay-consent-row">
+        <button type="button" className="replay-allow" aria-pressed={consent} disabled={busy} onClick={() => setConsent(v => !v)}>
+          {consent ? 'Upload allowed' : 'Allow Perceptron upload'}
+        </button>
+        <p>Everyone visible agrees to send this silent webcam clip to Perceptron for highlight analysis.</p>
         <button className="flight-primary" disabled={!consent || busy} onClick={() => void analyze()}>{busy ? 'Directing your replay…' : 'Create AI highlights'}</button>
-      </>}
+      </div>}
       {reply && !reply.ok && <p role="alert">{ERRORS[reply.reason] ?? `Replay unavailable (${reply.reason}).`}</p>}
       {result && <>
         <p className="replay-credit">Moments and captions: Perceptron · cuts and slow motion: {BRAND_NAME}.

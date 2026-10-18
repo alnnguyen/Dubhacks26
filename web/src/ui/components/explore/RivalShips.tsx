@@ -3,20 +3,19 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { Vector3, type Group } from 'three';
 import { SOLAR_BODIES, bodyWorldPosition } from './bodies';
-import { LOCAL_OBJECT_INDEX } from './localObjects';
-import { LocalNavigation, localStarPosition } from './localNavigation';
+import { LocalNavigation } from './localNavigation';
 import type { NearbyPilot } from '../../state/lobbyTypes';
 
-type Anchor = { position: Vector3; radius: number };
+type Anchor = { id: 'mars' | 'neptune'; position: Vector3; radius: number; label: string };
 
-/** Where a reported location sits in the shared local frame, if it is part of the local universe. */
-export function rivalAnchor(bodyId: string): Anchor | null {
-  const body = SOLAR_BODIES.find((b) => b.id === bodyId);
-  if (body) return { position: new Vector3(...bodyWorldPosition(body)), radius: body.radius };
-  const object = LOCAL_OBJECT_INDEX.get(bodyId);
-  if (object) return { position: new Vector3(...object.position), radius: Math.max(object.radius, 1) };
-  const star = localStarPosition(bodyId);
-  return star ? { position: new Vector3(...star), radius: 14 } : null;
+function arenaAnchor(bodyId: 'mars' | 'neptune'): Anchor {
+  const body = SOLAR_BODIES.find((b) => b.id === bodyId)!;
+  return {
+    id: bodyId,
+    position: new Vector3(...bodyWorldPosition(body)),
+    radius: body.radius,
+    label: body.name,
+  };
 }
 
 function phaseOf(id: string) {
@@ -25,21 +24,30 @@ function phaseOf(id: string) {
   return (hash % 628) / 100;
 }
 
+/** Stable Mars / Neptune home for a pilot. Not live pose — illustrative orbit only. */
+function arenaHome(id: string): 'mars' | 'neptune' {
+  let hash = 0;
+  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return hash % 2 === 0 ? 'mars' : 'neptune';
+}
+
 /**
- * Other pilots' ships, circling the body each one reported. Positions are illustrative:
- * the server only knows a coarse place per pilot, never coordinates.
+ * Other pilots' ships orbit Mars or Neptune. Positions are illustrative:
+ * the server never streams free-flight coordinates.
  */
 export function RivalShips({ navigation, rivals, onSelect }: { navigation: LocalNavigation; rivals: NearbyPilot[]; onSelect: (id: string) => void }) {
+  const mars = useMemo(() => arenaAnchor('mars'), []);
+  const neptune = useMemo(() => arenaAnchor('neptune'), []);
   const placed = useMemo(() => {
     const perBody = new Map<string, number>();
-    return rivals.flatMap((pilot) => {
-      const anchor = pilot.location && rivalAnchor(pilot.location.bodyId);
-      if (!anchor || !pilot.location) return [];
-      const slot = perBody.get(pilot.location.bodyId) ?? 0;
-      perBody.set(pilot.location.bodyId, slot + 1);
-      return [{ pilot, anchor, slot, phase: phaseOf(pilot.id) }];
+    return rivals.map((pilot) => {
+      const home = arenaHome(pilot.id);
+      const anchor = home === 'mars' ? mars : neptune;
+      const slot = perBody.get(home) ?? 0;
+      perBody.set(home, slot + 1);
+      return { pilot, anchor, slot, phase: phaseOf(pilot.id) };
     });
-  }, [rivals]);
+  }, [rivals, mars, neptune]);
   return (
     <group name="rival-ships">
       {placed.map((p) => <RivalShip key={p.pilot.id} {...p} navigation={navigation} onSelect={onSelect} />)}
@@ -96,7 +104,7 @@ function RivalShip({ pilot, anchor, slot, phase, navigation, onSelect }: {
           onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onSelect(pilot.id); }}
           aria-label={inDuel ? `${pilot.callsign} is in a duel` : `Select ${pilot.callsign} to challenge`}>
           <span className="ex-rival-label__mark" aria-hidden>⚔</span>{pilot.callsign}
-          <small>{inDuel ? 'IN DUEL' : `near ${pilot.location?.label}`}</small>
+          <small>{inDuel ? 'IN DUEL' : `near ${anchor.label}`}</small>
         </button>
       </Html>
     </group>

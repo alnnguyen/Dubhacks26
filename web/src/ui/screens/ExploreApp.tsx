@@ -1,3 +1,4 @@
+import { FlightControlsLesson } from '../components/explore/FlightControlsLesson';
 import { BRAND_NAME } from '../brand';
 import { AnimatePresence, motion } from 'motion/react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -86,7 +87,7 @@ export function ExploreApp(props: ExploreAppProps = {}) {
     {entryMode !== null && <ExploreFlight {...props} entryMode={entryMode} />}
     <AnimatePresence initial={false}>
       {entryMode === null && <motion.div key="mode-choice" className="ex-entry-choice"
-        exit={{opacity:0}} transition={{duration:props.settings?.reducedMotion ? .15 : .4}}>
+        exit={{opacity:0}} transition={{duration:props.settings?.reducedMotion ? .15 : .8}}>
         <ExploreIntro initialMode={initialMode()} reducedMotion={props.settings?.reducedMotion}
           onEnter={setEntryMode} onBack={() => props.onExit ? props.onExit() : window.location.assign('/')} />
       </motion.div>}
@@ -138,10 +139,10 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
   const [highlightLayer,setHighlightLayer]=useState(-1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sceneReady, setSceneReady] = useState(false);
-  const [entryWarpDone, setEntryWarpDone] = useState(false);
-  const [entryRevealed, setEntryRevealed] = useState(false);
-  useEffect(() => { if (entryWarpDone && sceneReady) setEntryRevealed(true); }, [entryWarpDone, sceneReady]);
-  const entering = !entryRevealed;
+  const [controls, setControls] = useState<'card' | 'chip'>('card');
+  const controlsSeen = useRef(false);
+  const dismissControls = useCallback(() => { controlsSeen.current = true; setControls('chip'); }, []);
+  const openControls = useCallback(() => setControls('card'), []);
   const [sceneAttempt, setSceneAttempt] = useState(0);
   const [slowLoad, setSlowLoad] = useState(false);
   const { active: loadingAssets, progress: assetProgress, errors: assetErrors } = useProgress();
@@ -281,7 +282,9 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
 
   const busy = challenge.kind !== 'idle' && challenge.kind !== 'declined';
   const warp = jumping || challenge.kind === 'launching' ? 1 : 0;
-  const flightEnabled = sceneReady && !entering && !jumping && !navOpen && !creditsOpen && !learn && !inspectId && !handoff && !busy && !pendingMode;
+  const entering = !sceneReady && !slowLoad;
+  const controlsOpen = controls === 'card' && sceneReady;
+  const flightEnabled = sceneReady && !controlsOpen && !jumping && !navOpen && !creditsOpen && !learn && !inspectId && !handoff && !busy && !pendingMode;
   useEffect(() => { if (!flightEnabled) setInput(EMPTY_INPUT); }, [flightEnabled]);
   useEffect(() => {
     const clear = () => setInput(EMPTY_INPUT);
@@ -290,6 +293,8 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
       if (event.code === 'Space' && !(event.target instanceof HTMLElement && event.target.closest('input, textarea, select, [contenteditable="true"]'))) clear();
       if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyQ', 'KeyE'].includes(event.code) && !(event.target instanceof HTMLElement && event.target.closest('input, textarea'))) setInput(i => ({ ...i, brake: false }));
       if (event.code === 'Escape') {
+        controlsSeen.current = true;
+        setControls(current => current === 'card' ? 'chip' : current);
         setNavOpen(false);
         setCreditsOpen(false);
         setLearn(null);
@@ -305,10 +310,10 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
   const requestZoom = (command: LocalZoomCommand) => { setInput(EMPTY_INPUT); setZoomRequest({ sequence: ++zoomSequence.current, command }); };
   const sceneKey = isLocalDestination(destination) ? 'local' : destination.id;
   useEffect(() => {
-    if (!sceneReady || entered.current) return;
+    if (!sceneReady || controlsOpen || entered.current) return;
     entered.current = true;
-    announce({ eyebrow: 'Flight deck / free flight', lead: 'Choose your', word: 'Destination', detail: 'Press N to search the real catalogs · scroll to zoom', holdMs: 2800 });
-  }, [sceneReady, announce]);
+    announce({ eyebrow: 'Flight deck / arrival', lead: 'Entering', word: mode === 'explore' ? 'Explore' : 'Flight', detail: mode === 'explore' ? 'Choose a destination · scroll to zoom' : 'Select a pilot ship to send a challenge', holdMs: 2300 });
+  }, [sceneReady, controlsOpen, mode, announce]);
 
   // Tell other pilots roughly where you are (debounced; only real changes are sent).
   const setLocation = actions.setLocation;
@@ -431,6 +436,7 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
         onOpenArena={() => {
           window.location.href = '/?arena=mars&from=explore';
         }}
+        onOpenControls={controls === 'chip' ? openControls : undefined}
       />
 
       <AnimatePresence>
@@ -512,17 +518,13 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
         <p>Expanding domain…</p>
       </div>
 
-      <AnimatePresence>
-        {entering && !slowLoad && <motion.div key="entry-warp" className="ex-entry-warp"
-          initial={{opacity:1}} exit={{opacity:0}} transition={{duration:settings.reducedMotion ? .2 : .65}}>
-          {settings.reducedMotion ? <EntryFade onFinished={() => setEntryWarpDone(true)} /> :
-            <ExploreBoundary fallback={<EntryFade onFinished={() => setEntryWarpDone(true)} />}>
-              <Suspense fallback={<div className="ob-warp"/>}>
-                <HyperspaceTunnel active caption="Entering flight…" durationMs={2200} onFinished={() => setEntryWarpDone(true)} />
-              </Suspense>
-            </ExploreBoundary>}
-        </motion.div>}
-      </AnimatePresence>
+      {sceneReady && <FlightControlsLesson
+        open={controls === 'card'}
+        isTouch={isTouch}
+        reducedMotion={settings.reducedMotion}
+        replay={controlsSeen.current}
+        onDismiss={dismissControls}
+      />}
 
       {jumping && (
         <Suspense fallback={<div className="ob-warp" />}>
@@ -568,11 +570,4 @@ function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChan
       </div>
     </div>
   );
-}
-
-/** Reduced motion keeps the same readiness gate, without accelerating stars. */
-function EntryFade({onFinished}: {onFinished: () => void}) {
-  const finish = useRef(onFinished); finish.current = onFinished;
-  useEffect(() => { const timer=window.setTimeout(()=>finish.current(),300); return ()=>clearTimeout(timer); }, []);
-  return <div className="ob-warp" aria-hidden="true"/>;
 }

@@ -1,5 +1,12 @@
 # Initial task board
 
+## KO.rbit launch and exploration reference motion — October 18 (Alan / Codex)
+
+- Goal: adapt Alan’s `korbit-launch.html` and `korbit-explore-entry.html` into the live UI, preserving the simpler blue Explore/red Flight selector and existing hyperspeed animation. Owned paths: onboarding confirmation, shared launch presentation, exploration intro/departure/arrival CSS and this record. Existing human-owned UI branch; preserve unrelated `.vscode/` files.
+- Interface: unchanged entry/finish callbacks and actual pilot identity. No server/contracts, combat, networking, manifests, new dependencies, provider calls or deployments. Reference ships are decorative launch artwork, never live multiplayer contacts. Do not import the reference’s standalone flight simulation, artificial telemetry, fake readiness checks or scripted player actions.
+- Implementation: folding, staggered mode-card departure; actual pilot/ship/accent confirmation glass; lead-ship lift-off, bank sweep, decorative wing craft, engine trails and accelerating stars; crossfade into the existing hyperspeed tunnel; readiness-gated arrival title and staggered HUD edges. No taglines, new typefaces or fullscreen flashes. Skip and OS reduced-motion paths remain, with finite 30fps/DPR ≤1.5 drawing and hidden-tab pause/cleanup.
+- Validation: production build/typecheck passed; 193 frontend tests passed, one opt-in live-network test skipped. Browser verified ship launch → existing tunnel → live Flight scene, quiet Explore entry, Skip completion and reduced-motion completion. Actual 390px viewport/document width matched without horizontal overflow; checked the onboarding confirmation manifest and ship departure. Fresh app warning/error logs were empty. Existing large-bundle warnings remain. Screenshots: `/private/tmp/korbit-launch-manifest.png`, `/private/tmp/korbit-ship-launch-mobile.png`. New environment variables: none. Physical-phone and deployed acceptance remain open.
+
 ## KO.rbit animated intro — October 18 (Alan / Codex)
 
 - Goal: integrate Alan’s `korbit-intro.html` animation into welcome, with a simpler exploration mode entry, following `design/korbit-ui/BRAND-GUIDELINES.md`; remove slogans, use blue Explore and red Flight.
