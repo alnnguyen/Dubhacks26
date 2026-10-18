@@ -87,6 +87,8 @@ const STEP_KEYS: Record<string, StepDirection> = {
   arrowright: "right",
 };
 const TOAST_MS = 900;
+// How long "FIGHT" stays up once a rematch countdown ends.
+const FIGHT_FLASH_MS = 800;
 
 // Setup steps shown as a checklist (the final "done" isn't a step to do).
 const CHECKLIST: SetupStep[] = STEP_ORDER.filter((step) => step !== "done");
@@ -104,6 +106,8 @@ export function ArenaDuel({
   pairCode,
   note,
   onLeave,
+  onForfeit,
+  onRematch,
 }: {
   client: GameClient;
   view: PlayerView;
@@ -111,6 +115,10 @@ export function ArenaDuel({
   note: string;
   /** Back to the cockpit; before the end this forfeits. */
   onLeave: () => void;
+  /** Give the round to the rival and go to the result screen. */
+  onForfeit: () => void;
+  /** On the result screen: play again, keeping the camera and saber setup. */
+  onRematch: () => void;
 }) {
   const [basicGraphics, setBasicGraphics] = useState(false);
   const [renderAttempt, setRenderAttempt] = useState(0);
@@ -147,6 +155,7 @@ export function ArenaDuel({
   const staminaFillRef = useRef<HTMLDivElement>(null);
   const [winded, setWinded] = useState(false);
   const [rivalWinded, setRivalWinded] = useState(false);
+  const countdown = useCountdown(view.startsInMs);
 
   const showToast = useCallback((text: string) => {
     setToast(text);
@@ -453,7 +462,9 @@ export function ArenaDuel({
 
   const youArmed = you.saber.bodyReady && you.saber.saberReady;
   const rivalArmed = rival.saber.bodyReady && rival.saber.saberReady;
-  const fighting = view.phase === "active" && youArmed && rivalArmed;
+  const countingDown = countdown !== null && countdown > 0;
+  const fighting = view.phase === "active" && youArmed && rivalArmed && !countingDown;
+  const finished = view.phase === "finished";
   const currentIndex = CHECKLIST.indexOf(wizard.step);
 
   return (
@@ -482,13 +493,17 @@ export function ArenaDuel({
             <span className="arena-rival-winded">{rival.callsign} is winded</span>
           ) : null}
         </div>
-        <button type="button" className="arena-leave" onClick={onLeave}>
-          Forfeit & return
+        <button type="button" className="arena-leave" onClick={finished ? onLeave : onForfeit}>
+          {finished ? "Back to bridge" : "Forfeit"}
         </button>
         <p className="arena-note" role="status">
           {fighting
             ? note
-            : view.phase === "waiting"
+            : finished
+              ? "Duel over."
+              : countingDown
+                ? "Rematch — get ready…"
+                : view.phase === "waiting"
               ? `Waiting for ${rival.callsign} to finish the briefing…`
               : wizard.step === "done"
                 ? `Waiting for ${rival.callsign} to finish setup…`
@@ -496,7 +511,7 @@ export function ArenaDuel({
         </p>
       </div>
 
-      {!fighting && view.phase !== "finished" ? (
+      {!fighting && !finished && !(countingDown && youArmed && rivalArmed) ? (
         <section className="arena-setup" aria-label="Setup">
           <h2>Link your saber</h2>
           <div className="arena-checks">
@@ -593,6 +608,38 @@ export function ArenaDuel({
         </section>
       ) : null}
 
+      {finished ? (
+        <section className="arena-result" aria-label="Result">
+          <p className="arena-result-eyebrow">DUEL COMPLETE</p>
+          <h2>{resultTitle(view)}</h2>
+          <p>
+            You {you.health} · {rival.callsign} {rival.health}
+          </p>
+          <p className="arena-result-status" role="status">
+            {!rival.connected
+              ? `${rival.callsign} returned to the cockpit.`
+              : you.rematch
+                ? `Waiting for ${rival.callsign} to accept the rematch…`
+                : rival.rematch
+                  ? `${rival.callsign} wants a rematch!`
+                  : "Rematch keeps your camera and saber setup."}
+          </p>
+          {note ? <p className="arena-warning">{note}</p> : null}
+          <div className="arena-setup-actions">
+            <button type="button" disabled={you.rematch || !rival.connected} onClick={onRematch}>
+              {you.rematch ? "Rematch requested" : rival.rematch ? "Accept rematch" : "Rematch"}
+            </button>{" "}
+            <button type="button" className="secondary" onClick={onLeave}>
+              Back to bridge
+            </button>
+          </div>
+        </section>
+      ) : null}
+      {countdown !== null && countdown > -FIGHT_FLASH_MS && view.phase === "active" ? (
+        <div className="arena-countdown" aria-live="assertive">
+          {countdown > 0 ? Math.ceil(countdown / 1000) : "FIGHT"}
+        </div>
+      ) : null}
       {engaged && wizard.step === "done" ? (
         <div className="arena-engaged">ENGAGED</div>
       ) : null}
@@ -616,6 +663,40 @@ export function ArenaDuel({
       />
     </main>
   );
+}
+
+/**
+ * Milliseconds left on the server's rematch countdown (negative just after it
+ * ends, so "FIGHT" can linger), or null when there is none. Measured from when
+ * each view arrived, since phone and server clocks don't match.
+ */
+function useCountdown(startsInMs: number | null): number | null {
+  const endsAtRef = useRef<number | null>(null);
+  const [left, setLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (startsInMs !== null) endsAtRef.current = performance.now() + startsInMs;
+    const endsAt = endsAtRef.current;
+    if (endsAt === null) return;
+    const update = () => {
+      const remaining = endsAt - performance.now();
+      setLeft(remaining > -FIGHT_FLASH_MS ? remaining : null);
+      if (remaining <= -FIGHT_FLASH_MS) {
+        endsAtRef.current = null;
+        window.clearInterval(timer);
+      }
+    };
+    const timer = window.setInterval(update, 100);
+    update();
+    return () => window.clearInterval(timer);
+  }, [startsInMs]);
+  return left;
+}
+
+function resultTitle({ result, you, rival }: PlayerView): string {
+  if (!result) return "Duel over";
+  const how = result.reason === "forfeit" ? " by forfeit" : "";
+  if (result.winner === null) return "Draw";
+  return result.winner === you.slot ? `You win${how}` : `${rival.callsign} wins${how}`;
 }
 
 function midpoint(a: Vec3, b: Vec3): Vec3 {

@@ -161,6 +161,8 @@ export interface PlayerState {
   reconnectEndsInMs: number | null;
   // Pressed Ready after the briefing. The match starts when both are ready.
   ready: boolean;
+  // Asked for a rematch on the result screen. A new round starts once both have.
+  rematch: boolean;
   health: number;
   saber: SaberState;
 }
@@ -177,6 +179,8 @@ export interface MatchResult {
 export interface MatchSnapshot {
   matchId: string;
   phase: MatchPhase;
+  // Counts down before a rematch round; swings and steps don't count until it ends.
+  startsInMs: number | null;
   world: World;
   players: PlayerState[];
   result: MatchResult | null;
@@ -186,6 +190,7 @@ export interface MatchSnapshot {
 export interface PlayerView {
   matchId: string;
   phase: MatchPhase;
+  startsInMs: number | null;
   world: World;
   result: MatchResult | null;
   // Coordinate scale and glide duration. rows is retained for older clients (no row ownership).
@@ -228,7 +233,9 @@ export interface LobbyView {
 
 // Every command carries a unique ID so the server can recognise a retry and
 // return the original reply instead of applying it again.
-export type MatchCommandType = "ready" | "leaveMatch";
+// "rematch" is only accepted once the match has finished, with both players still there.
+// "forfeit" ends the round but keeps you in the match (for a rematch); "leaveMatch" also detaches you.
+export type MatchCommandType = "ready" | "forfeit" | "rematch" | "leaveMatch";
 
 export type Command =
   | { commandId: string; type: MatchCommandType }

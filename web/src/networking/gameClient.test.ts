@@ -38,6 +38,7 @@ const view = (health: number): PlayerView => {
     connected: true,
     reconnectEndsInMs: null,
     ready: true,
+    rematch: false,
     health,
     saber: { swinging: false, cooldownEndsInMs: null, paired: false, phoneLive: false, bodyReady: false, saberReady: false },
   })
@@ -45,6 +46,7 @@ const view = (health: number): PlayerView => {
   return {
     matchId: "m1",
     phase: "active",
+    startsInMs: null,
     world,
     result: null,
     board: { cellSize: 0.65, rows: 3, stepMs: 110 },
@@ -257,6 +259,8 @@ describe("commands", () => {
     void client.declineChallenge("ch2")
     void client.cancelChallenge("ch3")
     void client.ready()
+    void client.forfeit()
+    void client.rematch()
     void client.leaveMatch()
     const payloads = socket.sent.filter((s) => s.event === "command").map(({ payload: { commandId, ...rest } }) => rest)
     expect(payloads).toEqual([
@@ -265,6 +269,8 @@ describe("commands", () => {
       { type: "declineChallenge", challengeId: "ch2" },
       { type: "cancelChallenge", challengeId: "ch3" },
       { type: "ready" },
+      { type: "forfeit" },
+      { type: "rematch" },
       { type: "leaveMatch" },
     ])
   })

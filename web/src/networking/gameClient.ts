@@ -113,6 +113,10 @@ export interface GameClient {
   cancelChallenge(challengeId: string): Promise<ClientReply>
   /** Finished the briefing. The match starts once both players are ready. */
   ready(): Promise<ClientReply>
+  /** Give this round to your rival but stay in the match, so you can still rematch. */
+  forfeit(): Promise<ClientReply>
+  /** After the match ends: play again with the same setup. A new round counts down once both ask. */
+  rematch(): Promise<ClientReply>
   /** Back to the lobby. Before the match ends this forfeits it. */
   leaveMatch(): Promise<ClientReply>
   close(): void
@@ -236,6 +240,8 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     declineChallenge: (challengeId) => send({ type: "declineChallenge", challengeId }),
     cancelChallenge: (challengeId) => send({ type: "cancelChallenge", challengeId }),
     ready: () => send({ type: "ready" }),
+    forfeit: () => send({ type: "forfeit" }),
+    rematch: () => send({ type: "rematch" }),
     leaveMatch: () => send({ type: "leaveMatch" }),
     close: () => {
       socket.disconnect()

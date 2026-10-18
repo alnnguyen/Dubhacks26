@@ -167,3 +167,92 @@ describe("commands and match lifecycle", () => {
     assert.deepEqual(view2.rival, view1.you);
   });
 });
+
+describe("rematch", () => {
+  // Ends the match by forfeit, then brings the loser back so both are still there.
+  function finishWithBothPresent() {
+    match.disconnect(2);
+    mock.timers.tick(RULES.reconnectGraceMs);
+    match.reconnect(2);
+    assert.equal(match.toSnapshot().phase, "finished");
+  }
+
+  test("is refused before the match ends", () => {
+    assert.deepEqual(send(1, "rematch", "re"), { commandId: "re", status: "rejected", reason: "match_not_active" });
+  });
+
+  test("one request waits for the rival and shows on their view", () => {
+    finishWithBothPresent();
+    assert.equal(send(1, "rematch").status, "accepted");
+    assert.equal(match.toView(2).rival.rematch, true);
+    assert.equal(match.toView(1).phase, "finished");
+  });
+
+  test("both requests start a fresh round after a countdown", () => {
+    finishWithBothPresent();
+    send(1, "rematch");
+    send(2, "rematch");
+    const view = match.toView(1);
+    assert.equal(view.phase, "active");
+    assert.equal(view.result, null);
+    assert.equal(view.startsInMs, RULES.rematchCountdownMs);
+    assert.deepEqual([view.you.health, view.rival.health], [RULES.startingHealth, RULES.startingHealth]);
+    assert.deepEqual([view.you.rematch, view.rival.rematch], [false, false]);
+    assert.equal(match.step(1, "forward"), "match_not_active");
+    mock.timers.tick(RULES.rematchCountdownMs);
+    assert.equal(match.toView(1).startsInMs, null);
+    assert.equal(match.step(1, "forward"), null);
+  });
+
+  test("keeps the phone pairing and saber calibration", () => {
+    match.setSaberPaired(1, true);
+    assert.equal(match.setSaberCalibration(1, { forward: [0, 1], hand: "right", mirror: false, done: true }), null);
+    finishWithBothPresent();
+    // The phone keeps streaming through the result screen.
+    match.handleSaberAim(1, { seq: 1, tracked: true, top: [0, 1, 0], rate: 0 });
+    send(1, "rematch");
+    send(2, "rematch");
+    assert.equal(player(1).saber.paired, true);
+    assert.equal(player(1).saber.saberReady, true);
+  });
+
+  test("is refused once the rival has left", () => {
+    finishWithBothPresent();
+    match.leave(2);
+    assert.deepEqual(send(1, "rematch", "re"), { commandId: "re", status: "rejected", reason: "pilot_unavailable" });
+  });
+
+  test("a retried request doesn't count twice", () => {
+    finishWithBothPresent();
+    const first = send(1, "rematch", "re");
+    assert.deepEqual(send(1, "rematch", "re"), first);
+    assert.equal(match.toView(1).phase, "finished");
+  });
+
+  test("the new round's result is counted like the first", () => {
+    finishWithBothPresent();
+    send(1, "rematch");
+    send(2, "rematch");
+    match.leave(1);
+    assert.deepEqual(results, [
+      { winner: 1, reason: "forfeit" },
+      { winner: 2, reason: "forfeit" },
+    ]);
+  });
+});
+
+describe("forfeit", () => {
+  test("gives the round to the rival and both can still rematch", () => {
+    assert.equal(send(1, "forfeit").status, "accepted");
+    assert.deepEqual(match.toSnapshot().result, { winner: 2, reason: "forfeit" });
+    assert.equal(match.toView(2).rival.connected, true);
+    send(1, "rematch");
+    send(2, "rematch");
+    assert.equal(match.toView(1).phase, "active");
+  });
+
+  test("is refused once the match is over", () => {
+    send(1, "forfeit");
+    assert.deepEqual(send(2, "forfeit", "f"), { commandId: "f", status: "rejected", reason: "match_not_active" });
+  });
+});

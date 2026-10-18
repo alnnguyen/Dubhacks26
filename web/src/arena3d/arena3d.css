@@ -316,3 +316,49 @@
   pointer-events: none;
 }
 
+
+/* After the round: winner, final health and the rematch handshake. Camera keeps running. */
+.arena-result {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, calc(100% - 32px));
+  padding: 22px 24px;
+  border-radius: 14px;
+  text-align: center;
+  background: rgba(6, 12, 24, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  z-index: 5;
+}
+
+.arena-result-eyebrow {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: #9fb3d6;
+}
+
+.arena-result h2 {
+  margin: 6px 0 8px;
+  font-size: 28px;
+}
+
+.arena-result-status {
+  color: #8dffc2;
+}
+
+/* Rematch countdown: 3, 2, 1, FIGHT. */
+.arena-countdown {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(64px, 14vw, 160px);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-shadow: 0 0 28px rgba(255, 106, 74, 0.9);
+  pointer-events: none;
+  z-index: 6;
+}

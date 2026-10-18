@@ -69,6 +69,10 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     else setNote(mine ? `Hit! −${event.damage} rival health.` : `You were hit: −${event.damage} health.`);
   }), [client]);
 
+  // The last hit's note shouldn't linger on the result panel.
+  const phase = view?.phase;
+  useEffect(() => { if (phase === 'finished') setNote(''); }, [phase]);
+
   // A match that ended while this phone was in the cockpit (e.g. after a reload) has no result
   // screen to leave from, so leave it here and stay challengeable.
   const finishedUnseen = view?.phase === 'finished' && entered !== view.matchId;
@@ -78,6 +82,14 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     setEntering(true);
     frame.current?.contentWindow?.postMessage({ type: 'COPILOT_STOP' }, location.origin);
     launchTimer.current = window.setTimeout(ready, 1500);
+  }
+  // Ends the round but stays on the duel screen, so both pilots can still rematch.
+  function forfeit() {
+    void client.forfeit().then(reply => reply.status === 'rejected' && setNote(rejectionNote(reply)));
+  }
+  function rematch() {
+    setNote('');
+    void client.rematch().then(reply => reply.status === 'rejected' && setNote(rejectionNote(reply)));
   }
   function leave() {
     clearTimeout(launchTimer.current); setEntering(false); setVoiceWorld(''); setNote('');
@@ -104,7 +116,9 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   return <main className="flight-flow">
     <header className="flight-header">
       <span>FLIGHT SYSTEMS / {screen.toUpperCase()}</span>
-      <button onClick={leave}>{view.phase === 'finished' ? 'Return to cockpit' : 'Forfeit & return'}</button>
+      {screen === 'duel'
+        ? <button onClick={forfeit}>Forfeit</button>
+        : <button onClick={leave}>{view.phase === 'finished' ? 'Return to cockpit' : 'Forfeit & return'}</button>}
     </header>
     {screen === 'briefing' && <>
       <section className="flight-panel">
@@ -121,35 +135,25 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       </section>
       <iframe key={world.id} ref={frame} className="flight-voice" title="Grok Voice briefing" allow="microphone; autoplay" src={`/copilot/?world=${world.id}`} />
     </>}
-    {screen === 'duel' && (
-      <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} />
+    {/* One element for the duel and its result, so the camera and saber setup survive into a rematch. */}
+    {screen !== 'briefing' && (
+      <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} onForfeit={forfeit} onRematch={rematch} />
     )}
-    {screen === 'result' && <section className="flight-panel">
-      <p className="flight-eyebrow">DUEL COMPLETE</p>
-      <h1>{resultTitle(view)}</h1>
-      <p>You {you.health} · {rival.callsign} {rival.health}</p>
-      <p>Camera stopped. Return to the cockpit to challenge again.</p>
-      <button className="flight-primary" onClick={leave}>Back to bridge</button>
-    </section>}
   </main>;
 }
 
 function duelNote(view: PlayerView, note: string): string {
   const { rival } = view;
+  // The result panel says where the rival is; this only carries a refused rematch.
+  if (view.phase === 'finished') return note;
   if (view.phase === 'waiting') return `Waiting for ${rival.callsign} to finish the briefing…`;
   if (!rival.connected) return `${rival.callsign} lost connection — they forfeit unless they return shortly.`;
   return note || 'Swing fast through your rival. Block with your blade.';
 }
 
-function resultTitle({ result, you, rival }: PlayerView): string {
-  if (!result) return 'Duel over';
-  const how = result.reason === 'forfeit' ? ' by forfeit' : '';
-  if (result.winner === null) return 'Draw';
-  return result.winner === you.slot ? `You win${how}` : `${rival.callsign} wins${how}`;
-}
-
 const REJECTION_NOTES: Record<string, string> = {
   match_not_active: 'The round has not started.',
+  pilot_unavailable: 'Your rival has left — no rematch.',
   offline: 'Offline — command not sent.',
   no_response: 'Server did not answer in time.',
 };

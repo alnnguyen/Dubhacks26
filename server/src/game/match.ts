@@ -49,6 +49,7 @@ interface Player {
   callsign: string;
   connected: boolean;
   ready: boolean;
+  rematch: boolean;
   health: number;
   reconnectEndsAt: number | null;
   saber: Saber;
@@ -117,12 +118,15 @@ export interface MatchPilot {
 export const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 // leaveMatch is handled by the lobby, which detaches the player after leave().
 export type InMatchCommandType = Exclude<MatchCommandType, "leaveMatch">;
-export const IN_MATCH_COMMAND_TYPES: readonly InMatchCommandType[] = ["ready"];
+export const IN_MATCH_COMMAND_TYPES: readonly InMatchCommandType[] = ["ready", "forfeit", "rematch"];
 
 export class Match {
   private players = new Map<PlayerSlot, Player>();
   private phase: MatchPhase = "waiting";
   private result: MatchResult | null = null;
+  // A rematch round's countdown: no swings or steps until then.
+  private startsAt: number | null = null;
+  private countdownTimer?: Timer;
   // Reply already sent for each "slot:commandId", so retries repeat it.
   private replies = new Map<string, CommandReply>();
   // The saber tick runs from the briefing (so laptops show both avatars during
@@ -138,8 +142,13 @@ export class Match {
     private events: MatchEvents,
   ) {
     for (const slot of [1, 2] as const) this.addPlayer(slot, pilots[slot]);
-    this.ticker = setInterval(() => this.tick(), SABER.tickMs);
-    (this.ticker as { unref?: () => void }).unref?.();
+    this.ticker = this.startTicker();
+  }
+
+  private startTicker(): ReturnType<typeof setInterval> {
+    const ticker = setInterval(() => this.tick(), SABER.tickMs);
+    (ticker as { unref?: () => void }).unref?.();
+    return ticker;
   }
 
   get isFinished(): boolean {
@@ -153,6 +162,7 @@ export class Match {
       callsign: pilot.callsign,
       connected: true,
       ready: false,
+      rematch: false,
       health: RULES.startingHealth,
       reconnectEndsAt: null,
       saber: newSaber(START_CELLS[slot]),
@@ -178,10 +188,13 @@ export class Match {
     this.events.changed();
   }
 
-  // Leaving before the end gives the match to the other player.
+  // Leaving before the end gives the match to the other player. Either way the
+  // player is gone, so the rival can't get a rematch with them.
   leave(slot: PlayerSlot): void {
-    if (this.phase === "finished") return;
-    this.finish({ winner: slot === 1 ? 2 : 1, reason: "forfeit" });
+    const player = this.players.get(slot)!;
+    player.connected = false;
+    player.rematch = false;
+    if (this.phase !== "finished") this.finish({ winner: slot === 1 ? 2 : 1, reason: "forfeit" });
     this.events.changed();
   }
 
@@ -209,8 +222,8 @@ export class Match {
 
   // Streamed from the player's laptop, ~20 Hz with no reply. Invalid, repeated,
   // older or too-frequent poses are dropped.
+  // Still taken after the end, so a rematch starts with both players armed.
   handleBodyPose(slot: PlayerSlot, raw: unknown): void {
-    if (this.phase === "finished") return;
     const pose = parseBodyPose(raw);
     const body = this.players.get(slot)!.saber.body;
     const now = Date.now();
@@ -222,7 +235,6 @@ export class Match {
   // Streamed from the player's paired phone, ~30 Hz with no reply. Returns the
   // accepted reading, which the server relays to the player's laptop for setup.
   handleSaberAim(slot: PlayerSlot, raw: unknown): SaberAim | null {
-    if (this.phase === "finished") return null;
     const aim = parseSaberAim(raw);
     const state = this.players.get(slot)!.saber.aim;
     const now = Date.now();
@@ -245,7 +257,7 @@ export class Match {
   // Opponent-relative movement: forward/back change distance, left/right orbit.
   // Allowed from the briefing on so players can practise during setup.
   step(slot: PlayerSlot, direction: unknown): RejectReason | null {
-    if (this.phase === "finished") return "match_not_active";
+    if (this.phase === "finished" || this.countingDown(Date.now())) return "match_not_active";
     if (!STEP_DIRECTIONS.includes(direction as StepDirection)) return "invalid_command";
     const player = this.players.get(slot)!;
     const now = Date.now();
@@ -363,6 +375,7 @@ export class Match {
         connected: p.connected,
         reconnectEndsInMs: remaining(p.reconnectEndsAt),
         ready: p.ready,
+        rematch: p.rematch,
         health: p.health,
         saber: {
           swinging: p.saber.swinging,
@@ -373,7 +386,14 @@ export class Match {
           saberReady: this.saberReady(p, now),
         },
       }));
-    return { matchId: this.matchId, phase: this.phase, world: world(this.worldId), players, result: this.result };
+    return {
+      matchId: this.matchId,
+      phase: this.phase,
+      startsInMs: remaining(this.startsAt),
+      world: world(this.worldId),
+      players,
+      result: this.result,
+    };
   }
 
   toView(slot: PlayerSlot): PlayerView {
@@ -381,6 +401,7 @@ export class Match {
     return {
       matchId: snapshot.matchId,
       phase: snapshot.phase,
+      startsInMs: snapshot.startsInMs,
       world: snapshot.world,
       result: snapshot.result,
       board: { cellSize: CELL_SIZE, rows: ROWS_PER_SIDE, stepMs: SABER.stepMs },
@@ -392,17 +413,55 @@ export class Match {
   // Stops every pending timer, e.g. when the server shuts down.
   dispose(): void {
     clearInterval(this.ticker);
+    clearTimeout(this.countdownTimer);
     for (const player of this.players.values()) {
       for (const timer of Object.values(player.timers)) clearTimeout(timer);
     }
   }
 
-  // "ready" is the only in-match command; combat comes from the saber streams.
-  private apply(player: Player, _type: InMatchCommandType): RejectReason | null {
+  // The only in-match commands; combat comes from the saber streams.
+  private apply(player: Player, type: InMatchCommandType): RejectReason | null {
+    // Gives the round to the rival, but both stay on the result screen and can rematch.
+    if (type === "forfeit") {
+      if (this.phase === "finished") return "match_not_active";
+      this.finish({ winner: player.slot === 1 ? 2 : 1, reason: "forfeit" });
+      return null;
+    }
+    if (type === "rematch") {
+      if (this.phase !== "finished") return "match_not_active";
+      if (!this.players.get(player.slot === 1 ? 2 : 1)!.connected) return "pilot_unavailable";
+      player.rematch = true;
+      if ([...this.players.values()].every((p) => p.rematch)) this.startRematch();
+      return null;
+    }
     if (this.phase !== "waiting") return "match_not_active";
     player.ready = true;
     if ([...this.players.values()].every((p) => p.ready)) this.phase = "active";
     return null;
+  }
+
+  // A fresh round in the same match after a countdown: health, positions, stamina and swings
+  // reset, while pairing, calibration and the live body and phone streams carry over.
+  private startRematch(): void {
+    const now = Date.now();
+    for (const p of this.players.values()) {
+      const { body, aim, paired, calibration } = p.saber;
+      p.saber = { ...newSaber(START_CELLS[p.slot]), body, aim, paired, calibration };
+      p.health = RULES.startingHealth;
+      p.rematch = false;
+      this.events.stepped({ slot: p.slot, cell: p.saber.cell });
+    }
+    this.result = null;
+    this.phase = "active";
+    this.startsAt = now + RULES.rematchCountdownMs;
+    this.lastTickAt = null;
+    this.ticker = this.startTicker();
+    // The views carry the countdown; resend them when it ends.
+    this.countdownTimer = setTimeout(() => this.events.changed(), RULES.rematchCountdownMs);
+  }
+
+  private countingDown(now: number): boolean {
+    return this.startsAt !== null && now < this.startsAt;
   }
 
   // One server tick: fuse each blade from the latest body and aim, detect
@@ -413,7 +472,7 @@ export class Match {
     this.lastTickAt = now;
     const players = [...this.players.values()].sort((a, b) => a.slot - b.slot);
     // Swings count only between fully set-up players within reach on the board.
-    const fighting = this.phase === "active" && this.engaged && players.every((p) => this.armed(p, now));
+    const fighting = this.phase === "active" && !this.countingDown(now) && this.engaged && players.every((p) => this.armed(p, now));
     const blades = new Map(players.map((p) => [p.slot, this.blade(p, now)]));
     const previous = new Map(players.map((p) => [p.slot, p.saber.lastBlade]));
 
@@ -639,6 +698,8 @@ export class Match {
   private finish(result: MatchResult): void {
     this.phase = "finished";
     clearInterval(this.ticker);
+    clearTimeout(this.countdownTimer);
+    this.startsAt = null;
     this.result = result;
     for (const player of this.players.values()) {
       player.saber.swinging = false;
