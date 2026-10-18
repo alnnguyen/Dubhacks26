@@ -7,8 +7,6 @@ export const arenaDev = {
   showMask: false,
   /** Show the full camera instead of the Mars cutout. */
   showCamera: false,
-  /** Run the DeepLab all-people segmenter (heaviest model; toggle to compare). */
-  sceneSegmentation: true,
   stats: {
     renderFps: 0,
     maskFps: 0,

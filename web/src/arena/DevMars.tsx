@@ -16,7 +16,6 @@ export function DevMars() {
   const [showCamera, setShowCamera] = useState(arenaDev.showCamera)
   const [lastCommand, setLastCommand] = useState('—')
   const [zoom, setZoom] = useState(arenaView.zoom)
-  const [sceneSeg, setSceneSeg] = useState(arenaDev.sceneSegmentation)
 
   useEffect(() => {
     const id = window.setInterval(() => force((n) => n + 1), 400)
@@ -25,8 +24,7 @@ export function DevMars() {
   useEffect(() => {
     arenaDev.showMask = showMask
     arenaDev.showCamera = showCamera
-    arenaDev.sceneSegmentation = sceneSeg
-  }, [showMask, showCamera, sceneSeg])
+  }, [showMask, showCamera])
 
   const s = arenaDev.stats
   const detected = s.presence > 0.5
@@ -79,9 +77,6 @@ export function DevMars() {
         </label>
         <label>
           <input type="checkbox" checked={showMask} onChange={(e) => setShowMask(e.target.checked)} /> Show mask
-        </label>
-        <label>
-          <input type="checkbox" checked={sceneSeg} onChange={(e) => setSceneSeg(e.target.checked)} /> All people (DeepLab)
         </label>
         <label>
           <input type="checkbox" checked={showCamera} onChange={(e) => setShowCamera(e.target.checked)} /> Show camera

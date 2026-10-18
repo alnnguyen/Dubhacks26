@@ -1,4 +1,4 @@
-import { FilesetResolver, HandLandmarker, ImageSegmenter, PoseLandmarker } from "@mediapipe/tasks-vision"
+import { FilesetResolver, HandLandmarker, PoseLandmarker } from "@mediapipe/tasks-vision"
 import type { HandTrack, Landmark, Point } from "../vision/types"
 
 /** Keep CDN wasm aligned with the installed npm package. */
@@ -12,19 +12,12 @@ export const HAND_MODEL_URL =
 export const POSE_MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
 
-/** DeepLab v3 (PASCAL VOC): segments every person in the frame. Category 15 = person. */
-export const SCENE_SEGMENTER_URL =
-  "https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite"
-export const DEEPLAB_PERSON = 15
-
 export type VisionBundle = {
   handLandmarker: HandLandmarker
   poseLandmarker: PoseLandmarker
   delegate: "GPU" | "CPU"
   /** True when the pose pass also returns a person segmentation mask. */
   segmentation: boolean
-  /** Optional scene segmenter for all people in view (immersive arena only). */
-  sceneSegmenter: ImageSegmenter | null
   close: () => void
 }
 
@@ -33,8 +26,6 @@ export type VisionOptions = {
   segmentation?: boolean
   /** People to track (default 1). >1 keeps aim stable when bystanders are in view. */
   numPoses?: number
-  /** Also load DeepLab to segment every person (pose alone finds ~1 person). */
-  sceneSegmentation?: boolean
 }
 
 async function createLandmarkers(
@@ -78,29 +69,13 @@ export async function createVisionBundle(options: VisionOptions = {}): Promise<V
     landmarks = await createLandmarkers(fileset, "CPU", segmentation, numPoses)
   }
 
-  let sceneSegmenter: ImageSegmenter | null = null
-  if (options.sceneSegmentation) {
-    try {
-      sceneSegmenter = await ImageSegmenter.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: SCENE_SEGMENTER_URL, delegate },
-        runningMode: "VIDEO",
-        outputCategoryMask: true,
-        outputConfidenceMasks: false,
-      })
-    } catch {
-      sceneSegmenter = null // pose masks still work; only multi-person coverage is lost
-    }
-  }
-
   return {
     ...landmarks,
     delegate,
     segmentation,
-    sceneSegmenter,
     close() {
       landmarks.handLandmarker.close()
       landmarks.poseLandmarker.close()
-      sceneSegmenter?.close()
     },
   }
 }

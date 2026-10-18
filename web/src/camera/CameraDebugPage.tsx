@@ -13,7 +13,6 @@ import { CameraStartError, type CameraDevices } from "./openRearCamera"
 import { openDebugCamera, type DebugCameraKind } from "./openDebugCamera"
 import {
   createVisionBundle,
-  DEEPLAB_PERSON,
   handsFromLandmarker,
   poseCenter,
   poseFromLandmarker,
@@ -33,7 +32,6 @@ const MarsDuelBackdrop = lazy(() => import("../arena/MarsDuelBackdrop"))
 const SESSION_ID = "debug-pilot"
 const MATCH_ID = "debug-match"
 const POSE_EVERY_N_FRAMES = 2
-const SCENE_EVERY_N_FRAMES = 3
 const idleTouch: TouchInput = { lift: false, throw: false, block: false, cancel: false }
 
 type LogLine = { at: string; text: string }
@@ -154,7 +152,7 @@ export function CameraDebugPage({
     setStatus("Loading MediaPipe…")
     try {
       // Immersive arena: track up to 3 people so bystanders don't steal the opponent.
-      const vision = await createVisionBundle({ segmentation: immersive, numPoses: immersive ? 3 : 1, sceneSegmentation: immersive })
+      const vision = await createVisionBundle({ segmentation: immersive, numPoses: immersive ? 3 : 1 })
       if (generation !== cameraGenerationRef.current) {
         vision.close()
         return
@@ -258,16 +256,6 @@ export function CameraDebugPage({
         }
         opponentCenterRef.current = poseRef.current ? poseCenter(poseRef.current.landmarks) : null
         if (vision.segmentation) personMask.update(poseResult.segmentationMasks, nowMs)
-      }
-
-      // Scene segmentation (all people in view) on alternate frames, immersive arena only.
-      if (vision.sceneSegmenter && arenaDev.sceneSegmentation && frameRef.current % SCENE_EVERY_N_FRAMES === 1) {
-        const scene = vision.sceneSegmenter.segmentForVideo(video, nowMs + 0.002)
-        try {
-          personMask.updateScene(scene.categoryMask, DEEPLAB_PERSON, nowMs)
-        } finally {
-          scene.close()
-        }
       }
 
       const lock = tickHandLock(lockRef.current, { nowMs, hands })

@@ -5,20 +5,16 @@ export interface MaskLike {
   width: number
   height: number
   getAsFloat32Array(): Float32Array
-  getAsUint8Array(): Uint8Array
   close(): void
 }
 
 const TARGET_WIDTH = 192
-/** A layer older than this no longer contributes to the composite. */
-const LAYER_FRESH_MS = 1500
 
 /**
- * People mask for compositing real players into the arena. Two sources:
- *  - pose layer: PoseLandmarker segmentation (crisp, but pose finds ~1 person)
- *  - scene layer: DeepLab category mask (every person in view)
- * Both are downsampled to a small R8 texture, merged (max), temporally
- * smoothed, and faded out when nobody is tracked.
+ * People mask for compositing real players into the arena, from PoseLandmarker
+ * segmentation (no extra model). Masks of all tracked people are merged,
+ * downsampled to a small R8 texture, temporally smoothed, and faded out when
+ * nobody is tracked.
  */
 export class PersonMask {
   width = TARGET_WIDTH
@@ -26,14 +22,9 @@ export class PersonMask {
   data = new Uint8Array(TARGET_WIDTH)
   private smooth = new Float32Array(TARGET_WIDTH)
   private pose = new Float32Array(TARGET_WIDTH)
-  private scene = new Float32Array(TARGET_WIDTH)
-  private poseAt = -Infinity
-  private sceneAt = -Infinity
   readonly texture: THREE.DataTexture
   /** 0..1 how present people are (fades when tracking is lost). */
   presence = 0
-  /** True when the scene segmenter currently sees at least one person. */
-  sceneHasPerson = false
   /** True once pose-mask readback has failed repeatedly (e.g. unsupported GPU). */
   failed = false
   /** Total masks consumed (for diagnostics). */
@@ -60,7 +51,6 @@ export class PersonMask {
     this.data = new Uint8Array(n)
     this.smooth = new Float32Array(n)
     this.pose = new Float32Array(n)
-    this.scene = new Float32Array(n)
     this.texture.image = { data: this.data, width: w, height: h }
     this.texture.dispose() // re-allocate at the new size
     this.texture.needsUpdate = true
@@ -79,10 +69,8 @@ export class PersonMask {
   }
 
   private compose(nowMs: number) {
-    const usePose = nowMs - this.poseAt < LAYER_FRESH_MS
-    const useScene = nowMs - this.sceneAt < LAYER_FRESH_MS
     for (let i = 0; i < this.data.length; i++) {
-      const v = Math.max(usePose ? this.pose[i] : 0, useScene ? this.scene[i] : 0)
+      const v = this.pose[i]
       // Asymmetric smoothing: grow fast (no lag on movement), shrink slower (no flicker).
       const k = v > this.smooth[i] ? 0.75 : 0.45
       this.smooth[i] += (v - this.smooth[i]) * k
@@ -106,7 +94,6 @@ export class PersonMask {
         for (let k = 1; k < sources.length; k++) if (sources[k][j] > v) v = sources[k][j]
         return v
       })
-      this.poseAt = nowMs
       this.failures = 0
       this.compose(nowMs)
     } catch (err) {
@@ -119,29 +106,6 @@ export class PersonMask {
     }
   }
 
-  /** Scene segmenter category mask (all people). The caller closes it. Never throws. */
-  updateScene(mask: MaskLike | undefined, personCategory: number, nowMs: number) {
-    try {
-      if (!mask) return
-      // The layer grid follows the camera's aspect (set by the pose masks). DeepLab's
-      // mask covers the same full frame, so it is sampled in normalized coordinates
-      // and must not resize the grid (that would wipe the pose layer).
-      if (this.height === 1) this.ensureSize(mask.width, mask.height)
-      const cats = mask.getAsUint8Array()
-      let people = 0
-      this.sample(this.scene, mask.width, mask.height, (j) => {
-        const isPerson = cats[j] === personCategory ? 1 : 0
-        people += isPerson
-        return isPerson
-      })
-      this.sceneHasPerson = people > this.scene.length * 0.004
-      this.sceneAt = nowMs
-      if (this.sceneHasPerson || nowMs - this.poseAt < LAYER_FRESH_MS) this.compose(nowMs)
-    } catch {
-      /* the scene layer is optional */
-    }
-  }
-
   /**
    * Call every frame. The mask is held while someone is tracked (masks arrive
    * at inference rate, which can be slow on weak devices); it fades when
@@ -151,7 +115,7 @@ export class PersonMask {
     const dt = this.lastTickMs ? Math.min(0.1, (nowMs - this.lastTickMs) / 1000) : 0
     this.lastTickMs = nowMs
     const stale = nowMs - this.lastUpdateMs > 3000
-    if (!(personTracked || this.sceneHasPerson) || stale) this.presence = Math.max(0, this.presence - dt * 2.5)
+    if (!personTracked || stale) this.presence = Math.max(0, this.presence - dt * 2.5)
   }
 
   dispose() {
