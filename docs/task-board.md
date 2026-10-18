@@ -134,3 +134,7 @@ Shared music/effects mixer and supplied audio pack integrated into alex-dev work
 ## Alan exploration integrated into current alex-dev — October 18
 
 Feature port from `origin/alan` `b637186`: free flight, destination search/catalogs, planet inspector/cutaways, textures and provenance. Cockpit Seat → hyperspace → exploration added; Bridge returns to the same session. Imported exploration challenges delegate to the current cockpit launch action and current Mars travel/saber flow; the older camera-duel handoff was removed. Existing swipe/orbit/knockback server and audio implementation preserved. Production build passes (lazy exploration catalog chunk-size warning); frontend 223 passed / one opt-in skipped. Browser universe, Earth/Mars inspector and cockpit entry verified; return/live challenge and physical phone/performance QA remain. No new dependencies, keys, server contracts, deployment or push. Handoff: `docs/exploration-integration.md`.
+
+## Shared button feedback — Alex branch
+
+Applied the supplied button handoff visual treatment globally: hover grow/glow/icon nudge, press/focus/reduced-motion. Actual onboarding hover/focus checked in browser; build passed. Concurrent audio revisions are preserved separately and are not part of this visual commit. No server/contract/env changes. See `docs/button-feedback.md` for scope and verification.
