@@ -73,3 +73,8 @@ Top-progress/LYRA validation: production build/typecheck passed; 32 focused test
 ## Simplified reference layout
 
 Latest revision removes the sensor cards, duplicate hold percentage and next-step labels. Short LYRA cues match the preview; movement uses “Quick swipes. One move at a time.” Secondary controls and notes are under Setup options. Pairing QR is prominent inside the right square, covering the avatar for pairing, with its real phone-controller link preserved. Movement help likewise replaces the avatar inside that square, then the tracked avatar returns for calibration. Top measured progress, readiness/error handling and authoritative countdown remain. Build/typecheck and 32 focused tests passed; labelled preview visually checked pairing and movement without console warnings/errors. Physical device QA still pending.
+
+
+## Direct arena arrival
+
+The obsolete Flight Systems briefing page and Voice iframe are removed from FlightApp. Completing (or skipping) the accepted-match travel animation now renders ArenaDuel immediately. FlightApp sends the existing ready command once per arrived match/client; rejected entry has an explicit Retry arena entry action. It does not automatically request camera/microphone access. Calibration and authoritative combat countdown still apply. Duel rendering also avoids the old flight-flow wrapper so its broad button/text styles do not override initiation styling. Production build/typecheck and 58 focused client/cinematic/setup/countdown/swipe tests passed. Full physical two-player arrival testing remains pending.

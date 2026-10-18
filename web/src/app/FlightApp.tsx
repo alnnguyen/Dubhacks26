@@ -15,16 +15,15 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const pairCode = useGameLobby(client)?.pairCode ?? '';
   // The match this phone engaged into. A reload lands back in the cockpit with the match ready to re-engage.
   const [entered, setEntered] = useState<string | null>(null);
-  const [voiceWorld, setVoiceWorld] = useState('');
   const [entering, setEntering] = useState(false);
   const [note, setNote] = useState('');
   const [travelDestination, setTravelDestination] = useState<'mars' | null>(null);
-  const frame = useRef<HTMLIFrameElement>(null);
-  const launchTimer = useRef<number | undefined>(undefined);
-  const audioScene = !view || entered !== view.matchId ? null : view.phase === 'finished' ? 'result' : view.phase === 'waiting' && !view.you.ready ? 'briefing' : 'battle';
+  const readyAttempt = useRef<{ matchId: string; client: GameClient } | null>(null);
+  const [entryError, setEntryError] = useState('');
+  const audioScene = !view || entered !== view.matchId ? null : view.phase === 'finished' ? 'result' : 'battle';
   useAudioScene(audioScene);
 
-  const beginBriefing = useCallback((destination: 'mars') => {
+  const beginArena = useCallback((destination: 'mars') => {
     setNote('Travel complete. Connecting to the Mars match…');
     setTravelDestination(destination);
   }, []);
@@ -41,26 +40,35 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       setNote(`The server selected ${view.world.name}, not Mars. This arena flow requires Mars.`);
       return;
     }
-    setVoiceWorld('');
     setNote('');
     setEntered(view.matchId);
     setTravelDestination(null);
   }, [travelDestination, view]);
 
-  const ready = useCallback(() => {
-    clearTimeout(launchTimer.current); setEntering(false);
-    void client.ready().then(reply => reply.status === 'rejected' && setNote(rejectionNote(reply)));
+  // Travel completion is the player's entry action. Keep the same server ready
+  // command, once per arrival, without a second briefing page or voice iframe.
+  const readyForArrival = useCallback((matchId: string) => {
+    const attempt = { matchId, client };
+    readyAttempt.current = attempt;
+    setEntryError('');
+    setEntering(true);
+    void client.ready().then(reply => {
+      if (readyAttempt.current !== attempt) return;
+      if (reply.status === 'rejected') setEntryError(rejectionNote(reply));
+    }).catch(() => {
+      if (readyAttempt.current === attempt) setEntryError('Could not connect to the arena. Try again.');
+    }).finally(() => {
+      if (readyAttempt.current === attempt) setEntering(false);
+    });
   }, [client]);
 
+  const arrivedMatch = view && entered === view.matchId ? view.matchId : null;
+  const needsReady = view?.phase === 'waiting' && !view.you.ready;
   useEffect(() => {
-    function message(event: MessageEvent) {
-      if (event.origin !== location.origin || event.source !== frame.current?.contentWindow) return;
-      if (event.data?.type === 'COPILOT_WORLD') setVoiceWorld(event.data.world);
-      if (event.data?.type === 'COPILOT_STOPPED') ready();
-    }
-    window.addEventListener('message', message);
-    return () => { window.removeEventListener('message', message); clearTimeout(launchTimer.current); };
-  }, [ready]);
+    if (!arrivedMatch || !needsReady) return;
+    if (readyAttempt.current?.matchId === arrivedMatch && readyAttempt.current.client === client) return;
+    readyForArrival(arrivedMatch);
+  }, [arrivedMatch, needsReady, client, readyForArrival]);
 
   useEffect(() => client.onSaberResolved(event => {
     const mine = event.attackerSlot === client.view()?.you.slot;
@@ -73,14 +81,9 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const finishedUnseen = view?.phase === 'finished' && entered !== view.matchId;
   useEffect(() => { if (finishedUnseen) void client.leaveMatch(); }, [client, finishedUnseen]);
 
-  function launch() {
-    setEntering(true);
-    frame.current?.contentWindow?.postMessage({ type: 'COPILOT_STOP' }, location.origin);
-    launchTimer.current = window.setTimeout(ready, 1500);
-  }
   function leave() {
-    clearTimeout(launchTimer.current); setEntering(false); setVoiceWorld(''); setNote('');
-    setEntered(null);
+    readyAttempt.current = null;
+    setEntering(false); setEntryError(''); setNote(''); setEntered(null);
     void client.leaveMatch();
   }
 
@@ -89,7 +92,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       <>
         <SpaceshipHome
           lobby={lobby}
-          onTravelComplete={beginBriefing}
+          onTravelComplete={beginArena}
           cockpitControls={cockpitControls}
           copilotClient={client}
         />
@@ -98,44 +101,27 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     );
   }
 
-  const { world, you, rival } = view;
-  const screen = view.phase === 'finished' ? 'result' : view.phase === 'waiting' && !you.ready ? 'briefing' : 'duel';
+  const { you, rival } = view;
+  if (view.phase !== 'finished') return <>
+    <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} />
+    {entryError && <aside className="flight-entry-error" role="alert"><p>{entryError}</p><button type="button" disabled={entering} onClick={() => readyForArrival(view.matchId)}>{entering ? 'Connecting…' : 'Retry arena entry'}</button></aside>}
+  </>;
+
   return <main className="flight-flow">
-    <header className="flight-header">
-      <span>FLIGHT SYSTEMS / {screen.toUpperCase()}</span>
-      <button onClick={leave}>{view.phase === 'finished' ? 'Return to cockpit' : 'Forfeit & return'}</button>
-    </header>
-    {screen === 'briefing' && <>
-      <section className="flight-panel">
-        <p className="flight-eyebrow">JUMP COORDINATES CONFIRMED · VS {rival.callsign}</p>
-        <h1>The server picked {world.name}. Listen to the briefing.</h1>
-        <p><strong>{world.gravityMps2} m/s²</strong> surface gravity (rounded <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/" target="_blank" rel="noreferrer">NASA</a> value) · lightsaber duel</p>
-        <p>Your laptop camera tracks your body and your iPhone is your lightsaber. Swing fast through your rival to hit; put your blade in the way of theirs to block. Step to move in the arena.</p>
-        <p className="flight-muted">Both pilots got the same world. Your copilot announces it automatically. If sound is paused by your browser, tap Play briefing below. Ask the copilot is optional for follow-up questions.</p>
-        <p role="status">{voiceWorld === world.id ? `Copilot state synced: ${world.name}.` : 'Connecting briefing state… If unavailable, start the local Voice server; the duel still works.'}</p>
-        <p role="status">{rival.ready ? `${rival.callsign} is ready.` : `${rival.callsign} is still in the briefing.`}</p>
-        <button className="flight-primary" disabled={entering} onClick={launch}>{entering ? 'Stopping microphone…' : 'Ready — enter the arena'}</button>
-        {note && <p className="flight-muted">{note}</p>}
-        <p className="flight-muted">Entering combat stops the briefing microphone and audio. Start camera explicitly on the next screen. The round begins when both pilots are ready.</p>
-      </section>
-      <iframe key={world.id} ref={frame} className="flight-voice" title="Grok Voice briefing" allow="microphone; autoplay" src={`/copilot/?world=${world.id}`} />
-    </>}
-    {screen === 'duel' && (
-      <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} />
-    )}
-    {screen === 'result' && <section className="flight-panel">
+    <header className="flight-header"><span>FLIGHT SYSTEMS / RESULT</span><button onClick={leave}>Return to cockpit</button></header>
+    <section className="flight-panel">
       <p className="flight-eyebrow">DUEL COMPLETE</p>
       <h1>{resultTitle(view)}</h1>
       <p>You {you.health} · {rival.callsign} {rival.health}</p>
       <p>Camera stopped. Return to the cockpit to challenge again.</p>
       <button className="flight-primary" onClick={leave}>Back to bridge</button>
-    </section>}
+    </section>
   </main>;
 }
 
 function duelNote(view: PlayerView, note: string): string {
   const { rival } = view;
-  if (view.phase === 'waiting') return `Waiting for ${rival.callsign} to finish the briefing…`;
+  if (view.phase === 'waiting') return `Waiting for ${rival.callsign} to arrive in the arena…`;
   if (!rival.connected) return `${rival.callsign} lost connection — they forfeit unless they return shortly.`;
   return note || 'Swing fast through your rival. Block with your blade.';
 }

@@ -484,7 +484,7 @@ export function ArenaDuel({
           {fighting
             ? note
             : view.phase === "waiting"
-              ? `Waiting for ${rival.callsign} to finish the briefing…`
+              ? `Waiting for ${rival.callsign} to arrive in the arena…`
               : wizard.step === "done"
                 ? `Waiting for ${rival.callsign} to finish setup…`
                 : "Finish setup to fight."}
