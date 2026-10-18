@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAvatarCustomization } from '../hooks/useAvatarCustomization';
-import { AVATAR_ACTIONS, DEFAULT_AVATAR, NAME_MAX_LENGTH, type AvatarAction } from '../types/avatar';
+import { AVATAR_ACTIONS, type AvatarAction } from '../types/avatar';
 import { sanitizeName } from '../utils/avatarConfig';
 import { AvatarControls, CreatorTabs, type CreatorTab } from './AvatarControls';
 import { AvatarPreview } from './AvatarPreview';
@@ -19,12 +19,11 @@ const ACTION_LABELS: Record<AvatarAction, string> = {
 export interface AvatarCreatorProps {
   /**
    * Onboarding mode: the creator is a step. Shows "Save & continue" and a Skip option.
-   * Receives the saved fighter name after Save; nothing after Skip.
    */
-  onContinue?: (savedName?: string) => void;
+  onContinue?: () => void;
   /** Onboarding mode: go back to the previous step instead of linking to the bridge. */
   onBack?: () => void;
-  /** Name a fresh avatar after the pilot (only while it still has the default name). */
+  /** The pilot callsign; the avatar is always named after it. */
   defaultName?: string;
 }
 
@@ -41,8 +40,8 @@ export function AvatarCreator({ onContinue, onBack, defaultName }: AvatarCreator
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (defaultName && config.name === DEFAULT_AVATAR.name) avatar.update({ name: sanitizeName(defaultName) });
-    // Only on mount: later name edits are the pilot's own.
+    // The name is entered once, at the callsign step; the avatar always carries it.
+    if (defaultName) avatar.update({ name: sanitizeName(defaultName) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -142,17 +141,6 @@ export function AvatarCreator({ onContinue, onBack, defaultName }: AvatarCreator
         </section>
 
         <section className="av-side" aria-label="Customize your astronaut">
-          <label className="av-name">
-            <span>Fighter name</span>
-            <input
-              value={config.name}
-              maxLength={NAME_MAX_LENGTH}
-              onChange={(e) => avatar.update({ name: e.target.value })}
-              onBlur={(e) => avatar.update({ name: sanitizeName(e.target.value) })}
-              autoComplete="nickname"
-              spellCheck={false}
-            />
-          </label>
           <CreatorTabs tab={tab} onTab={setTab} />
           <AvatarControls
             tab={tab}
@@ -168,7 +156,7 @@ export function AvatarCreator({ onContinue, onBack, defaultName }: AvatarCreator
               className="av-btn av-btn--primary av-btn--block"
               onClick={() => {
                 const saved = avatar.save();
-                if (saved && embedded) onContinue?.(sanitizeName(config.name));
+                if (saved && embedded) onContinue?.();
               }}
               disabled={avatar.saveState === 'saving'}
             >
