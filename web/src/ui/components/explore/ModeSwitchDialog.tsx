@@ -7,7 +7,7 @@ const COPY: Record<ExploreMode, { eyebrow: string; title: string; points: string
     eyebrow: 'Mode / multiplayer flight',
     title: 'Flight',
     points: [
-      'Pilots flying nearby see your ship and where you are.',
+      'Other pilots appear near Mars or Neptune so you can challenge them.',
       'Find rivals in Pilot contacts or by clicking their ships.',
       'Challenge someone to a lightsaber duel on Mars.',
     ],
