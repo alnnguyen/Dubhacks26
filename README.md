@@ -41,21 +41,21 @@ docs/                      Team, interface, QA, deployment and evidence notes
 
 ## Current status
 
-**Integrated on `alex-dev` (Oct 17 merge):** Ally’s 3D cockpit (default), Alan’s latest camera (hand lock, wide rear, first-person rock retune), Alex LiveDuel `/?pvp=1` rehearsal, Justin’s Socket.IO demo match under `server/`, and D Photon/Voice fixtures. **Ally should pull `alex-dev`** after this merge for cockpit + camera together.
+**Integrated on `mars-arena`:** Ally’s 3D cockpit, `main`’s server lobby + networking client (real challenges, server-picked world, rock and gun), Alan’s camera (hand lock, wide rear), and the immersive Mars arena (NASA MOLA Jezero terrain; real opponent composited in via segmentation when the server picks Mars).
 
-**Server (B / Justin):** first runnable slice with demo match + rock events. Verified commands in [server/README.md](server/README.md):
+**Server (B / Justin):** authoritative match + lobby. Verified commands in [server/README.md](server/README.md):
 
 ```bash
 cd server && npm install && npm test
 ```
 
-**Web (A cockpit + C camera):** Ally’s spaceship lobby is the default app. Alan’s camera harness: `/?debug=camera` or legacy `/?camera=1`. Live duel rehearsal: `/?pvp=1`.
+**Web:** the default app is the real flow — cockpit lobby → challenge → server-picked world + briefing → camera duel → result. Other routes: `/?camera=1` (Alan’s camera harness), `/?dev=mars` (camera + vision + Mars background, no match — for tuning detection), `/?arena=mars` (Mars scene only), `/?pvp=1` (older LiveDuel rehearsal).
 
 ```bash
-# Web (cockpit / camera / pvp rehearsal)
+# Web
 cd web && npm install && npm test && npm run dev
 
-# Authoritative demo match (B)
+# Authoritative server (B)
 cd server && npm install && npm test && npm run dev
 ```
 

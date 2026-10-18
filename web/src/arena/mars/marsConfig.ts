@@ -1,5 +1,3 @@
-import { flightSeconds, worlds } from '../../app/state'
-
 /**
  * Mars reference data.
  *
@@ -31,11 +29,14 @@ export const science = {
 /** Earth's solar irradiance from the same NASA fact-sheet series, for comparison. */
 export const EARTH_SOLAR_IRRADIANCE = 1361.0
 
+/** Must match server/src/game/rules.ts (the server is authoritative in matches). */
+const GAMEPLAY_GRAVITY = 3.7
+
 export const gameplay = {
-  /** Rounded NASA gravity, matching server/src/game/rules.ts MARS_GRAVITY. */
-  gravity: worlds.mars.gravity,
+  /** Rounded NASA gravity used by the game server for Mars. */
+  gravity: GAMEPLAY_GRAVITY,
   /** 0.8 × √(9.8 / g): the team's designed rock flight / defense window. */
-  rockFlightSeconds: flightSeconds('mars'),
+  rockFlightSeconds: Number((0.8 * Math.sqrt(9.8 / GAMEPLAY_GRAVITY)).toFixed(2)),
 } as const
 
 export const site = {

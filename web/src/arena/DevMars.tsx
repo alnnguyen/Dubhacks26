@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CameraDebugPage } from '../camera/CameraDebugPage'
-import { flightSeconds, worlds } from '../app/state'
+import { gameplay } from './mars/marsConfig'
 import { arenaDev, arenaView, setArenaZoom } from './devFlags'
 import '../styles.css'
 import './arena.css'
@@ -32,8 +32,8 @@ export function DevMars() {
     <>
       <CameraDebugPage
         mode="duel"
-        flightSeconds={flightSeconds('mars')}
-        duel={{ worldName: `${worlds.mars.name} · DEV`, gravity: worlds.mars.gravity, rivalName: 'Detected person', health: 100, rivalHealth: 100, immersive: true }}
+        flightSeconds={gameplay.rockFlightSeconds}
+        duel={{ worldName: 'Mars · DEV', gravity: gameplay.gravity, rivalName: 'Detected person', health: 100, rivalHealth: 100, immersive: true }}
         onCommands={(cmds) => cmds.length && setLastCommand(cmds.map((c) => c.name).join(', '))}
       />
       <aside className="mars-dev" aria-label="Detection diagnostics">
