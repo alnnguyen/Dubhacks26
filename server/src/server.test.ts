@@ -60,12 +60,14 @@ function next<E extends "lobby" | "view">(
 let alice: Client;
 let bob: Client;
 let bobPilotId: string;
+let alicePairCode: string;
 
 test("two players join the lobby and see each other", async () => {
   alice = open();
   bob = open();
   const aliceJoin = await join(alice, "player-alice", "alice");
   assert.ok(aliceJoin.ok);
+  alicePairCode = aliceJoin.lobby.pairCode;
   assert.equal(aliceJoin.view, null);
 
   const aliceSeesBob = next(alice, "lobby", (l: LobbyView) => l.pilots.length === 1);
@@ -110,6 +112,45 @@ test("the match starts when both are ready, and a retried command isn't applied 
   const block = { commandId: "bob-block-1", type: "startBlock" } as const;
   assert.deepEqual(await send(bob, block), { commandId: "bob-block-1", status: "accepted" });
   assert.deepEqual(await send(bob, block), { commandId: "bob-block-1", status: "accepted" });
+});
+
+test("a phone pairs as a pilot's saber, and the arena shows the blade to both laptops", async () => {
+  const phone = open();
+  const pair = (code: string) =>
+    new Promise<Parameters<Parameters<ClientToServerEvents["pairSaber"]>[1]>[0]>((resolve) =>
+      phone.emit("pairSaber", { code }, resolve),
+    );
+  assert.deepEqual(await pair("NOPE00"), { ok: false, reason: "invalid_code" });
+  const paired = await pair(alicePairCode.toLowerCase());
+  assert.ok(paired.ok);
+  assert.equal(paired.status.callsign, "ALICE");
+  assert.equal(paired.status.match?.phase, "active");
+
+  const bobSeesBlade = new Promise<Parameters<ServerToClientEvents["arena"]>[0]>((resolve) => {
+    const listener = (frame: Parameters<ServerToClientEvents["arena"]>[0]) => {
+      if (!frame.players[0].blade) return;
+      bob.off("arena", listener);
+      resolve(frame);
+    };
+    bob.on("arena", listener);
+  });
+  const joints = Array.from({ length: 33 }, () => [0, 0, 0]);
+  joints[16] = [0.2, 0.3, 0.3];
+  const aliceSeesPhone = new Promise((resolve) => alice.once("phoneAim", resolve));
+  const calibrated = await send(alice, {
+    commandId: "cal-1",
+    type: "calibrateSaber",
+    calibration: { forward: [0, 1], hand: "right", mirror: false, done: true },
+  });
+  assert.equal(calibrated.status, "accepted");
+  alice.emit("bodyPose", { seq: 1, tracked: true, joints, offset: { x: 0, z: 0 }, calibrated: true, setup: null } as never);
+  phone.emit("saberAim", { seq: 1, tracked: true, top: [0, 0, 1], rate: 0 });
+  // Alice's laptop gets her own phone's readings for its setup checks.
+  assert.deepEqual(await aliceSeesPhone, { seq: 1, tracked: true, top: [0, 0, 1], rate: 0 });
+  const frame = await bobSeesBlade;
+  // Alice's right wrist, at slot 1's spot (hips 1 m up), blade straight up.
+  assert.deepEqual(frame.players[0].blade?.hilt, [0.2, 1.3, 0.3]);
+  assert.deepEqual(frame.players[0].blade?.tip.map((n) => Math.round(n * 100) / 100), [0.2, 2.2, 0.3]);
 });
 
 test("a player who disconnects reclaims their match with the same playerId", async () => {

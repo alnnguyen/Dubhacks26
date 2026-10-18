@@ -13,6 +13,7 @@ class FakeSocket implements SocketLike {
   on(event: string, listener: (...args: any[]) => void) {
     this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener])
   }
+  volatile = { emit: (event: string, payload: unknown) => void this.sent.push({ event, payload, ack: () => {} }) }
   timeout(_ms: number) {
     return { emit: (event: string, payload: unknown, ack: Ack) => this.sent.push({ event, payload, ack }) }
   }
@@ -43,13 +44,19 @@ const view = (health: number): PlayerView => {
     cooldowns: { rock: null, gun: null },
     block: { active: false, endsInMs: null, cooldownEndsInMs: null },
     projectile: null,
+    saber: { swinging: false, cooldownEndsInMs: null, paired: false, phoneLive: false, bodyReady: false, saberReady: false },
   })
   const world = { id: "mars" as const, name: "Mars", gravityMps2: 3.7, rockFlightMs: 1302 }
   return { matchId: "m1", phase: "active", world, result: null, you: player(1), rival: player(2) }
 }
 
 const pilot = (id: string) => ({ id, callsign: id.toUpperCase(), status: "available" as const, wins: 0, losses: 0 })
-const lobbyView = (others: string[] = []): LobbyView => ({ you: pilot("pme"), pilots: others.map(pilot), challenge: null })
+const lobbyView = (others: string[] = []): LobbyView => ({
+  you: pilot("pme"),
+  pilots: others.map(pilot),
+  challenge: null,
+  pairCode: "ABC234",
+})
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const data = { ...initial }
@@ -157,6 +164,44 @@ describe("game state", () => {
     client.onProjectileLanded((e) => events.push(e))
     socket.fire("projectileLanded", { attackerSlot: 2, weapon: "gun", blocked: true, damage: 0 })
     expect(events).toEqual([{ attackerSlot: 2, weapon: "gun", blocked: true, damage: 0 }])
+  })
+})
+
+describe("arena stream", () => {
+  const pose = { tracked: true, joints: [], offset: { x: 0, z: 0 }, calibrated: true, setup: null }
+
+  it("streams body poses with increasing seq from page-load time", () => {
+    setup()
+    joinOnline()
+    client.sendBodyPose(pose)
+    client.sendBodyPose(pose)
+    const sent = socket.sent.filter((s) => s.event === "bodyPose").map((s) => s.payload.seq)
+    expect(sent).toEqual([5000, 5001])
+  })
+
+  it("drops poses while offline instead of queueing them", () => {
+    setup()
+    client.sendBodyPose(pose)
+    expect(socket.sent.some((s) => s.event === "bodyPose")).toBe(false)
+  })
+
+  it("passes arena frames and outcomes to listeners", () => {
+    setup()
+    joinOnline()
+    const frames: unknown[] = []
+    const outcomes: unknown[] = []
+    client.onArena((f) => frames.push(f))
+    client.onSaberResolved((e) => outcomes.push(e))
+    socket.fire("arena", { players: [] })
+    socket.fire("saberResolved", { attackerSlot: 2, outcome: "blocked", damage: 0 })
+    expect(frames).toEqual([{ players: [] }])
+    const readings: unknown[] = []
+    client.onPhoneAim((a) => readings.push(a))
+    socket.fire("phoneAim", { seq: 1, tracked: true, top: [0, 0, 1], rate: 0 })
+    expect(readings).toHaveLength(1)
+    void client.calibrateSaber({ forward: [0, 1], hand: "right", mirror: false, done: true })
+    expect(socket.last("command").payload).toMatchObject({ type: "calibrateSaber", calibration: { hand: "right" } })
+    expect(outcomes).toEqual([{ attackerSlot: 2, outcome: "blocked", damage: 0 }])
   })
 })
 

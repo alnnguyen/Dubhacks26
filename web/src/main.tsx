@@ -8,8 +8,22 @@ const cameraDebug = search.has('camera') || search.get('debug') === 'camera';
 const marsPreview = search.get('arena') === 'mars';
 // Camera + CV + immersive Mars + detection diagnostics, no match: /?dev=mars
 const devMars = search.get('dev') === 'mars';
+// Phone lightsaber controller, opened from the laptop's pair code: /?saber=CODE
+const saberCode = search.get('saber');
+// The saber arena with synthetic fighters, no camera/phone/server: /?dev=arena
+const devArena = search.get('dev') === 'arena';
 
-const Screen = devMars
+const Screen = devArena
+  ? lazy(async () => {
+      const m = await import('./arena3d/ArenaPreview');
+      return { default: m.ArenaPreview };
+    })
+  : saberCode
+  ? lazy(async () => {
+      const m = await import('./saber/SaberPhone');
+      return { default: () => <m.SaberPhone code={saberCode} /> };
+    })
+  : devMars
   ? lazy(async () => {
       const m = await import('./arena/DevMars');
       return { default: m.DevMars };

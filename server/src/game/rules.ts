@@ -10,6 +10,38 @@ export const RULES = {
   challengeExpiryMs: 30000,
 };
 
+// Saber duel in the shared 3D arena, meters and seconds. Placeholders to tune
+// with real players; speeds use server time between ticks.
+export const SABER = {
+  damage: 15,
+  bladeLength: 0.9,
+  bladeRadius: 0.03,
+  torsoRadius: 0.17,
+  headRadius: 0.12,
+  // Hip centers of the two calibrated spots, this far apart along z: an
+  // outstretched arm plus blade reaches the other torso without stepping.
+  separation: 1.3,
+  hipHeight: 1.0,
+  // How far stepping can move you from your spot, and the closest the two hips may get.
+  maxStepX: 1.2,
+  maxStepBack: 1.0,
+  minHipGap: 0.6,
+  // Tip speed that starts a swing, and the lower speed that ends it.
+  swingStartSpeed: 2.5,
+  swingEndSpeed: 1.2,
+  // A swing that hits or is blocked can't start again for this long.
+  swingCooldownMs: 600,
+  // A clash also briefly stops the defender from swinging back.
+  recoilMs: 250,
+  tickMs: 33,
+  // Small enough that a fast swing can't pass through a guarding blade between checks.
+  substeps: 10,
+  // Inputs older than this mean no blade (tracking lost or the phone gone).
+  staleMs: 300,
+  // Faster than ~60 inputs/s per stream is dropped.
+  minInputIntervalMs: 15,
+};
+
 // Rounded surface gravity, m/s², from NASA's Planetary Fact Sheet
 // (https://nssdc.gsfc.nasa.gov/planetary/factsheet/), retrieved 2026-10-17.
 const GRAVITY: Record<WorldId, { name: string; gravityMps2: number }> = {
