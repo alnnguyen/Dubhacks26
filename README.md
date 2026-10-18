@@ -42,6 +42,11 @@ Detailed proofs, limits, and what is / isn’t claimed live in [`docs/sponsor-ev
 - Rock + gun weapons, block windows, cooldowns, reconnect grace, projectile landing events
 - Clients use `createGameClient` — command IDs and validation stay server-side
 
+### Perceptron replay highlights
+- Opt in during saber setup to record up to 45 seconds of silent webcam footage locally; upload consent is separate on the result screen.
+- Perceptron selects intervals/captions and tracks player boxes; browser playback adds cuts, slow motion and reframing. Original video can be saved locally.
+- Real synthetic-WebM clip/track API proof passed; a complete recorded duel and phone-browser QA remain pending. Setup and limits: [`docs/perceptron-replay.md`](docs/perceptron-replay.md).
+
 ### Camera duel (Alan)
 - Rear-camera MediaPipe hand + pose; hand lock so rival hands don’t steal your gestures
 - Rock: palm charge → fist grab → fling / release → server `throwRock`

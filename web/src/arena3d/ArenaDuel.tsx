@@ -103,6 +103,10 @@ export function ArenaDuel({
   onLeave,
   onForfeit,
   onRematch,
+  replayEnabled = false,
+  onReplayEnabled,
+  onReplaySource,
+  resultExtra,
 }: {
   client: GameClient;
   view: PlayerView;
@@ -114,6 +118,10 @@ export function ArenaDuel({
   onForfeit: () => void;
   /** On the result screen: play again, keeping the camera and saber setup. */
   onRematch: () => void;
+  resultExtra?: ReactNode;
+  replayEnabled?: boolean;
+  onReplayEnabled?: (enabled: boolean) => void;
+  onReplaySource?: (video: HTMLVideoElement) => () => void;
 }) {
   const [basicGraphics, setBasicGraphics] = useState(false);
   const [renderAttempt, setRenderAttempt] = useState(0);
@@ -505,6 +513,9 @@ export function ArenaDuel({
   const finished = view.phase === "finished";
   // Rematches reuse this component, but must wait for the new round's server gate.
   useEffect(() => { if (finished) setSaberStart(null); }, [finished]);
+  useEffect(() => {
+    if (fighting && running && !loading && replayEnabled && videoRef.current && onReplaySource) return onReplaySource(videoRef.current);
+  }, [fighting, running, loading, replayEnabled, onReplaySource]);
 
   return (
     <main className="arena-duel" data-initiating={!fighting && !finished}>
@@ -538,6 +549,7 @@ export function ArenaDuel({
         <button type="button" className="arena-leave" onClick={finished ? onLeave : onForfeit}>
           {finished ? "Back to bridge" : "Forfeit"}
         </button>
+        {fighting && replayEnabled && onReplayEnabled && <button type="button" onClick={() => onReplayEnabled(false)}>Stop replay recording</button>}
         <p className="arena-note" role="status">
           {fighting
             ? note
@@ -555,6 +567,7 @@ export function ArenaDuel({
         bodySeen={bodySeen} phonePaired={you.saber.paired} phoneLive={you.saber.phoneLive}
         youReady={youArmed} rivalReady={rivalArmed} yourName={you.callsign} rivalName={rival.callsign}
         start={saberStart} serverFresh={serverFresh} qr={qr} saberUrl={saberUrl}
+        extraOptions={onReplayEnabled && <label className="arena-replay-optin"><input type="checkbox" checked={replayEnabled} onChange={e => onReplayEnabled(e.target.checked)} /> Record a local replay. Everyone visible must agree. Upload is a separate choice after the duel.</label>}
         notes={wizard.notes} error={error} onStart={() => setRunning(true)} onRedo={redoSetup}
       />}
       <SaberCountdown start={saberStart} remaining={countdown} fresh={!finished && serverFresh && wizard.step === "done" && youArmed && rivalArmed} />
@@ -585,6 +598,7 @@ export function ArenaDuel({
               Back to bridge
             </button>
           </div>
+          {resultExtra}
         </section>
       ) : null}
       {engaged && fighting ? (

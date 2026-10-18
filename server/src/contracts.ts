@@ -316,6 +316,7 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
+  'replay:ticket': (request: { matchId: string }, reply: (result: ReplayTicketReply) => void) => void;
   'copilot:session': (request: Record<string, never>, reply: (result: CopilotSessionReply) => void) => void;
   'copilot:context': (request: Record<string, never>, reply: (result: CopilotContextReply) => void) => void;
   join: (request: JoinRequest, reply: (result: JoinReply) => void) => void;
@@ -332,3 +333,13 @@ export interface ClientToServerEvents {
 export type CopilotFailure = { ok: false; reason: 'not_joined' | 'invalid_request' | 'offline' | 'no_response' | 'unavailable' | 'rate_limited' | 'provider_error' };
 export type CopilotSessionReply = CopilotFailure | { ok: true; clientSecret: string; expiresAt?: number; session: Record<string, unknown> };
 export type CopilotContextReply = CopilotFailure | { ok: true; context: { source: 'live'; lobby: LobbyView; match: PlayerView | null } };
+
+export type ReplayFailure = { ok: false; reason: 'not_joined' | 'invalid_request' | 'unavailable' | 'not_finished' | 'unauthorized' | 'too_large' | 'unsupported_media' | 'rate_limited' | 'provider_error' | 'no_moments' | 'offline' | 'no_response' };
+export type ReplayTicketReply = ReplayFailure | { ok: true; ticket: string };
+export interface ReplayMoment { start: number; end: number; caption: string }
+/** Coordinates are normalized to [0,1], in the original, unmirrored video. */
+export interface ReplayBox { at: number; x1: number; y1: number; x2: number; y2: number }
+export type ReplayReply = ReplayFailure | {
+  ok: true; source: 'perceptron'; model: string; moments: ReplayMoment[]; boxes: ReplayBox[];
+  requestIds: string[]; framing: 'perceptron' | 'unavailable';
+};

@@ -82,7 +82,7 @@ function joinOnline(matchView: PlayerView | null = view(100)) {
   socket.last("join").ack(null, { ok: true, lobby: lobbyView(), view: matchView })
 }
 
-afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals() })
 
 describe("connecting", () => {
   it("routes to the configured shared server while preserving an explicit override", () => {
@@ -308,5 +308,40 @@ describe("read-only copilot transport", () => {
     const session = client.copilotSession();
     socket.last("copilot:session").ack(new Error("timeout"), undefined);
     expect(await session).toEqual({ok: false, reason: "no_response"});
+  });
+});
+
+describe('replay transport', () => {
+  it('never uploads while offline or when the server refuses the ticket', async () => {
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    setup();
+    const video = new Blob(['mock'], {type: 'video/webm'});
+    expect(await client.analyzeReplay('m1', video, 5)).toEqual({ok: false, reason: 'offline'});
+    joinOnline();
+    const response = client.analyzeReplay('m1', video, 5);
+    expect(socket.last('replay:ticket').payload).toEqual({matchId: 'm1'});
+    socket.last('replay:ticket').ack(null, {ok: false, reason: 'unavailable'});
+    expect(await response).toEqual({ok: false, reason: 'unavailable'});
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('uploads only with a server ticket to the same configured backend and honors cancellation', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ok: false, reason: 'no_moments'})));
+    vi.stubGlobal('fetch', fetchMock);
+    socket = new FakeSocket();
+    client = createGameClient({url: 'https://replay-game.example', storage: null, createSocket: () => socket});
+    joinOnline();
+    const controller = new AbortController();
+    const video = new Blob(['mock'], {type: 'video/webm'});
+    const response = client.analyzeReplay('m1', video, 5, controller.signal);
+    socket.last('replay:ticket').ack(null, {ok: true, ticket: 'short-lived-ticket'});
+    expect(await response).toEqual({ok: false, reason: 'no_moments'});
+    const [url, request] = fetchMock.mock.calls[0];
+    expect(url.toString()).toBe('https://replay-game.example/replay/m1');
+    expect(request.body).toBe(video);
+    expect(request.headers.Authorization).toBe('Bearer short-lived-ticket');
+    expect(request.headers['X-Replay-Duration']).toBe('5');
+    expect(request.signal.aborted).toBe(false);
+    controller.abort();
+    expect(request.signal.aborted).toBe(true);
   });
 });

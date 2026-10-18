@@ -6,12 +6,17 @@ import { getGameClient, useGameLobby, useGameView, type ClientReply, type GameCl
 import './flight.css';
 import { clearArenaJourney, journeyFor, matchesJourney, readArenaJourney, saveArenaJourney } from './arenaJourney';
 import { useAudioScene } from '../audio/useAudioScene';
+import { useReplay } from '../replay/useReplay';
+import { ReplayPanel } from '../replay/ReplayPanel';
 
 // Every match number below comes from the game server's view; this screen only displays it.
 export function FlightApp({client: providedClient, cockpitControls}: {client?: GameClient; cockpitControls?: ReactNode} = {}) {
   const client = providedClient ?? getGameClient();
   const lobby = useServerLobby(client);
   const view = useGameView(client);
+  const replay = useReplay(view?.matchId);
+  const [replayEnabled, setReplayEnabled] = useState(false);
+  useEffect(() => { setReplayEnabled(false); }, [view?.matchId]);
   // Private pair code: a phone opening /?saber=<code> becomes this pilot's lightsaber.
   const pairCode = useGameLobby(client)?.pairCode ?? '';
   // Preserve this tab's entered match across development reloads; verify both pilot IDs before restoring it.
@@ -93,6 +98,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   function leave() {
     readyAttempt.current = null;
     setEntering(false); setEntryError(''); setNote(''); setJourney(null); clearArenaJourney();
+    replay.discard(); setReplayEnabled(false);
     void client.leaveMatch();
   }
 
@@ -112,7 +118,8 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
 
   // One mounted arena preserves the camera and calibration through the result and rematch.
   return <>
-    <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} onForfeit={forfeit} onRematch={rematch} />
+    <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} onForfeit={forfeit} onRematch={rematch} replayEnabled={replayEnabled} onReplayEnabled={setReplayEnabled} onReplaySource={replay.start}
+      resultExtra={<ReplayPanel key={view.matchId} client={client} matchId={view.matchId} clip={replay.clip} status={replay.status} onDiscard={replay.discard} />} />
     {entryError && <aside className="flight-entry-error" role="alert"><p>{entryError}</p><button type="button" disabled={entering} onClick={() => readyForArrival(view.matchId)}>{entering ? 'Connecting…' : 'Retry arena entry'}</button></aside>}
   </>;
 }

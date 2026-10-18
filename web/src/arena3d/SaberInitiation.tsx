@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { SaberStart, SetupStep } from "../../../server/src/contracts";
 import { INSTRUCTIONS, STEP_ORDER } from "./setupWizard";
 import lyraPortrait from "../voice/assets/lyra-hologram.png";
@@ -42,6 +42,7 @@ export interface SaberInitiationProps {
   saberUrl: string;
   notes: string[];
   error: string | null;
+  extraOptions?: ReactNode;
   onStart: () => void;
   onRedo: () => void;
 }
@@ -108,7 +109,7 @@ export function SaberInitiation(p: SaberInitiationProps) {
       {missingStart && <p className="si-error" role="alert">The match host needs the updated countdown server. Rejoin after the host updates.</p>}
       {p.error && <p className="si-error" role="alert">{p.error}</p>}
       {!p.running && <div className="si-actions"><button type="button" className="si-primary" onClick={p.onStart}>{p.error ? "Retry camera" : "Start camera"}<span>↗</span></button></div>}
-      <details className="si-setup-options"><summary>Setup options</summary><div className="si-actions"><button type="button" className="si-redo" onClick={() => setMovementOpen(v => !v)}>{movementOpen ? "Back to setup" : "Movement controls"}</button>{p.running && <button type="button" className="si-redo" onClick={p.onRedo} disabled={p.loading}>Restart setup</button>}</div>{p.notes.map(n=><p className="si-notes" key={n}>{n}</p>)}</details>
+      <details className="si-setup-options"><summary>Setup options</summary>{p.extraOptions}<div className="si-actions"><button type="button" className="si-redo" onClick={() => setMovementOpen(v => !v)}>{movementOpen ? "Back to setup" : "Movement controls"}</button>{p.running && <button type="button" className="si-redo" onClick={p.onRedo} disabled={p.loading}>Restart setup</button>}</div>{p.notes.map(n=><p className="si-notes" key={n}>{n}</p>)}</details>
     </div>
     <div className="si-live-window" data-panel={panel}>
       <span>{pairing ? "DEVICE PAIRING" : movement ? "PHONE CONTROLS" : `YOU / ${p.yourName}`}</span>
