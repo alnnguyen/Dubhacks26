@@ -6,6 +6,7 @@ import type {
   MatchSnapshot,
   PlayerSlot,
   PlayerState,
+  PlayerView,
   RejectReason,
   RockLanded,
 } from "../contracts.js";
@@ -132,6 +133,17 @@ export class Match {
         rock: p.rockLandsAt === null ? null : { landsInMs: Math.max(0, p.rockLandsAt - now) },
       }));
     return { matchId: this.matchId, phase: this.phase, players, result: this.result };
+  }
+
+  toView(slot: PlayerSlot): PlayerView {
+    const snapshot = this.toSnapshot();
+    return {
+      matchId: snapshot.matchId,
+      phase: snapshot.phase,
+      result: snapshot.result,
+      you: snapshot.players.find((p) => p.slot === slot)!,
+      rival: snapshot.players.find((p) => p.slot !== slot) ?? null,
+    };
   }
 
   // Stops every pending timer, e.g. when the server shuts down.

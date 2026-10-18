@@ -196,3 +196,14 @@ test("health reaching zero finishes the match with the attacker as winner", () =
   assert.equal(snapshot.phase, "finished");
   assert.deepEqual(snapshot.result, { winner: 1, reason: "knockout" });
 });
+
+test("each player's view puts them as you and the opponent as rival", () => {
+  send(1, "throwRock");
+  mock.timers.tick(FLIGHT_MS);
+  const view1 = match.toView(1);
+  const view2 = match.toView(2);
+  assert.deepEqual([view1.you.slot, view1.rival?.slot], [1, 2]);
+  assert.equal(view1.rival?.health, 100 - RULES.rockDamage);
+  assert.deepEqual(view2.you, view1.rival);
+  assert.deepEqual(view2.rival, view1.you);
+});

@@ -46,6 +46,16 @@ export interface MatchSnapshot {
   result: MatchResult | null;
 }
 
+// What one phone receives: its own player as "you", the opponent as "rival".
+export interface PlayerView {
+  matchId: string;
+  phase: MatchPhase;
+  result: MatchResult | null;
+  you: PlayerState;
+  // null until the second player joins.
+  rival: PlayerState | null;
+}
+
 export interface RockLanded {
   attackerSlot: PlayerSlot;
   blocked: boolean;
@@ -81,11 +91,11 @@ export interface JoinRequest {
 }
 
 export type JoinReply =
-  | { ok: true; slot: PlayerSlot; snapshot: MatchSnapshot }
+  | { ok: true; slot: PlayerSlot; view: PlayerView }
   | { ok: false; reason: "invalid_request" | "match_full" };
 
 export interface ServerToClientEvents {
-  snapshot: (snapshot: MatchSnapshot) => void;
+  view: (view: PlayerView) => void;
   rockLanded: (event: RockLanded) => void;
 }
 

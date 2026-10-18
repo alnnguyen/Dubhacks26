@@ -8,6 +8,8 @@ export default defineConfig({
   server: {
     host: true, port: 5173, https: {}, allowedHosts: ['.trycloudflare.com', '.ngrok-free.app', '.ngrok-free.dev'],
     proxy: {
+      // B's game server. One HTTPS tunnel to this dev server then serves both the page and the game socket.
+      '/socket.io': { target: 'http://127.0.0.1:3001', ws: true },
       // Local fixture only. Do not expose server credentials through public tunnels.
       '/copilot': {
         target: 'http://127.0.0.1:8787', changeOrigin: true,

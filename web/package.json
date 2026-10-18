@@ -18,6 +18,7 @@
     "postprocessing": "^6.39.5",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "socket.io-client": "^4.8.4",
     "three": "^0.180.0"
   },
   "devDependencies": {
