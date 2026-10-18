@@ -51,3 +51,16 @@ For Voice, mount ephemeralToken/runVoiceTool in B's authenticated server. Derive
 Do not mark D fully accepted until the first two real-game checks pass. Do not claim official Grok Bot use without the actual session.
 
 Automatic briefing is in grok/briefing.mjs: state-derived text → server-only Grok TTS, cached by public script. Browser can listen without requesting microphone access; optional realtime questions remain separate. Mount the same briefing service against B’s real authenticated getMatchState adapter when ready.
+
+## Justin server network smoke — October 17
+
+Run from repository root:
+
+```sh
+npm --prefix server test
+node server/src/integrations/game-smoke.mjs
+```
+
+The first command builds/runs B’s 24 tests. The second starts a fresh temporary B server on an OS-assigned port and exercises actual Socket.IO clients: shared join snapshot; invalid/unjoined/third-player rejection; unblocked 20-damage throw; duplicate command replay; cooldown; blocked zero-damage throw; endBlock; reconnect with same player ID and preserved health. It closes its clients and server afterward and never joins an existing match on 3001. Both passed locally. This is a Node network check, not browser CORS, two-phone, camera or provider-game integration evidence.
+
+The current web FlightApp still uses reduceDemo; clicking cockpit attacks does not test Justin’s server. Commands still need an agreed adapter: releaseRock → throwRock; palm lift/cancel currently have no B equivalent; block input must have defined start/end semantics. C’s colon-separated IDs must be converted to B’s allowed alphanumeric/underscore/hyphen format, with stable retry IDs. Do not merely rename event strings: render damage, cooldown and result from server snapshots, and keep lift as local animation until the server contract defines it.
