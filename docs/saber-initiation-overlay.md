@@ -68,3 +68,8 @@ Latest validation: production build/typecheck passed; 32 focused calibration/cou
 The six measured calibration checks now appear as slim rectangular segments across the top, using actual hold progress for the current segment and filled previous checks. Movement help and narration never advance or gate setup. LYRA now leads each task with a written cue from `INITIATION_CUES`, her portrait, and a brief visual halo/waveform animation. Replay repeats the animation. This release has no spoken audio or voice API calls; it works without a provider key or credits. A future server-side speech adapter can use the same cue text and drive the visual activity from actual audio playback.
 
 Top-progress/LYRA validation: production build/typecheck passed; 32 focused tests passed; browser checked matching per-task cue/segment updates and progress visibility in movement help, with no console errors. Device QA remains pending.
+
+
+## Simplified reference layout
+
+Latest revision removes the sensor cards, duplicate hold percentage and next-step labels. Short LYRA cues match the preview; movement uses “Quick swipes. One move at a time.” Secondary controls and notes are under Setup options. Pairing QR is prominent inside the right square, covering the avatar for pairing, with its real phone-controller link preserved. Movement help likewise replaces the avatar inside that square, then the tracked avatar returns for calibration. Top measured progress, readiness/error handling and authoritative countdown remain. Build/typecheck and 32 focused tests passed; labelled preview visually checked pairing and movement without console warnings/errors. Physical device QA still pending.

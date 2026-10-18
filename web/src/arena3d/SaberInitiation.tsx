@@ -7,7 +7,7 @@ import "./saber-initiation.css";
 const STEPS = STEP_ORDER.filter(s => s !== "done");
 const COPY: Record<SetupStep, { lead: string; word: string; label: string; confirmed: string }> = {
   stand: { lead: "FIND YOUR", word: "POSITION", label: "Body lock", confirmed: "Position confirmed" },
-  phone: { lead: "IGNITE YOUR", word: "SABER", label: "Phone link", confirmed: "Saber linked" },
+  phone: { lead: "LINK YOUR", word: "SABER", label: "Phone link", confirmed: "Saber linked" },
   forward: { lead: "POINT", word: "FORWARD", label: "Heading", confirmed: "Heading aligned" },
   up: { lead: "RAISE YOUR", word: "SABER", label: "Saber hand", confirmed: "Saber hand found" },
   right: { lead: "POINT TO YOUR", word: "RIGHT", label: "Direction", confirmed: "Direction confirmed" },
@@ -68,24 +68,27 @@ export function SaberInitiation(p: SaberInitiationProps) {
   const copy = COPY[p.step];
   const holding = p.running && !p.loading && p.progress > 0;
   const recovering = p.step === "done" && p.start?.unlocked;
-  const movement = !recovering && movementOpen;
-  const title = movement ? { lead: "SWIPE", word: "TO MOVE" } : !p.running ? { lead: "BRING YOUR", word: "SYSTEMS ONLINE" } : recovering ? { lead: "RESTORE YOUR", word: "LINK" } : copy;
-  const description = movement ? "Quick-swipe up, down, left or right on your saber phone. Each swipe makes one move." : !p.running ? "Your laptop sees you. Your phone becomes your saber. Keep your avatar in view as we bring each system online."
-    : p.loading ? "Opening your camera and loading body tracking…"
-    : recovering ? "Keep your upper body in frame and your saber phone awake. Combat resumes when both live links return."
-    : p.step === "done" ? !p.youReady ? "Keep your body in frame and your phone awake while your calibration reaches the arena."
-      : !p.rivalReady ? `You're ready. ${p.rivalName} is finishing initiation. Keep your camera and saber connected.`
-      : "Both pilots are ready. Hold position for the shared countdown."
+  const pairing = p.running && (p.step === "phone" || (p.step === "done" && !p.phonePaired));
+  const movement = !recovering && movementOpen && !pairing;
+  const panel = pairing ? "pairing" : movement ? "movement" : "avatar";
+  const title = pairing ? { lead: "LINK YOUR", word: "SABER" } : movement ? { lead: "SWIPE", word: "TO MOVE" } : !p.running ? { lead: "BRING YOUR", word: "SYSTEMS ONLINE" } : recovering ? { lead: "RESTORE YOUR", word: "LINK" } : copy;
+  const description = movement ? "Quick-swipe in any direction. Lift, then swipe again."
+    : !p.running ? "Start your camera. Your phone becomes your saber."
+    : p.loading ? "Starting your camera…"
+    : recovering ? "Keep your upper body in view and your phone awake."
+    : pairing ? "Scan with your iPhone. Tap Ignite saber, then allow motion access."
+    : p.step === "done" ? !p.youReady ? "Keep your body in view and your phone awake."
+      : !p.rivalReady ? `Waiting for ${p.rivalName}.` : "Hold position for the countdown."
     : INSTRUCTIONS[p.step];
-  const cue = movement ? "Quick swipes move you. Swipe up to close in, down to back away, or left and right to circle."
-    : !p.running ? "Ready, pilot? Start your camera and let's bring your systems online."
-    : p.loading ? "Bringing your camera online. One moment, pilot."
-    : recovering ? "Let's restore your link. Keep your body in view and your saber phone awake."
-    : p.step === "done" ? description : INITIATION_CUES[p.step];
+  const cue = movement ? "Quick swipes. One move at a time."
+    : !p.running ? "Let's get you ready, pilot."
+    : p.loading ? "Bringing your camera online."
+    : recovering ? "Let's restore your link."
+    : pairing ? INITIATION_CUES.phone : INITIATION_CUES[p.step];
   const progress = p.running && !p.loading ? Math.max(0, Math.min(1, p.progress)) : 0;
   const missingStart = p.step === "done" && p.youReady && p.rivalReady && p.serverFresh && !p.start;
 
-  return <section className="si-overlay" aria-label="Saber initiation" data-step={p.step} data-movement={movement}>
+  return <section className="si-overlay" aria-label="Saber initiation" data-step={p.step} data-movement={movement} data-panel={panel}>
     <div className="si-shade" aria-hidden="true" />
     <div className="si-brand">✦ SPACE BATTLES <span>/ SABER INITIATION</span></div>
     <nav className="si-top-progress" aria-label="Initiation progress">
@@ -100,29 +103,23 @@ export function SaberInitiation(p: SaberInitiationProps) {
       <p className="si-description">{description}</p>
     </header>
       <div className="si-feedback" role="status" aria-live="polite">
-        {confirmed ? <span className="si-confirmed" key={confirmed}>✓ {confirmed}</span> : <span>{!p.running ? "AWAITING CAMERA" : p.loading ? "STARTING TRACKING" : !p.serverFresh ? "CONNECTING ARENA LINK" : p.step === "done" ? p.youReady ? "YOUR SYSTEMS READY" : "CONFIRMING SYSTEMS" : holding ? "POSE DETECTED · HOLD STEADY" : p.step === "phone" ? "WAITING FOR IGNITION" : !p.bodySeen ? "BRING YOUR UPPER BODY INTO VIEW" : "TRACKING LIVE · FOLLOW THE PROMPT"}</span>}
+        {confirmed ? <span className="si-confirmed" key={confirmed}>✓ {confirmed}</span> : <span>{!p.running ? "CAMERA / STANDBY" : p.loading ? "STARTING CAMERA" : !p.serverFresh ? "CONNECTING ARENA" : pairing ? "PAIRING / WAITING FOR YOUR PHONE" : p.step === "done" ? "SYSTEMS READY" : !p.bodySeen ? "STEP INTO VIEW" : holding ? "HOLD STEADY" : "FOLLOW THE PROMPT"}</span>}
       </div>
-      {p.running && !p.loading && p.step !== "done" && <p className="si-hold-text">{holding ? `${Math.round(progress * 100)}% · KEEP HOLDING` : "WAITING FOR THE POSE"}</p>}
-      <div className="si-sensors" aria-label="Live device feedback">
-        <Sensor ok={p.running && p.bodySeen} label="Camera" detail={!p.running ? "Off" : p.loading ? "Starting" : p.bodySeen ? "Body tracked" : "Find your body"} />
-        <Sensor ok={p.phonePaired} label="Phone" detail={p.phonePaired ? "Paired" : "Not linked"} />
-        <Sensor ok={p.phoneLive} label="Saber" detail={p.phoneLive ? "Motion live" : "Awaiting ignition"} />
-      </div>
-      {p.running && (p.step === "phone" || (p.step === "done" && !p.phonePaired)) && <div className="si-pair">
-        {p.qr && <img src={p.qr} width="122" height="122" alt="Scan to connect your saber phone" />}
-        <div><strong>SCAN. IGNITE. CONNECT.</strong><p>Open this on your iPhone, tap <b>Ignite saber</b>, then allow motion access.</p>{p.saberUrl && <a href={p.saberUrl} target="_blank" rel="noreferrer">Open phone controller ↗</a>}</div>
-      </div>}
       {p.step === "done" && <div className="si-pilots"><span data-ready={p.youReady}><i />{p.yourName}<b>{p.youReady ? "READY" : "SYNCING"}</b></span><span data-ready={p.rivalReady}><i />{p.rivalName}<b>{p.rivalReady ? "READY" : "SETTING UP"}</b></span></div>}
 
-      {p.notes.length > 0 && <details className="si-notes"><summary>Calibration notes ({p.notes.length})</summary>{p.notes.map(n => <p key={n}>{n}</p>)}</details>}
       {missingStart && <p className="si-error" role="alert">The match host needs the updated countdown server. Rejoin after the host updates.</p>}
       {p.error && <p className="si-error" role="alert">{p.error}</p>}
-      <div className="si-actions"><button type="button" className="si-redo" onClick={() => setMovementOpen(v => !v)}>{movementOpen ? "Back to setup" : "Movement controls"}</button>{!p.running ? <button type="button" className="si-primary" onClick={p.onStart}>{p.error ? "Retry camera" : "Start camera"}<span>↗</span></button> : <button type="button" className="si-redo" onClick={p.onRedo} disabled={p.loading}>↶ Restart setup</button>}</div>
-
-      <p className="si-next">{p.step === "done" ? "NEXT / COUNTDOWN → DUEL" : `NEXT / ${COPY[STEP_ORDER[Math.min(index + 1, STEP_ORDER.length - 1)]].label.toUpperCase()}`}</p>
+      {!p.running && <div className="si-actions"><button type="button" className="si-primary" onClick={p.onStart}>{p.error ? "Retry camera" : "Start camera"}<span>↗</span></button></div>}
+      <details className="si-setup-options"><summary>Setup options</summary><div className="si-actions"><button type="button" className="si-redo" onClick={() => setMovementOpen(v => !v)}>{movementOpen ? "Back to setup" : "Movement controls"}</button>{p.running && <button type="button" className="si-redo" onClick={p.onRedo} disabled={p.loading}>Restart setup</button>}</div>{p.notes.map(n=><p className="si-notes" key={n}>{n}</p>)}</details>
     </div>
-    {movement && <SwipeLesson />}
-    <div className="si-live-window"><span>YOU / {p.yourName}</span>{(!p.running || !p.bodySeen) && <div className="si-avatar-empty">{p.loading ? "STARTING CAMERA…" : p.running ? "STEP INTO VIEW" : "YOUR AVATAR APPEARS HERE"}<small>{p.running ? "Face your laptop and show your upper body." : "Start your camera to see your movements."}</small></div>}<b>{p.running && p.bodySeen ? "● BODY TRACKED" : "○ AWAITING BODY"} <em>{p.phoneLive ? "SABER ONLINE" : "SABER STANDBY"}</em></b></div>
+    <div className="si-live-window" data-panel={panel}>
+      <span>{pairing ? "DEVICE PAIRING" : movement ? "PHONE CONTROLS" : `YOU / ${p.yourName}`}</span>
+      {pairing ? <div className="si-panel si-pairing-panel">
+        <div className="si-pairing-art"><div className="si-qr-large">{p.qr ? <img src={p.qr} width="280" height="280" alt="Scan to connect your saber phone" /> : <p>Preparing your QR…</p>}</div><div className="si-phone-illustration" aria-hidden="true"><i /><span>SABER<br />ONLINE</span><b>IGNITE SABER ↗</b></div></div>
+        {p.saberUrl && <a href={p.saberUrl} target="_blank" rel="noreferrer">Open phone controller ↗</a>}
+      </div> : movement ? <div className="si-panel"><SwipeLesson /></div> : (!p.running || !p.bodySeen) && <div className="si-avatar-empty">{p.loading ? "STARTING CAMERA…" : p.running ? "STEP INTO VIEW" : "YOUR AVATAR APPEARS HERE"}<small>{p.running ? "Face your laptop and show your upper body." : "Start your camera to see your movements."}</small></div>}
+      <b>{pairing ? p.phonePaired ? "LINKED · AWAITING MOTION" : "SCAN TO LINK" : movement ? "ONE SWIPE · ONE MOVE" : p.running && p.bodySeen ? "● BODY TRACKED" : "○ AWAITING BODY"}{!pairing && !movement && <em>{p.phoneLive ? "SABER ONLINE" : "SABER STANDBY"}</em>}</b>
+    </div>
     <div key={`${p.step}-${movement}`} className="si-laser" aria-hidden="true" />
   </section>;
 }
@@ -149,12 +146,8 @@ function LyraSetupCue({ text }: { text: string }) {
 function SwipeLesson() {
   return <div className="si-swipe-lesson" aria-label="Quick swipe movement guide">
     <div className="si-swipe-phone"><span>SWIPE TO MOVE</span><div className="si-swipe-pad" aria-hidden="true"><b>↑</b><b>→</b><b>↓</b><b>←</b><i /></div><small>ONE SWIPE. ONE MOVE.<br />LIFT. SWIPE AGAIN.</small></div>
-    <p>↑ Close in<br />↓ Back away<br />← → Circle your rival</p>
+    <p>↑ In · ↓ Out · ← → Circle</p>
   </div>;
-}
-
-function Sensor({ok,label,detail}:{ok:boolean;label:string;detail:string}) {
-  return <div data-ok={ok}><i /><span>{label}<b>{detail}</b></span></div>;
 }
 
 /** 0 means waiting for authoritative GO, never an early local start. */

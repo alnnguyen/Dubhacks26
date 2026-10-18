@@ -131,13 +131,34 @@
 .si-overlay[data-movement=true] .si-top-progress .si-rail {display:grid;}
 .si-top-progress .si-rail li>span {display:block;}
 
-/* Larger swipe demo between the instruction column and the live avatar. */
-.si-overlay[data-movement=true] .si-content {width:30vw;}
-.si-overlay>.si-swipe-lesson {position:absolute;left:calc((36vw + 94vw - var(--si-square))/2);top:54%;transform:translate(-50%,-50%);display:block;width:clamp(180px,15vw,210px);margin:0;text-align:center;pointer-events:none;}
-.si-overlay>.si-swipe-lesson .si-swipe-phone {box-sizing:border-box;width:100%;padding:18px 12px 14px;}
-.si-overlay>.si-swipe-lesson .si-swipe-pad {transform:scale(1.5);margin:35px auto;}
-.si-overlay>.si-swipe-lesson .si-swipe-phone>span {font-size:9px;}
-.si-overlay>.si-swipe-lesson .si-swipe-phone>small {font-size:7px;}
-.si-overlay>.si-swipe-lesson>p {font-size:10px;line-height:1.9;margin:14px 0 0;}
-@media(max-width:1100px) and (min-width:901px){.si-overlay[data-movement=true] .si-title>strong{font-size:3.4vw;}.si-overlay>.si-swipe-lesson{width:160px;}.si-overlay>.si-swipe-lesson .si-swipe-pad{transform:scale(1.25);margin:24px auto;}}
-@media(max-width:900px){.si-overlay[data-movement=true] .si-content{width:43vw;}.si-overlay>.si-swipe-lesson{left:auto;right:3vw;top:calc(38% + var(--si-square)/2 + 20px);width:var(--si-square);transform:none;}.si-overlay>.si-swipe-lesson .si-swipe-phone{width:160px;max-width:100%;margin:auto;}.si-overlay>.si-swipe-lesson .si-swipe-pad{transform:scale(1.2);margin:22px auto;}.si-overlay>.si-swipe-lesson>p{font-size:8px;}.si-overlay>.si-swipe-lesson .si-swipe-phone>span{font-size:7px;}.si-overlay>.si-swipe-lesson .si-swipe-phone>small{font-size:6px;}}
+
+
+/* Quiet preview composition: one cue, one instruction, one square. */
+.si-overlay[data-movement=true] .si-content {width:44vw;}
+.si-feedback {margin-top:24px;font-size:8px;min-height:15px;color:#8fc6e7;}
+.si-overlay[data-step=done] .si-feedback {display:none;}
+.si-setup-options {margin-top:24px;font:8px/1.7 'JetBrains Mono',monospace;color:#83a7c2;}
+.si-setup-options summary {cursor:pointer;width:fit-content;}
+.si-setup-options .si-actions {margin:12px 0;}
+.si-live-window {pointer-events:none;}
+.si-live-window>span,.si-live-window>b {z-index:2;}
+.si-panel {position:absolute;inset:1px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;background:linear-gradient(#76bdff08 1px,transparent 1px),linear-gradient(90deg,#76bdff08 1px,transparent 1px),#061326;background-size:28px 28px;pointer-events:auto;}
+.si-panel .si-swipe-lesson {display:flex;flex-direction:column;align-items:center;gap:12px;margin:0;text-align:center;}
+.si-panel .si-swipe-phone {box-sizing:border-box;width:230px;padding:23px 18px 19px;}
+.si-panel .si-swipe-pad {transform:scale(1.8);margin:52px auto;}
+.si-panel .si-swipe-phone>span {font-size:11px;}.si-panel .si-swipe-phone>small {font-size:7px;}
+.si-panel .si-swipe-lesson>p {font:9px 'JetBrains Mono',monospace;color:#9fc9e5;margin:10px 0 0;}
+.si-pairing-art {width:88%;display:flex;align-items:center;justify-content:center;gap:20px;}
+.si-qr-large {flex:0 1 280px;min-width:0;background:#e6f6ff;padding:12px;box-shadow:0 0 35px #3a9fff15;}
+.si-qr-large img {display:block;width:100%;height:auto;image-rendering:pixelated;}
+.si-qr-large p {font:11px 'JetBrains Mono',monospace;color:#163b5d;text-align:center;}
+.si-phone-illustration {position:relative;box-sizing:border-box;flex:0 0 130px;height:247px;border:2px solid #7db4d377;border-radius:21px;background:linear-gradient(130deg,#122d43,#020914);transform:rotate(-9deg);box-shadow:inset 0 0 0 5px #020711;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;}
+.si-phone-illustration:before {content:'';position:absolute;top:8px;width:55px;height:5px;border-radius:8px;background:#010409;}
+.si-phone-illustration i {width:3px;height:64px;background:#dffcff;box-shadow:0 0 10px #59c8ff;animation:si-phone-glow 1.6s ease-in-out infinite alternate;}
+.si-phone-illustration span {font:700 13px/1.4 Orbitron,sans-serif;text-align:center;color:#d7f6ff;}
+.si-phone-illustration b {font:6px Orbitron,sans-serif;letter-spacing:.04em;color:#b4e6ff;border:1px solid #538cb76b;padding:10px 7px;}
+.si-pairing-panel>a {font:9px 'JetBrains Mono',monospace;color:#a4d7f5;text-decoration:none;border-bottom:1px solid #538cb76b;padding-bottom:4px;}
+@keyframes si-phone-glow {from{opacity:.6}to{opacity:1}}
+@media(max-height:760px) and (min-width:761px){.si-panel .si-swipe-phone{width:180px;padding:16px 12px;}.si-panel .si-swipe-pad{transform:scale(1.35);margin:30px auto;}.si-panel .si-swipe-phone>span{font-size:9px;}.si-phone-illustration{flex-basis:98px;height:196px;gap:12px;}.si-phone-illustration i{height:43px;}.si-pairing-art{gap:14px;}.si-qr-large{padding:9px;}}
+@media(max-width:760px){.si-overlay[data-movement=true] .si-content{width:44vw;}.si-panel{gap:12px;}.si-panel .si-swipe-phone{width:120px;padding:11px 6px;}.si-panel .si-swipe-pad{transform:scale(.85);margin:0 auto;}.si-panel .si-swipe-phone>span{font-size:6px;}.si-panel .si-swipe-phone>small{font-size:5px;}.si-panel .si-swipe-lesson>p{font-size:6px;margin-top:0;}.si-phone-illustration{display:none;}.si-qr-large{padding:7px;}.si-pairing-art{width:76%;}.si-pairing-panel>a{font-size:6px;}.si-setup-options{font-size:7px;}.si-panel .si-swipe-lesson{gap:6px;}}
+@media(prefers-reduced-motion:reduce){.si-phone-illustration i{animation:none;}}

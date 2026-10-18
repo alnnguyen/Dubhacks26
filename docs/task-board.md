@@ -165,3 +165,8 @@ Alex approved proceeding from the concept. Owned paths: SaberInitiation componen
 ## Swipe guide size and placement
 
 Small presentation adjustment authorized by Alex: moved the instructional swipe phone out of the left text column into the space between SWIPE TO MOVE and the avatar, with a larger four-arrow/finger animation. Narrow screens stack it below the avatar. Owned paths: SaberInitiation component/CSS and this note; no gameplay/input/API changes. Production build/typecheck passed; browser review confirmed larger four-arrow guide sits between the text and avatar without overlap in the labelled preview.
+
+
+## Simplify initiation to match the approved reference
+
+Alex requested less text, short LYRA cues, swipe help replacing the avatar inside its square, and prominent QR pairing over the avatar. Owned paths: SaberInitiation component/styles and handoff notes. Removed the sensor cards, extra hold caption and next-step label; secondary controls/notes live under Setup options. Pairing and swipe illustrations occupy the existing square only while needed; real avatar returns otherwise. Top measured progress, errors, calibration, countdown and phone command path are preserved. No APIs/spending. Production build/typecheck and 32 focused tests passed. Browser review confirmed short cues, reduced text, the swipe phone replacing the avatar in the square, and prominent QR pairing; no console warnings/errors. Physical device QA remains pending.
