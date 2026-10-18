@@ -69,6 +69,11 @@ body,
   pointer-events: none;
 }
 
+.sd-root[data-travel-active='true'] .sd-hud {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .sd-hud > * {
   pointer-events: auto;
 }

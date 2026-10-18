@@ -17,13 +17,32 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const [voiceWorld, setVoiceWorld] = useState('');
   const [entering, setEntering] = useState(false);
   const [note, setNote] = useState('');
+  const [travelDestination, setTravelDestination] = useState<'mars' | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const launchTimer = useRef<number | undefined>(undefined);
 
-  const beginBriefing = useCallback(() => {
-    setVoiceWorld(''); setNote('');
-    setEntered(client.view()?.matchId ?? null);
-  }, [client]);
+  const beginBriefing = useCallback((destination: 'mars') => {
+    setNote('Travel complete. Connecting to the Mars match…');
+    setTravelDestination(destination);
+  }, []);
+
+  useEffect(() => {
+    if (!travelDestination || !view) return;
+    if (view.phase === 'finished') {
+      setTravelDestination(null);
+      setNote('The match ended before arrival. Return to the cockpit to challenge again.');
+      return;
+    }
+    if (view.world.id !== travelDestination) {
+      setTravelDestination(null);
+      setNote(`The server selected ${view.world.name}, not Mars. This arena flow requires Mars.`);
+      return;
+    }
+    setVoiceWorld('');
+    setNote('');
+    setEntered(view.matchId);
+    setTravelDestination(null);
+  }, [travelDestination, view]);
 
   const ready = useCallback(() => {
     clearTimeout(launchTimer.current); setEntering(false);
@@ -56,7 +75,6 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     frame.current?.contentWindow?.postMessage({ type: 'COPILOT_STOP' }, location.origin);
     launchTimer.current = window.setTimeout(ready, 1500);
   }
-
   function leave() {
     clearTimeout(launchTimer.current); setEntering(false); setVoiceWorld(''); setNote('');
     setEntered(null);
@@ -65,12 +83,15 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
 
   if (!view || entered !== view.matchId) {
     return (
-      <SpaceshipHome
-        lobby={lobby}
-        onEnterBattle={beginBriefing}
-        cockpitControls={cockpitControls}
-        copilotClient={client}
-      />
+      <>
+        <SpaceshipHome
+          lobby={lobby}
+          onTravelComplete={beginBriefing}
+          cockpitControls={cockpitControls}
+          copilotClient={client}
+        />
+        {note && <p className="flight-muted" role="status">{note}</p>}
+      </>
     );
   }
 

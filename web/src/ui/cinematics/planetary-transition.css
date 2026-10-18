@@ -1,0 +1,299 @@
+.planetary-transition {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  overflow: hidden;
+  color: #eafaff;
+  font-family: 'Rajdhani', 'Avenir Next Condensed', 'Arial Narrow', system-ui, sans-serif;
+  pointer-events: auto;
+  isolation: isolate;
+}
+
+.planetary-transition__video,
+.planetary-transition__backdrop,
+.planetary-transition__scrim,
+.planetary-transition__flash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.planetary-transition__video {
+  z-index: 1;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: min(100vw, calc(100vh * 464 / 688));
+  height: min(100vh, calc(100vw * 688 / 464));
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+  opacity: 0;
+  background: transparent;
+  transition: opacity 250ms ease-out;
+}
+
+@supports (height: 100dvh) {
+  .planetary-transition__video {
+    width: min(100vw, calc(100dvh * 464 / 688));
+    height: min(100dvh, calc(100vw * 688 / 464));
+  }
+}
+
+.planetary-transition[data-phase='video'] .planetary-transition__video {
+  opacity: 1;
+}
+
+.planetary-transition__backdrop {
+  z-index: 0;
+  background: radial-gradient(ellipse at 50% 46%, rgba(255, 135, 67, 0.94), rgba(25, 53, 76, 0.98) 72%);
+  background-position: center;
+  background-size: cover;
+  filter: blur(30px);
+  transform: scale(1.08);
+  opacity: 0;
+  transition: opacity 250ms ease-out;
+}
+
+.planetary-transition[data-phase='video'] .planetary-transition__backdrop {
+  opacity: 1;
+}
+
+.planetary-transition__scrim {
+  z-index: 2;
+  background: radial-gradient(ellipse at 50% 45%, rgba(4, 14, 22, 0.06), rgba(2, 7, 12, 0.56) 72%);
+  opacity: 0.9;
+  transition: opacity 500ms ease;
+}
+
+.planetary-transition[data-phase='activating'] .planetary-transition__scrim {
+  opacity: 0.34;
+}
+
+.planetary-transition[data-phase='video'] .planetary-transition__scrim {
+  opacity: 0;
+}
+
+.planetary-transition__flash {
+  z-index: 4;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, #fff8e7 0%, #ffbd63 34%, rgba(255, 104, 35, 0.94) 67%, rgba(255, 104, 35, 0) 100%);
+  animation: planetary-flash 380ms ease-out both;
+}
+
+.planetary-transition__flash[data-hold='true'] {
+  background: #ff8a3d;
+  opacity: 1;
+  animation: none;
+}
+
+.planetary-transition__flash[data-release='true'] {
+  animation: planetary-flash-release 260ms ease-out both;
+}
+
+.planetary-transition__heading {
+  position: absolute;
+  z-index: 5;
+  top: max(env(safe-area-inset-top), 28px);
+  left: 50%;
+  width: min(92vw, 640px);
+  transform: translateX(-50%);
+  text-align: center;
+  text-shadow: 0 0 24px rgba(29, 198, 244, 0.56);
+  animation: planetary-heading-in 500ms ease-out both;
+}
+
+.planetary-transition__eyebrow,
+.planetary-transition__status,
+.planetary-transition__next {
+  margin: 0;
+  color: #8be8ff;
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: clamp(9px, 2.2vw, 12px);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.planetary-transition__heading h1 {
+  margin: 7px 0 2px;
+  color: #f5fdff;
+  font-size: clamp(42px, 10vw, 76px);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  line-height: 0.95;
+  animation: planetary-name-flash 180ms ease-out both;
+}
+
+.planetary-transition[data-phase='locked'] .planetary-transition__eyebrow,
+.planetary-transition[data-phase='zooming'] .planetary-transition__eyebrow {
+  color: #ffb47d;
+}
+
+.planetary-transition[data-phase='locked'] .planetary-transition__heading h1,
+.planetary-transition[data-phase='zooming'] .planetary-transition__heading h1 {
+  color: #ffd0a8;
+  text-shadow: 0 0 28px rgba(255, 121, 55, 0.78);
+}
+
+.planetary-transition__details {
+  margin: 12px 0 0;
+  color: rgba(237, 248, 255, 0.82);
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: clamp(9px, 2.1vw, 12px);
+  letter-spacing: 0.03em;
+}
+
+.planetary-transition__details span {
+  padding: 0 4px;
+  color: #ff9b55;
+}
+
+.planetary-transition__skip {
+  position: absolute;
+  z-index: 5;
+  right: max(env(safe-area-inset-right), 18px);
+  bottom: max(env(safe-area-inset-bottom), 22px);
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid rgba(109, 220, 246, 0.55);
+  border-radius: 2px;
+  background: rgba(3, 18, 29, 0.72);
+  color: #dffaff;
+  font: 600 11px 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(8px);
+}
+
+.planetary-transition__skip:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.planetary-transition__sound {
+  position: absolute;
+  z-index: 5;
+  left: max(env(safe-area-inset-left), 18px);
+  bottom: max(env(safe-area-inset-bottom), 70px);
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(109, 220, 246, 0.42);
+  border-radius: 2px;
+  background: rgba(3, 18, 29, 0.72);
+  color: #dffaff;
+  font: 600 10px 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+  backdrop-filter: blur(8px);
+}
+
+.planetary-transition__sound:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.planetary-transition__audio-status {
+  position: absolute;
+  z-index: 5;
+  left: max(env(safe-area-inset-left), 18px);
+  bottom: max(env(safe-area-inset-bottom), 120px);
+  max-width: min(76vw, 360px);
+  color: rgba(229, 245, 250, 0.86);
+  font: 500 10px/1.5 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+.planetary-transition__error {
+  position: absolute;
+  z-index: 5;
+  right: max(env(safe-area-inset-right), 18px);
+  bottom: max(env(safe-area-inset-bottom), 78px);
+  max-width: min(82vw, 440px);
+  margin: 0;
+  color: #ffe5d3;
+  font: 500 13px 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  text-align: right;
+}
+
+.planetary-transition__next {
+  position: absolute;
+  z-index: 5;
+  left: max(env(safe-area-inset-left), 18px);
+  bottom: max(env(safe-area-inset-bottom), 34px);
+  color: rgba(154, 220, 237, 0.8);
+  font-size: 9px;
+}
+
+@keyframes planetary-flash {
+  from { opacity: 0; }
+  35% { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes planetary-flash-release {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes planetary-name-flash {
+  from { opacity: 0.25; transform: scale(0.94); filter: blur(2px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+@keyframes planetary-heading-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (max-width: 560px) {
+  .planetary-transition__heading {
+    top: max(env(safe-area-inset-top), 22px);
+  }
+
+  .planetary-transition__details {
+    max-width: 92vw;
+    margin-inline: auto;
+    line-height: 1.7;
+  }
+
+  .planetary-transition__next {
+    max-width: 45vw;
+    line-height: 1.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planetary-transition__video,
+  .planetary-transition__backdrop,
+  .planetary-transition__scrim,
+  .planetary-transition__heading {
+    transition-duration: 80ms;
+    animation-duration: 100ms;
+  }
+
+  .planetary-transition__flash,
+  .planetary-transition__flash[data-release='true'] {
+    animation-duration: 100ms;
+  }
+}
+
+.planetary-transition[data-reduced-motion='true'] .planetary-transition__video,
+.planetary-transition[data-reduced-motion='true'] .planetary-transition__backdrop,
+.planetary-transition[data-reduced-motion='true'] .planetary-transition__scrim {
+  transition-duration: 80ms;
+}
+
+.planetary-transition[data-reduced-motion='true'] .planetary-transition__heading,
+.planetary-transition[data-reduced-motion='true'] .planetary-transition__heading h1 {
+  animation-duration: 100ms;
+}
+
+.planetary-transition[data-reduced-motion='true'] .planetary-transition__flash,
+.planetary-transition[data-reduced-motion='true'] .planetary-transition__flash[data-release='true'] {
+  animation-duration: 100ms;
+}

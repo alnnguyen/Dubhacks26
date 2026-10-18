@@ -59,6 +59,12 @@ Cockpit controls placement: `SpaceshipHome.cockpitControls?: ReactNode` forwards
 
 Added joined-socket RPCs `copilot:session({})` and `copilot:context({})`, typed in `server/src/contracts.ts` and wrapped by GameClient. Context reads the same running lobby/match for the current player; identity arguments are rejected. Session mints a short-lived xAI Voice client secret; the permanent key stays server-only. The Voice tool `getFlightState` is read-only. No existing combat/challenge commands changed. A UI entry point passes `SpaceshipHome.copilotClient?: GameClient` from FlightApp. See `docs/hologram-copilot.md` for lifecycle, limits, verification, and merge instructions.
 
+## Planetary travel hand-off — A, October 17, 2026
+
+`SpaceshipHome` begins planetary travel only when its authoritative lobby adapter reports `challenge.kind === "launching"` after both players have accepted and the pilot chooses Engage. The cinematic always selects Mars and calls `onTravelComplete("mars")` once when the video ends or is skipped. `FlightApp` then enters the server-backed Mars briefing; the arena opens only after the server reports both players ready.
+
+This is a frontend callback boundary, not a new multiplayer event or shared wire contract. The server still owns the match, Mars selection, readiness, combat, and result. Room scanning is intentionally not part of this flow; the existing camera segmentation and hand/pose tracking remain in the live Mars arena.
+
 - 2026-10-17 ~22:15, B (with user approval; affects A FlightApp, C camera/vision/overlay) — **Lightsaber-only combat.** Additive; rock/gun commands are unchanged but the FlightApp duel no longer sends them.
   - Client → server `saberPose({ seq, tracked, hilt: {x, y}, angleRad, range: "far"|"duel"|"close" })`, no ack, Socket.IO volatile, ~20 Hz. Coordinates are the "duel plane" in the sender's own view: x −1..1 left→right, y 0..1 floor→head; angle counter-clockwise from the sender's right. Server drops malformed poses, `seq` ≤ last seen, and poses < 25 ms apart. Web: `client.sendSaberPose(pose)` numbers `seq` from page-load time.
   - Server → client `sabers({ you, rival })` (each `{ hilt, tip } | null`, receiver's own view, volatile) whenever a blade moves; `saberResolved({ attackerSlot, outcome: "blocked"|"hit", damage })`. Web: `onSabers`, `onSaberResolved`.

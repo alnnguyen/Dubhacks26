@@ -57,26 +57,15 @@ Full text: `server/src/integrations/HANDOFF.md`.
 
 ## Integrated local rehearsal — October 17
 
-- A/C/D composition on alex-dev: cockpit → world/Voice briefing → **duel HUD** camera → result → cockpit. Duel mode hides lab chrome; `/?camera=1` remains full MediaPipe harness.
+- A/C/D composition on alex-dev: cockpit → planetary travel → world/Voice briefing → **saber arena duel** (Justin) → result → cockpit. `/?camera=1` remains full MediaPipe harness; rock/gun CV still Alan’s path.
 - Provider proofs (Photon fixtures, Grok TTS/S2S/narration) recorded in `docs/sponsor-evidence.md`.
-- B blocker unchanged until `createGamePort` exists.
+- Server-backed lobby, accepted match, Mars selection, readiness, and saber combat are merged. Photon live binding + physical LYRA mic remain follow-up.
 
-## Cockpit Demo / Live switch — local integration verified
+## Planetary travel roulette — merged from `mars-arena`
 
-- Alex: added explicit Demo / Live controls after onboarding on `alex-dev`; default Live, persisted selection, separate simulated pilots, no live connection while in Demo. Live invites/matches lock switching.
-- Owned changes: `web/src/ui/screens/BridgeApp.tsx`, new `bridge-mode.css`, optional composition props in `web/src/app/FlightApp.tsx`; no vision/server changes.
-- Checked: production typecheck/build; two isolated browser players discover each other in Live, Demo shows four mock pilots and disappears from the other real roster, a real invitation reaches the defender and locks both switches, cancellation unlocks, Demo persists across reload. Phone viewport 390×844 visually checked.
-- Not claimed: fresh full camera battle or provider acceptance in this task. Existing battle/provider integration gaps remain.
-- Next: commit/merge to Ally's running checkout before her ngrok link exposes the switch. Her entry must render `BridgeApp`. Same link/server required on both demo devices.
+- Accepted match → cockpit roulette (Mars) → travel video → server-backed briefing → arena when both ready. Room scanning skipped.
+- Roulette assets (textures, Sun map, flight video, attribution) committed. Mobile Safari / two-device QA still open.
 
-- Compact dock follow-up: moved mode/reset into the original Radar/Console dock (the separate overlay had covered those buttons). Removed duplicate pilot/ship strip. Verified Radar opens all four demo pilots, Console navigation, Demo/Live changes, and every control fits 320px and 390px viewports. Production build/typecheck pass. Additional UI files: `SpaceshipHome.tsx` and `CommandConsole.tsx`; server/vision unchanged.
+## Cockpit Demo / Live + LYRA — on alex-dev
 
-
-## LYRA cockpit copilot — local implementation verified
-
-Alex: animated hologram UI, typed questions, Grok Voice, and read-only live lobby/match context are implemented on alex-dev. Demo uses a clearly labeled local guide. Browser proof changed from no rival to recommending LYNX after that test player joined; Demo Radar navigation did not send an invite. Frontend 110 pass / 1 opt-in skip, server 59 pass, production build pass. Human microphone and physical two-phone checks remain. Photon live challenge binding and official Grok Bot planning remain separate. Changes are local/uncommitted; merge/restart in Ally's checkout is needed for her tunnel. Handoff: `docs/hologram-copilot.md`.
-
-
-## LYRA selected-artwork animation — local
-
-Alex: replaced the SVG with the supplied hologram image, added audio-volume-driven mouth/jaw movement plus idle/listening/thinking projection effects. Connected to the existing Grok playback; no server/command contract changes. Added development-only `/lyra-preview.html` with a labeled simulated talking envelope. Build/typecheck and 110 frontend tests pass (one opt-in skipped); real Grok output and 390px cockpit layout visually checked. Human phone performance remains a check. Local/uncommitted. See `docs/hologram-copilot.md`.
+- Demo/Live switch, dock controls, hologram Voice: see `docs/hologram-copilot.md` and BridgeApp. Grok Bot planning bonus claimed in `docs/sponsor-evidence.md`.
