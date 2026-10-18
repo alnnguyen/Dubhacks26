@@ -146,6 +146,8 @@ export interface SaberStatus {
     startsInMs: number | null;
     // The laptop's current setup step, so the phone can show it too.
     setup: SetupProgress | null;
+    // null until the match finishes; the phone plays the KO cue from this.
+    result: MatchResult | null;
   } | null;
 }
 
