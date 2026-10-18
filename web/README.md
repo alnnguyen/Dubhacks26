@@ -57,4 +57,8 @@ Merged origin/cockpit-scene at 20124de into alex-dev. Combined React/Three/Media
 
 ## Connected local flow
 
-Default cockpit launch now continues into Voice briefing and camera training instead of a handoff placeholder. See docs/flight-integration.md from the repository root for startup, limits and test steps. Start the local Voice server on port 8787 before using the briefing. Real multiplayer/Photon challenge wiring remains B’s integration gate.
+The default cockpit flow now plays the Mars planetary roulette and travel video, then stops at an explicit room-scanning hand-off. The camera room scanner is not implemented in this worktree. Use the simulated cockpit challenge to preview the sequence; `/?localRehearsal=1` opts into the older local Voice/camera rehearsal instead of the room-scanning boundary. Neither route represents a live multiplayer match.
+
+The cinematic uses the existing cockpit WebGL canvas. Its local video asset is `public/cinematics/spacetomars.mp4`; on completion or skip, `SpaceshipHome` calls `onTravelComplete("mars")` exactly once when that integration callback is provided. See `docs/flight-integration.md` from the repository root for the room-scanning contract and limitations.
+
+The interactive roulette takes 3.6 seconds before the flight video. It uses the supplied 2K planetary maps, Earth day/night/cloud layers, directional sunlight, and lightweight procedural Saturn rings; the available files and attribution are recorded in `public/textures/planets/ATTRIBUTION.md`. No Uranus surface map or Saturn ring texture was supplied, so Uranus keeps its procedural fallback. Sounds are synthesized with the browser Web Audio API and can be enabled from the Engage gesture or the in-sequence sound control.

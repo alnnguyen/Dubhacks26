@@ -151,7 +151,7 @@ function planetPlacement() {
   return { center, yaw };
 }
 
-function Earth({ quality }: { quality: GraphicsQuality }) {
+function Earth({ quality, hidden }: { quality: GraphicsQuality; hidden: boolean }) {
   const placement = useMemo(planetPlacement, []);
   const gl = useThree((s) => s.gl);
   const [day, night, spec, clouds] = useTexture([
@@ -175,14 +175,19 @@ function Earth({ quality }: { quality: GraphicsQuality }) {
     [day, night, spec, clouds],
   );
   const atmoUniforms = useMemo(() => ({ uSun: { value: SUN_DIR } }), []);
+  const root = useRef<THREE.Group>(null);
   const globe = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
+    if (root.current) {
+      const target = hidden ? 0.001 : 1;
+      root.current.scale.setScalar(THREE.MathUtils.damp(root.current.scale.x, target, hidden ? 3.2 : 2.4, dt));
+    }
     if (globe.current) globe.current.rotation.y += dt * 0.0006;
     uniforms.uCloudOffset.value += dt * 0.000015;
   });
   const seg = quality === 'high' ? 128 : 72;
   return (
-    <group position={placement.center}>
+    <group ref={root} position={placement.center}>
       <group ref={globe} rotation={[0, placement.yaw, 0]}>
         <mesh>
           <sphereGeometry args={[PLANET_R, seg, seg / 2]} />
@@ -257,13 +262,13 @@ function Stars({ count, warp }: { count: number; warp: number }) {
   );
 }
 
-export function SpaceEnvironment({ quality, warp }: { quality: GraphicsQuality; warp: number }) {
+export function SpaceEnvironment({ quality, warp, hideEarth }: { quality: GraphicsQuality; warp: number; hideEarth?: boolean }) {
   return (
     <group name="space-environment">
       <Stars count={quality === 'high' ? 2600 : 1400} warp={warp} />
       {/* Earth streams its textures in; the cockpit renders without waiting. */}
       <Suspense fallback={null}>
-        <Earth quality={quality} />
+        <Earth quality={quality} hidden={hideEarth ?? false} />
       </Suspense>
     </group>
   );

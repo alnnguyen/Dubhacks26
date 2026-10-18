@@ -27,3 +27,9 @@ LOBBY → CHALLENGED → ACCEPTED → WORLD_SELECTED → CALIBRATING/READY → C
 - Camera confidence is self-reported and not proof of physical distance or contact.
 
 Record decisions below with owner/date and affected modules. No decisions have been frozen by this scaffolding task.
+
+## Planetary travel hand-off — A, October 17, 2026
+
+`SpaceshipHome` begins planetary travel only when its lobby adapter reports `challenge.kind === "launching"` after the accepted/ready state and the pilot chooses Engage. The cinematic always selects Mars and calls `onTravelComplete("mars")` once when the video ends or is skipped. The parent then mounts room scanning; arena generation and duel start remain downstream of scanning.
+
+This is a frontend callback boundary, not a new multiplayer event or shared wire contract. A real adapter must derive the launch state from the authoritative accepted match. The current mock lobby is preview-only; the room scanner is not present in this worktree. C can replace the `FlightApp` hand-off screen with the scanner when that module is integrated. B's server-owned match contract remains unchanged.

@@ -10,6 +10,8 @@ export function FlightApp() {
   const [opponent, setOpponent] = useState<NearbyPilot | null>(null);
   const [voiceWorld, setVoiceWorld] = useState('');
   const [entering, setEntering] = useState(false);
+  const [roomScanDestination, setRoomScanDestination] = useState<'mars' | null>(null);
+  const localRehearsal = new URLSearchParams(window.location.search).get('localRehearsal') === '1';
   const frame = useRef<HTMLIFrameElement>(null);
   const launchTimer = useRef<number | undefined>(undefined);
   const beginBriefing = useCallback((pilot: NearbyPilot) => {
@@ -37,11 +39,27 @@ export function FlightApp() {
     frame.current?.contentWindow?.postMessage({ type: 'COPILOT_STOP' }, location.origin);
     launchTimer.current = window.setTimeout(() => { setEntering(false); dispatch({ type: 'launch' }); }, 1500);
   }
-  function reset() { clearTimeout(launchTimer.current); setEntering(false); setVoiceWorld(''); dispatch({ type: 'reset' }); }
+  function reset() { clearTimeout(launchTimer.current); setEntering(false); setVoiceWorld(''); setRoomScanDestination(null); dispatch({ type: 'reset' }); }
 
+  if (state.phase === 'cockpit' && roomScanDestination) return (
+    <main className="flight-flow">
+      <header className="flight-header"><span>FLIGHT SYSTEMS / ROOM SCANNING</span><button onClick={reset}>Return to cockpit</button></header>
+      <section className="flight-panel">
+        <p className="flight-eyebrow">PLANETARY TRAVEL COMPLETE // {roomScanDestination.toUpperCase()}</p>
+        <h1>Ready for room scanning.</h1>
+        <p>The travel callback fired with Mars selected. This worktree does not contain the camera-based room scanner, so no scan or personalized arena is being simulated.</p>
+        <p className="flight-muted">Mount the room-scanning experience here, then generate the Mars arena only after scanning completes.</p>
+        <button className="flight-primary" onClick={reset}>Return to cockpit</button>
+      </section>
+    </main>
+  );
   if (state.phase === 'cockpit') return <>
-    <SpaceshipHome onEnterBattle={beginBriefing} />
-    <div className="flight-demo-label">LOCAL REHEARSAL · mock pilots · real Grok Voice in briefing</div>
+    {localRehearsal ? (
+      <SpaceshipHome onEnterBattle={beginBriefing} />
+    ) : (
+      <SpaceshipHome onTravelComplete={setRoomScanDestination} />
+    )}
+    {localRehearsal && <div className="flight-demo-label">LOCAL REHEARSAL · room scan bypassed · mock pilots</div>}
   </>;
   return <main className="flight-flow">
     <header className="flight-header"><span>FLIGHT SYSTEMS / {state.phase.toUpperCase()}</span><button onClick={reset}>Return to cockpit</button></header>

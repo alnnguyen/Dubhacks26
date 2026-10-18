@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { CameraPose } from './cockpitLayout';
+import { LAYOUT } from './cockpitLayout';
+import type { CinematicPhase } from '../../cinematics/sequence';
 
 export interface CameraControllerProps {
   pose: CameraPose;
@@ -11,6 +13,8 @@ export interface CameraControllerProps {
   panelOpen: boolean;
   /** Main cockpit view: let turning the phone look around widely. */
   lookAround: boolean;
+  cinematicPhase?: CinematicPhase;
+  marsTarget?: React.RefObject<THREE.Group | null>;
 }
 
 /** Vertical FOV that keeps ~64° horizontally on portrait phones, capped for landscape. */
@@ -28,7 +32,7 @@ const LOOK_RANGE = { open: { yaw: 40, pitch: 22 }, focused: { yaw: 5, pitch: 3 }
  * limited pointer/touch parallax, and turn-to-look from the phone's gyroscope
  * (wide on the main cockpit view only).
  */
-export function CameraController({ pose, reducedMotion, parallax, panelOpen, lookAround }: CameraControllerProps) {
+export function CameraController({ pose, reducedMotion, parallax, panelOpen, lookAround, cinematicPhase = 'idle', marsTarget }: CameraControllerProps) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const gl = useThree((s) => s.gl);
   const pos = useRef(new THREE.Vector3(...pose.position));
@@ -42,6 +46,7 @@ export function CameraController({ pose, reducedMotion, parallax, panelOpen, loo
   const look = useMemo(() => new THREE.Vector3(), []);
   const right = useMemo(() => new THREE.Vector3(), []);
   const up = useMemo(() => new THREE.Vector3(0, 1, 0), []);
+  const zoomOffset = useMemo(() => new THREE.Vector3(0, 0, 1.38), []);
 
   useEffect(() => {
     const el = gl.domElement;
@@ -124,6 +129,16 @@ export function CameraController({ pose, reducedMotion, parallax, panelOpen, loo
     const t = clock.elapsedTime;
     desiredPos.set(...pose.position);
     desiredTgt.set(...pose.target);
+    if (cinematicPhase !== 'idle') {
+      desiredPos.set(0, 1.66, -1.2);
+      desiredTgt.set(...LAYOUT.hologram.center);
+      if (cinematicPhase === 'locked' || cinematicPhase === 'zooming' || cinematicPhase === 'flash' || cinematicPhase === 'video') {
+        marsTarget?.current?.getWorldPosition(desiredTgt);
+      }
+      if (cinematicPhase === 'zooming' || cinematicPhase === 'flash' || cinematicPhase === 'video') {
+        desiredPos.copy(desiredTgt).add(zoomOffset);
+      }
+    }
     if (panelOpen) {
       const aspect = size.width / size.height;
       if (aspect < 1) desiredTgt.y -= 0.3; // bottom sheet: lift the subject
@@ -146,14 +161,17 @@ export function CameraController({ pose, reducedMotion, parallax, panelOpen, loo
     p.x = THREE.MathUtils.damp(p.x, allowParallax ? p.tx : 0, 3, dt);
     p.y = THREE.MathUtils.damp(p.y, allowParallax ? p.ty : 0, 3, dt);
 
-    const idle = reducedMotion ? 0 : 1;
+    const idle = reducedMotion || cinematicPhase !== 'idle' ? 0 : 1;
     const sx = (Math.sin(t * 0.31) * 0.012 + Math.sin(t * 0.73) * 0.004) * idle;
     const sy = (Math.sin(t * 0.23 + 1.3) * 0.009 + Math.sin(t * 0.91) * 0.003) * idle;
+    const shake = reducedMotion ? 0 : cinematicPhase === 'locked' ? 0.006 : cinematicPhase === 'zooming' ? 0.014 : cinematicPhase === 'flash' ? 0.005 : 0;
+    const shakeX = Math.sin(t * 51) * shake + Math.sin(t * 73) * shake * 0.35;
+    const shakeY = Math.cos(t * 57) * shake * 0.7;
 
     look.subVectors(tgt.current, pos.current).normalize();
     right.crossVectors(look, up).normalize();
 
-    camera.position.copy(pos.current).addScaledVector(right, sx + p.x * 0.07).addScaledVector(up, sy + p.y * 0.04);
+    camera.position.copy(pos.current).addScaledVector(right, sx + p.x * 0.07 + shakeX).addScaledVector(up, sy + p.y * 0.04 + shakeY);
     look.copy(tgt.current).addScaledVector(right, p.x * 0.38 + sx * 2).addScaledVector(up, p.y * 0.24 + sy * 2);
     camera.lookAt(look);
 
@@ -168,7 +186,8 @@ export function CameraController({ pose, reducedMotion, parallax, panelOpen, loo
     camera.rotateX(g.sp);
     if (idle) camera.rotateZ(Math.sin(t * 0.17) * 0.0035);
 
-    const desiredFov = fovForAspect(size.width / size.height) * pose.fovScale;
+    const fovScale = cinematicPhase === 'zooming' || cinematicPhase === 'flash' ? 0.84 : cinematicPhase === 'idle' ? pose.fovScale : 0.94;
+    const desiredFov = fovForAspect(size.width / size.height) * fovScale;
     fov.current = THREE.MathUtils.damp(fov.current, desiredFov, ease, dt);
     if (Math.abs(camera.fov - fov.current) > 0.01) {
       camera.fov = fov.current;

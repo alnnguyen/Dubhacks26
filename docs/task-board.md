@@ -34,3 +34,10 @@ Record owner, specific blocker, next action and effect on scope. Never paste cre
 - A/C/D composition now runs on alex-dev: cockpit Engage → world/Voice briefing → camera training → result/back to cockpit. 59 frontend + 10 integration tests and build pass.
 - C/D: user confirmed standalone CV and Voice; now verify speech, microphone shutdown and gestures on combined screens and both phones. Voice dev proxy currently allows this computer only.
 - B blocker unchanged: replace mock discovery/challenges and local training health with shared authoritative state; wire Photon and Voice to actual challenge/match. Interface notes in docs/flight-integration.md and server/src/integrations/HANDOFF.md.
+
+## Planetary travel roulette — A / `planetary-roulette` worktree
+
+- Implemented in the cockpit's existing WebGL canvas. The local mock challenge can exercise deterministic Mars selection, the Mars travel video, skip/end completion, and the room-scanning hand-off. `onTravelComplete("mars")` is a frontend boundary only; the room scanner and real server-backed accepted-match adapter are not in this worktree. Contract note: `docs/contracts.md`.
+- Verified: `cd web && npm run typecheck`; `cd web && npm run build`; `cd web && npm test` (61 tests); production preview loaded the supplied planet/Earth textures, and the desktop mock flow reached the room-scanning hand-off with one WebGL canvas.
+- Not verified: real multiplayer synchronization, actual phone/iOS playback, or camera scanning. Do not mark the feature deployed/integrated until those owners test their paths.
+- `web/public/cinematics/spacetomars.mp4` was present as an untracked worktree asset before this task and was not modified. Include it in integration/merge deliberately; it is required by the feature.
