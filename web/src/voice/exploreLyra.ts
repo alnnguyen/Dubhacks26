@@ -134,6 +134,8 @@ export function idleThought(snapshot: ExploreSnapshot, said: ReadonlySet<string>
   }
   const tips: Thought[] = [
     { key: 'tip-search', priority: 0, text: 'Press N to search 24,835 stars, 5,301 exoplanets and 1,034 galaxies. Try TRAPPIST-1 e.', action: { kind: 'jump', destinationId: 'exo-trappist-1-e', label: 'Jump to TRAPPIST-1 e' } },
+    { key: 'tip-roadster', priority: 0, text: 'Fun one: the Tesla Roadster from the first Falcon Heavy is still orbiting the Sun, with Starman at the wheel. Its orbit here comes from NASA/JPL Horizons.', action: { kind: 'jump', destinationId: 'visit-sx-roadster', label: 'Fly to the Roadster' } },
+    { key: 'tip-starlink', priority: 0, text: 'Those moving craft around Earth are real Starlink satellites from a dated CelesTrak snapshot, on a time-lapse. Open Destinations → SpaceX & ISS to fly up to one.', action: { kind: 'jump', destinationId: 'visit-sat-44768', label: 'Visit STARLINK-1063' } },
     { key: 'tip-zoom', priority: 0, text: 'Scroll outward fast and I’ll keep accelerating — all the way from Earth to the nearby stars.' },
     { key: 'tip-iss', priority: 0, text: 'The ISS is in our snapshot. Its orbit is dated, not live tracking, but it’s a fun flyby.', action: { kind: 'jump', destinationId: 'visit-sat-25544', label: 'Visit the ISS' } },
   ];

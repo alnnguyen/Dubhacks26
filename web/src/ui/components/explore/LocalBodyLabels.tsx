@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3, type Group, type PerspectiveCamera } from 'three';
 import { SOLAR_BODIES, bodyWorldPosition } from './bodies';
-import { LOCAL_OBJECT_INDEX } from './localObjects';
+import { LIVE_POSITIONS, LOCAL_OBJECT_INDEX } from './localObjects';
 import { LocalNavigation, localStarPosition } from './localNavigation';
 
 type Target = { id: string; name: string; position: [number,number,number]; radius: number };
@@ -47,6 +47,8 @@ export function LocalBodyLabels({ navigation, onLearn }: { navigation: LocalNavi
     const focal=size.height/(2*Math.tan((camera as PerspectiveCamera).fov*Math.PI/360));
     for(const target of targets) {
       const el=elements.current.get(target.id);if(!el)continue;
+      // Spacecraft labels follow the time-lapse.
+      const live=LIVE_POSITIONS.get(target.id);if(live)target.position=live;
       direction.set(...target.position).sub(navigation.motion.position);
       const distance=direction.length();direction.normalize();
       let hidden=distance>5000 || distance<=target.radius || (target.id.startsWith('sat-') && distance>70);

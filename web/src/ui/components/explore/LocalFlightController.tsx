@@ -77,8 +77,8 @@ export function LocalFlightController({ navigation, destination, resetToken, zoo
     timer.current+=dt;if(timer.current<.1)return;timer.current=0;
     const focus=navigation.bodies.find(b=>b.id===navigation.focusId);
     const distance=focus ? Math.max(0,offset.copy(navigation.motion.position).sub(new Vector3(...focus.position)).length()-focus.radius) : navigation.range;
-    const label=navigation.inTransit ? `Approaching ${navigation.focusName}` : navigation.band==='stars'?'Nearby stars · compressed':navigation.band==='system'?'Solar system':`Near ${navigation.focusName}`;
-    onTelem.current({speed:navigation.motion.velocity.length(),nearestName:navigation.focusName,nearestId:navigation.focusId,nearestDistance:distance,position:navigation.motion.position.toArray() as [number,number,number],absoluteDistance:navigation.motion.position.length(),scaleBand:navigation.band==='stars'?'catalogStars':navigation.band==='system'?'system':'planet',scaleLabel:label,showMilkyWay:false,boosting,pointerLocked:!!drag.current,
+    const label=navigation.inTransit ? `Approaching ${navigation.focusName}` : navigation.band==='galaxies'?'Galaxy atlas · real distances':navigation.band==='milkyWay'?'Milky Way · real scale, artistic disk':navigation.band==='stars'?'Nearby stars · compressed':navigation.band==='system'?'Solar system':`Near ${navigation.focusName}`;
+    onTelem.current({speed:navigation.motion.velocity.length(),nearestName:navigation.focusName,nearestId:navigation.focusId,nearestDistance:distance,position:navigation.motion.position.toArray() as [number,number,number],absoluteDistance:navigation.motion.position.length(),scaleBand:navigation.band==='galaxies'?'catalogGalaxies':navigation.band==='milkyWay'?'milkyWay':navigation.band==='stars'?'catalogStars':navigation.band==='system'?'system':'planet',scaleLabel:label,showMilkyWay:false,boosting,pointerLocked:!!drag.current,
       localNavigation:{range:navigation.range,focus:navigation.focusName,inTransit:navigation.inTransit,zooming:navigation.zooming}});
   },-2);
   return null;

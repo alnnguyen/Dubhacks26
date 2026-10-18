@@ -22,7 +22,7 @@ describe('bounded local solar catalogs',()=> {
       expect(o.elements.e).toBeGreaterThanOrEqual(0);expect(o.elements.e).toBeLessThan(1);
       expect(o.epoch.length).toBeGreaterThan(5);
       expect(scienceForBodyId(o.id)?.facts?.some(f=>f.label.toLowerCase().includes('epoch'))).toBe(true);
-      expect(DESTINATIONS.find(d=>d.bodyId===o.id)?.category).toBe(o.kind==='satellite'?'Satellites':o.kind==='comet'?'Comets':'Asteroids');
+      expect(DESTINATIONS.find(d=>d.bodyId===o.id)?.category).toBe(o.kind==='satellite'?'Satellites':o.kind==='probe'?'Spacecraft':o.kind==='comet'?'Comets':'Asteroids');
     }
     expect(LOCAL_OBJECT_MANIFEST.sources.every(s=>s.sha256.length===64 && s.url.startsWith('https://'))).toBe(true);
   });

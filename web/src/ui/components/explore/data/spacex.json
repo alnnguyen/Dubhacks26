@@ -1,0 +1,1239 @@
+{
+ "retrievedAt": "2026-10-18T11:49:10.727651+00:00",
+ "note": "Dated snapshot. Orbits are osculating/mean elements at each epoch, not live tracking. Launch Library 2 records are as of retrieval. Starshield payload orbits are not public; only launch records are included.",
+ "sources": [
+  {
+   "name": "gp-100882",
+   "url": "https://celestrak.org/NORAD/elements/gp.php?CATNR=100882&FORMAT=JSON",
+   "sha256": "088614337805b6de97662dbbb3b475b97d53c2de1a0fbf71f3d09088bb8f02b2",
+   "retrievedAt": "2026-10-18T11:47:13.390024+00:00"
+  },
+  {
+   "name": "gp-101031",
+   "url": "https://celestrak.org/NORAD/elements/gp.php?CATNR=101031&FORMAT=JSON",
+   "sha256": "86c697cbf5561bd437cc8833ba3fa0434e482a87fef975a84186084683ca9b40",
+   "retrievedAt": "2026-10-18T11:47:13.533462+00:00"
+  },
+  {
+   "name": "gp-43435",
+   "url": "https://celestrak.org/NORAD/elements/gp.php?CATNR=43435&FORMAT=JSON",
+   "sha256": "17f2ac64b9b07d87227df716fd1328616e11ff2d312fbcf33a3b07c5738c5150",
+   "retrievedAt": "2026-10-18T11:47:13.733461+00:00"
+  },
+  {
+   "name": "satcat-dragon",
+   "url": "https://celestrak.org/satcat/records.php?NAME=DRAGON&FORMAT=JSON",
+   "sha256": "df80c2cfd7669ac6a3b03914cfb40eefe2789049ef6b49213a4f1aaae82047d2",
+   "retrievedAt": "2026-10-18T11:49:10.615474+00:00"
+  },
+  {
+   "name": "satcat-43435",
+   "url": "https://celestrak.org/satcat/records.php?CATNR=43435&FORMAT=JSON",
+   "sha256": "527360ac9fa9726213500add4945131a73fbd56258f813d1a30c078062dbfbf4",
+   "retrievedAt": "2026-10-18T11:49:10.719258+00:00"
+  },
+  {
+   "name": "gp-25544",
+   "url": "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=JSON",
+   "sha256": "0e44e230b09fbeb0b9eb3677c75e75ff9825bf3f07b236cbfea47cf0830df901",
+   "retrievedAt": "2026-10-18T11:47:13.932329+00:00"
+  },
+  {
+   "name": "horizons-roadster",
+   "url": "https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND=%27-143205%27&OBJ_DATA=%27YES%27&MAKE_EPHEM=%27YES%27&EPHEM_TYPE=%27ELEMENTS%27&CENTER=%27500%4010%27&START_TIME=%272026-10-18%27&STOP_TIME=%272026-10-19%27&STEP_SIZE=%271d%27",
+   "sha256": "e5a833b1923741d09938d9fc5e90d4ecfd449da33378b33cb00f4d28161079ea",
+   "retrievedAt": "2026-10-18T11:47:14.488778+00:00"
+  },
+  {
+   "name": "horizons-europa-clipper",
+   "url": "https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND=%27-159%27&OBJ_DATA=%27YES%27&MAKE_EPHEM=%27YES%27&EPHEM_TYPE=%27ELEMENTS%27&CENTER=%27500%4010%27&START_TIME=%272026-10-18%27&STOP_TIME=%272026-10-19%27&STEP_SIZE=%271d%27",
+   "sha256": "8f2d41a773ecef235799b54bac1d14d2b2fe94d46e0baa7bb82d326383b613c3",
+   "retrievedAt": "2026-10-18T11:47:15.109394+00:00"
+  },
+  {
+   "name": "horizons-psyche",
+   "url": "https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND=%27-255%27&OBJ_DATA=%27YES%27&MAKE_EPHEM=%27YES%27&EPHEM_TYPE=%27ELEMENTS%27&CENTER=%27500%4010%27&START_TIME=%272026-10-18%27&STOP_TIME=%272026-10-19%27&STEP_SIZE=%271d%27",
+   "sha256": "827171e2366e86cbd9be277263bec853b14612c26e6125cbcb90da30a770098c",
+   "retrievedAt": "2026-10-18T11:47:15.702511+00:00"
+  },
+  {
+   "name": "horizons-hera",
+   "url": "https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND=%27-91%27&OBJ_DATA=%27YES%27&MAKE_EPHEM=%27YES%27&EPHEM_TYPE=%27ELEMENTS%27&CENTER=%27500%4010%27&START_TIME=%272026-10-18%27&STOP_TIME=%272026-10-19%27&STEP_SIZE=%271d%27",
+   "sha256": "ef0dc145d37caef7e68731fa1ae5ee2f07c112445705d272ef4b01eee2652773",
+   "retrievedAt": "2026-10-18T11:47:16.268560+00:00"
+  },
+  {
+   "name": "ll2-configs",
+   "url": "https://ll.thespacedevs.com/2.2.0/config/launcher/?manufacturer__name=SpaceX&mode=detailed&limit=30",
+   "sha256": "d428fd812354a4771422e177965dc96d3a94d9e412e72ad0126d5858edf4147e",
+   "retrievedAt": "2026-10-18T11:47:16.717372+00:00"
+  },
+  {
+   "name": "ll2-boosters",
+   "url": "https://ll.thespacedevs.com/2.2.0/launcher/?launcher_config__manufacturer__name=SpaceX&ordering=-flights&limit=20&mode=detailed",
+   "sha256": "0ed77c1346fb2ebdb4ac8892bca7e21c632aa740d0b1733c364bff8e13c4e891",
+   "retrievedAt": "2026-10-18T11:47:17.194031+00:00"
+  },
+  {
+   "name": "ll2-capsules",
+   "url": "https://ll.thespacedevs.com/2.2.0/spacecraft/?search=dragon&limit=60&mode=detailed",
+   "sha256": "be716ea2d52bbb744ab98644e8940ed500a709febbaa3f9727dd3d521c9b5bad",
+   "retrievedAt": "2026-10-18T11:47:18.378355+00:00"
+  },
+  {
+   "name": "ll2-starship",
+   "url": "https://ll.thespacedevs.com/2.2.0/launch/?search=starship&limit=60&mode=list&ordering=net",
+   "sha256": "9ff60868c76c195dc68cbf7e378605ad89f6bc70c8d5ea23742ec7d35960d52c",
+   "retrievedAt": "2026-10-18T11:47:19.193954+00:00"
+  },
+  {
+   "name": "ll2-nro",
+   "url": "https://ll.thespacedevs.com/2.2.0/launch/?search=NROL&lsp__name=SpaceX&limit=60&mode=list&ordering=net",
+   "sha256": "4e77f6682a21fa622f921eef9f2c7b24e7d91b6b993392dde91a37c955f51195",
+   "retrievedAt": "2026-10-18T11:47:19.718495+00:00"
+  }
+ ],
+ "dockedAtIss": [
+  100882,
+  101031
+ ],
+ "earthOrbit": [
+  {
+   "role": "dragon",
+   "OBJECT_NAME": "CREW DRAGON 13",
+   "OBJECT_ID": "2026-226A",
+   "EPOCH": "2026-10-17T19:43:43.038624",
+   "MEAN_MOTION": 15.48913056,
+   "ECCENTRICITY": 0.00067659,
+   "INCLINATION": 51.6326,
+   "RA_OF_ASC_NODE": 53.2215,
+   "ARG_OF_PERICENTER": 277.4279,
+   "MEAN_ANOMALY": 82.594,
+   "EPHEMERIS_TYPE": 0,
+   "CLASSIFICATION_TYPE": "U",
+   "NORAD_CAT_ID": 100882,
+   "ELEMENT_SET_NO": 999,
+   "REV_AT_EPOCH": 236,
+   "BSTAR": 0.00014569352,
+   "MEAN_MOTION_DOT": 7.563e-05,
+   "MEAN_MOTION_DDOT": 0,
+   "LAUNCH_DATE": "2026-10-02"
+  },
+  {
+   "role": "dragon",
+   "OBJECT_NAME": "DRAGON CRS-35",
+   "OBJECT_ID": "2026-233A",
+   "EPOCH": "2026-10-17T19:43:43.038624",
+   "MEAN_MOTION": 15.48913056,
+   "ECCENTRICITY": 0.00067659,
+   "INCLINATION": 51.6326,
+   "RA_OF_ASC_NODE": 53.2215,
+   "ARG_OF_PERICENTER": 277.4279,
+   "MEAN_ANOMALY": 82.594,
+   "EPHEMERIS_TYPE": 0,
+   "CLASSIFICATION_TYPE": "U",
+   "NORAD_CAT_ID": 101031,
+   "ELEMENT_SET_NO": 999,
+   "REV_AT_EPOCH": 48,
+   "BSTAR": 0.00014569352,
+   "MEAN_MOTION_DOT": 7.563e-05,
+   "MEAN_MOTION_DDOT": 0,
+   "LAUNCH_DATE": "2026-10-13"
+  },
+  {
+   "role": "falcon-payload",
+   "launchVehicle": "Falcon 9",
+   "operator": "NASA",
+   "OBJECT_NAME": "TESS",
+   "OBJECT_ID": "2018-038A",
+   "EPOCH": "2026-09-21T14:50:11.752512",
+   "MEAN_MOTION": 0.07023037,
+   "ECCENTRICITY": 0.49437524,
+   "INCLINATION": 56.2338,
+   "RA_OF_ASC_NODE": 32.161,
+   "ARG_OF_PERICENTER": 64.1731,
+   "MEAN_ANOMALY": 11.1423,
+   "EPHEMERIS_TYPE": 0,
+   "CLASSIFICATION_TYPE": "U",
+   "NORAD_CAT_ID": 43435,
+   "ELEMENT_SET_NO": 999,
+   "REV_AT_EPOCH": 192,
+   "BSTAR": 0,
+   "MEAN_MOTION_DOT": -8.79e-06,
+   "MEAN_MOTION_DDOT": 0,
+   "LAUNCH_DATE": "2018-04-18"
+  }
+ ],
+ "heliocentric": [
+  {
+   "id": "sx-roadster",
+   "spkid": "-143205",
+   "name": "Tesla Roadster ('Starman')",
+   "launchVehicle": "Falcon Heavy",
+   "launchDate": "2018-02-06",
+   "operator": "SpaceX",
+   "epochJD": 2461331.5,
+   "a": 1.3252756287698648,
+   "e": 0.2559515114104025,
+   "i": 1.074783804411304,
+   "om": 316.8726660870951,
+   "w": 177.7868658686666,
+   "ma": 253.2957895737134,
+   "perihelionAu": 0.9860693285508463,
+   "periodDays": 557.2598378083168,
+   "horizonsNote": "(solution #11) Tesla Roadster (AKA: Starman, 2018-017A) NOTES: Visibility: 20th magnitude until Feb 20, 2018. 22nd magnitude through mid-April (2018) Brighter than 26th magnitude into mid-June (2018) 2018-Mar-01: Radial non-gravitational acceleration A1 estimated from data (nominally solar radiation pressure) 2018-Mar-27: Two reporting sites (J04 & K93) extend data arc one month. A1 estimate of JPL s10 is reduced 1.2-sigma compared to s9. 2025-Jan-03: Additional data from 2018 were recognized (in 2025) as being this object and included in a trajectory update to JPL s11. See MPEC 2025-A38 and M"
+  },
+  {
+   "id": "sx-europa-clipper",
+   "spkid": "-159",
+   "name": "Europa Clipper",
+   "launchVehicle": "Falcon Heavy",
+   "launchDate": "2024-10-14",
+   "operator": "NASA",
+   "epochJD": 2461331.5,
+   "a": 1.5992405009856039,
+   "e": 0.475463944859883,
+   "i": 2.046533381228596,
+   "om": 71.43336357713413,
+   "w": 302.3980656847568,
+   "ma": 357.2822106721757,
+   "perihelionAu": 0.8388593036072933,
+   "periodDays": 738.7016967971792,
+   "horizonsNote": "https://science.nasa.gov/mission/europa-clipper/ https://europa.nasa.gov/ BACKGROUND: NASA's Europa Clipper spacecraft carries a suite of science instruments to assess habitability of Jupiter's ice-covered moon Europa (502) while confirming the existence and nature of an expected sub-surface ocean. Launched : 2024-Oct-14 16:06 UTC (SpaceX Falcon Heavy, KSC LC-39A) Mars gravity assist : 2025-Mar-01 Earth gravity assist: 2026-Dec-03 Arrival : 2030-Apr-11 (5.50 year time-of-flight) Mission length : 4.12 years (prime mission, JOI to E49) End-of-mission : 2034-Sep (directed to Ganymede impact ~30d "
+  },
+  {
+   "id": "sx-psyche",
+   "spkid": "-255",
+   "name": "Psyche",
+   "launchVehicle": "Falcon Heavy",
+   "launchDate": "2023-10-13",
+   "operator": "NASA",
+   "epochJD": 2461331.5,
+   "a": 2.1031327621034155,
+   "e": 0.3332335618044734,
+   "i": 2.649718636674659,
+   "om": 158.9972044289342,
+   "w": 225.0177937743941,
+   "ma": 42.74880352712189,
+   "perihelionAu": 1.4022983408400145,
+   "periodDays": 1114.0340370559288,
+   "horizonsNote": "https://www.nasa.gov/psyche https://psyche.asu.edu/ BACKGROUND: Psyche is a NASA Discovery-class mission to map the surface and characterize the composition of '16 Psyche', an elongated 280-km diameter metal-rich asteroid located in the main asteroid belt between Mars and Jupiter. This is the first mission to a metal-rich asteroid. Psyche was launched Oct 13, 2023 @ 14:19:43 UTC on a SpaceX Falcon Heavy from Kennedy Space Center, LC-39A. Stage separation occurred 62 minutes after launch at 15:21 UTC. A gravity-assist flyby of Mars will nominally occur May 15, 2026 @ 19:28:03 UTC at an altitude"
+  },
+  {
+   "id": "sx-hera",
+   "spkid": "-91",
+   "name": "Hera",
+   "launchVehicle": "Falcon 9",
+   "launchDate": "2024-10-07",
+   "operator": "ESA",
+   "epochJD": 2461331.5,
+   "a": 1.6564939078763814,
+   "e": 0.3866647185311803,
+   "i": 3.407077309313941,
+   "om": 72.75815612407047,
+   "w": 319.0785020304333,
+   "ma": 322.9866925737114,
+   "perihelionAu": 1.0159861572387454,
+   "periodDays": 778.723339565214,
+   "horizonsNote": "https://www.dlr.de/en/ar/topics-missions/space-safety/hera https://esamultimedia.esa.int/docs/HERA_Launch_Kit.pdf Launch Date: Didymos Arrival Date: 2024-Oct-07 14:52 UTC Late 2026 Launch Vehicle: Launch Site: SpaceX Falcon 9 Cape Canaveral, SFS MILESTONES 2024-Nov : DSM-1 2025-Mar : Mars flyby (~6000 km from Mars, ~1000 km from Deimos) 2026-Feb : DSM-2 2026-Oct : Rendevous maneuver Late 2026 : Didymos/Dimorphos system arrival OBJECTIVES: Assess the size and depth of the crater on the 151-m diameter asteroidal moon Dimorphos, created by NASA's DART (Double Asteroid Redirection Test) spacecraft"
+  }
+ ],
+ "vehicles": [
+  {
+   "id": 133,
+   "name": "Falcon 1",
+   "full_name": "Falcon 1",
+   "variant": "1",
+   "reusable": false,
+   "maiden_flight": "2006-03-24",
+   "total_launch_count": 5,
+   "successful_launches": 2,
+   "failed_launches": 3,
+   "pending_launches": 0,
+   "attempted_landings": 2,
+   "successful_landings": 0,
+   "failed_landings": 2,
+   "leo_capacity": 470,
+   "gto_capacity": null,
+   "length": 22.25,
+   "diameter": 1.7,
+   "to_thrust": 454,
+   "active": false
+  },
+  {
+   "id": 164,
+   "name": "Falcon 9",
+   "full_name": "Falcon 9 Block 5",
+   "variant": "Block 5",
+   "reusable": true,
+   "maiden_flight": "2018-05-11",
+   "total_launch_count": 640,
+   "successful_launches": 639,
+   "failed_launches": 1,
+   "pending_launches": 119,
+   "attempted_landings": 630,
+   "successful_landings": 625,
+   "failed_landings": 5,
+   "leo_capacity": 22800,
+   "gto_capacity": 8300,
+   "length": 70.0,
+   "diameter": 3.65,
+   "to_thrust": 7607,
+   "active": true
+  },
+  {
+   "id": 169,
+   "name": "Falcon 9",
+   "full_name": "Falcon 9 v1.0",
+   "variant": "v1.0",
+   "reusable": false,
+   "maiden_flight": "2010-06-04",
+   "total_launch_count": 5,
+   "successful_launches": 4,
+   "failed_launches": 1,
+   "pending_launches": 0,
+   "attempted_landings": 2,
+   "successful_landings": 0,
+   "failed_landings": 2,
+   "leo_capacity": 9300,
+   "gto_capacity": 3400,
+   "length": 47.8,
+   "diameter": 3.65,
+   "to_thrust": 3807,
+   "active": false
+  },
+  {
+   "id": 145,
+   "name": "Falcon 9",
+   "full_name": "Falcon 9 Block 4",
+   "variant": "Block 4",
+   "reusable": true,
+   "maiden_flight": "2015-12-22",
+   "total_launch_count": 12,
+   "successful_launches": 12,
+   "failed_launches": 0,
+   "pending_launches": 0,
+   "attempted_landings": 6,
+   "successful_landings": 6,
+   "failed_landings": 0,
+   "leo_capacity": 22800,
+   "gto_capacity": 8305,
+   "length": 71.0,
+   "diameter": 3.65,
+   "to_thrust": 6804,
+   "active": false
+  },
+  {
+   "id": 55,
+   "name": "Falcon 9",
+   "full_name": "Falcon 9 Full Thrust",
+   "variant": "Full Thrust",
+   "reusable": true,
+   "maiden_flight": "2015-12-22",
+   "total_launch_count": 25,
+   "successful_launches": 24,
+   "failed_launches": 1,
+   "pending_launches": 0,
+   "attempted_landings": 18,
+   "successful_landings": 16,
+   "failed_landings": 2,
+   "leo_capacity": 22800,
+   "gto_capacity": 8305,
+   "length": 71.0,
+   "diameter": 3.65,
+   "to_thrust": 6804,
+   "active": false
+  },
+  {
+   "id": 14,
+   "name": "Falcon 9",
+   "full_name": "Falcon 9 v1.1",
+   "variant": "v1.1",
+   "reusable": false,
+   "maiden_flight": "2013-09-29",
+   "total_launch_count": 15,
+   "successful_launches": 14,
+   "failed_launches": 1,
+   "pending_launches": 0,
+   "attempted_landings": 5,
+   "successful_landings": 0,
+   "failed_landings": 6,
+   "leo_capacity": 13150,
+   "gto_capacity": 4850,
+   "length": 68.4,
+   "diameter": 3.65,
+   "to_thrust": 5883,
+   "active": false
+  },
+  {
+   "id": 161,
+   "name": "Falcon Heavy",
+   "full_name": "Falcon Heavy",
+   "variant": "Heavy",
+   "reusable": true,
+   "maiden_flight": "2018-02-06",
+   "total_launch_count": 14,
+   "successful_launches": 14,
+   "failed_launches": 0,
+   "pending_launches": 12,
+   "attempted_landings": 27,
+   "successful_landings": 25,
+   "failed_landings": 2,
+   "leo_capacity": 63800,
+   "gto_capacity": 26700,
+   "length": 70.0,
+   "diameter": 12.2,
+   "to_thrust": 22819,
+   "active": true
+  },
+  {
+   "id": 527,
+   "name": "Starship",
+   "full_name": "Starship V2",
+   "variant": "V2",
+   "reusable": true,
+   "maiden_flight": "2025-01-16",
+   "total_launch_count": 5,
+   "successful_launches": 2,
+   "failed_launches": 3,
+   "pending_launches": 0,
+   "attempted_landings": 5,
+   "successful_landings": 4,
+   "failed_landings": 1,
+   "leo_capacity": 35000,
+   "gto_capacity": null,
+   "length": 123.3,
+   "diameter": 9.0,
+   "to_thrust": 73550,
+   "active": false
+  },
+  {
+   "id": 464,
+   "name": "Starship",
+   "full_name": "Starship V1",
+   "variant": "V1",
+   "reusable": true,
+   "maiden_flight": "2023-04-20",
+   "total_launch_count": 6,
+   "successful_launches": 4,
+   "failed_launches": 2,
+   "pending_launches": 0,
+   "attempted_landings": 5,
+   "successful_landings": 2,
+   "failed_landings": 3,
+   "leo_capacity": 15000,
+   "gto_capacity": null,
+   "length": 121.3,
+   "diameter": 9.0,
+   "to_thrust": 73550,
+   "active": false
+  },
+  {
+   "id": 528,
+   "name": "Starship",
+   "full_name": "Starship",
+   "variant": "N/A",
+   "reusable": false,
+   "maiden_flight": null,
+   "total_launch_count": 0,
+   "successful_launches": 0,
+   "failed_launches": 0,
+   "pending_launches": 3,
+   "attempted_landings": 0,
+   "successful_landings": 0,
+   "failed_landings": 0,
+   "leo_capacity": 100000,
+   "gto_capacity": null,
+   "length": 124.4,
+   "diameter": 9.0,
+   "to_thrust": 80807,
+   "active": true
+  },
+  {
+   "id": 522,
+   "name": "Starship",
+   "full_name": "Starship V3",
+   "variant": "V3",
+   "reusable": true,
+   "maiden_flight": "2026-05-22",
+   "total_launch_count": 3,
+   "successful_launches": 3,
+   "failed_launches": 0,
+   "pending_launches": 1,
+   "attempted_landings": 3,
+   "successful_landings": 1,
+   "failed_landings": 2,
+   "leo_capacity": 100000,
+   "gto_capacity": null,
+   "length": 124.4,
+   "diameter": 9.0,
+   "to_thrust": 80807,
+   "active": true
+  },
+  {
+   "id": 207,
+   "name": "Starship Prototype",
+   "full_name": "Starship Prototype",
+   "variant": "Prototype",
+   "reusable": true,
+   "maiden_flight": "2019-07-26",
+   "total_launch_count": 9,
+   "successful_launches": 6,
+   "failed_launches": 3,
+   "pending_launches": 0,
+   "attempted_landings": 9,
+   "successful_landings": 5,
+   "failed_landings": 4,
+   "leo_capacity": null,
+   "gto_capacity": null,
+   "length": 50.0,
+   "diameter": 9.0,
+   "to_thrust": null,
+   "active": false
+  },
+  {
+   "id": 463,
+   "name": "Super Heavy Prototype",
+   "full_name": "Super Heavy Prototype",
+   "variant": "Prototype",
+   "reusable": true,
+   "maiden_flight": null,
+   "total_launch_count": 0,
+   "successful_launches": 0,
+   "failed_launches": 0,
+   "pending_launches": 0,
+   "attempted_landings": 0,
+   "successful_landings": 0,
+   "failed_landings": 0,
+   "leo_capacity": null,
+   "gto_capacity": null,
+   "length": 70.0,
+   "diameter": 9.0,
+   "to_thrust": null,
+   "active": true
+  }
+ ],
+ "boosters": [
+  {
+   "serial_number": "Unknown FH",
+   "flights": null,
+   "status": "N/A",
+   "first_launch_date": null,
+   "last_launch_date": null,
+   "successful_landings": null,
+   "attempted_landings": null,
+   "flight_proven": false,
+   "vehicle": "Falcon Heavy"
+  },
+  {
+   "serial_number": "Unknown SH",
+   "flights": null,
+   "status": "N/A",
+   "first_launch_date": null,
+   "last_launch_date": null,
+   "successful_landings": null,
+   "attempted_landings": null,
+   "flight_proven": false,
+   "vehicle": "Starship V1"
+  },
+  {
+   "serial_number": "Unknown F9",
+   "flights": null,
+   "status": "N/A",
+   "first_launch_date": null,
+   "last_launch_date": null,
+   "successful_landings": null,
+   "attempted_landings": null,
+   "flight_proven": false,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1067",
+   "flights": 37,
+   "status": "active",
+   "first_launch_date": "2021-06-03T17:29:15Z",
+   "last_launch_date": "2026-08-25T09:33:38Z",
+   "successful_landings": 37,
+   "attempted_landings": 37,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1063",
+   "flights": 35,
+   "status": "active",
+   "first_launch_date": "2020-11-21T17:17:08Z",
+   "last_launch_date": "2026-09-02T08:42:12Z",
+   "successful_landings": 35,
+   "attempted_landings": 35,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1071",
+   "flights": 35,
+   "status": "active",
+   "first_launch_date": "2022-02-02T20:27:26Z",
+   "last_launch_date": "2026-07-11T03:01:57Z",
+   "successful_landings": 35,
+   "attempted_landings": 35,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1069",
+   "flights": 32,
+   "status": "expended",
+   "first_launch_date": "2021-12-21T10:07:08Z",
+   "last_launch_date": "2026-07-21T21:15:00Z",
+   "successful_landings": 31,
+   "attempted_landings": 31,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1077",
+   "flights": 30,
+   "status": "active",
+   "first_launch_date": "2022-10-05T16:00:57Z",
+   "last_launch_date": "2026-08-05T07:49:00Z",
+   "successful_landings": 30,
+   "attempted_landings": 30,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1078",
+   "flights": 30,
+   "status": "active",
+   "first_launch_date": "2023-03-02T05:34:14Z",
+   "last_launch_date": "2026-08-21T15:14:22Z",
+   "successful_landings": 30,
+   "attempted_landings": 30,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1080",
+   "flights": 29,
+   "status": "active",
+   "first_launch_date": "2023-05-21T21:37:09Z",
+   "last_launch_date": "2026-09-13T18:49:00Z",
+   "successful_landings": 29,
+   "attempted_landings": 29,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1081",
+   "flights": 28,
+   "status": "active",
+   "first_launch_date": "2023-08-26T07:27:27Z",
+   "last_launch_date": "2026-10-16T00:01:05Z",
+   "successful_landings": 28,
+   "attempted_landings": 28,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1082",
+   "flights": 25,
+   "status": "active",
+   "first_launch_date": "2024-01-03T03:44:20Z",
+   "last_launch_date": "2026-10-01T18:32:00Z",
+   "successful_landings": 25,
+   "attempted_landings": 25,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1062",
+   "flights": 23,
+   "status": "destroyed",
+   "first_launch_date": "2020-11-05T23:24:23Z",
+   "last_launch_date": "2024-08-28T07:48:00Z",
+   "successful_landings": 22,
+   "attempted_landings": 23,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1061",
+   "flights": 23,
+   "status": "expended",
+   "first_launch_date": "2020-11-16T00:27:17Z",
+   "last_launch_date": "2024-10-07T14:52:11Z",
+   "successful_landings": 22,
+   "attempted_landings": 22,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1076",
+   "flights": 22,
+   "status": "expended",
+   "first_launch_date": "2022-11-26T19:20:43Z",
+   "last_launch_date": "2025-10-24T01:30:00Z",
+   "successful_landings": 21,
+   "attempted_landings": 21,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1075",
+   "flights": 22,
+   "status": "active",
+   "first_launch_date": "2023-01-19T15:43:10Z",
+   "last_launch_date": "2026-04-29T14:13:00Z",
+   "successful_landings": 22,
+   "attempted_landings": 22,
+   "flight_proven": true,
+   "vehicle": "Falcon Heavy"
+  },
+  {
+   "serial_number": "B1073",
+   "flights": 21,
+   "status": "expended",
+   "first_launch_date": "2022-05-14T20:40:50Z",
+   "last_launch_date": "2025-01-30T01:34:00Z",
+   "successful_landings": 20,
+   "attempted_landings": 20,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1088",
+   "flights": 20,
+   "status": "active",
+   "first_launch_date": "2024-11-30T08:10:00Z",
+   "last_launch_date": "2026-10-13T00:28:11Z",
+   "successful_landings": 20,
+   "attempted_landings": 20,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1060",
+   "flights": 20,
+   "status": "expended",
+   "first_launch_date": "2020-06-30T20:10:46Z",
+   "last_launch_date": "2024-04-28T00:34:00Z",
+   "successful_landings": 19,
+   "attempted_landings": 19,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  },
+  {
+   "serial_number": "B1058",
+   "flights": 19,
+   "status": "lost",
+   "first_launch_date": "2020-05-30T19:22:45Z",
+   "last_launch_date": "2023-12-23T05:33:00Z",
+   "successful_landings": 19,
+   "attempted_landings": 19,
+   "flight_proven": true,
+   "vehicle": "Falcon 9 Block 5"
+  }
+ ],
+ "capsules": [
+  {
+   "name": "Crew Dragon C205",
+   "serial": "C205",
+   "status": "Active",
+   "flights": 1,
+   "timeInSpace": "PT9M",
+   "type": "Crew Dragon 2"
+  },
+  {
+   "name": "Crew Dragon Grace",
+   "serial": "C213",
+   "status": "Active",
+   "flights": 2,
+   "timeInSpace": "P36DT13H45M43S",
+   "type": "Crew Dragon 2"
+  },
+  {
+   "name": "Dragon C106",
+   "serial": "C106",
+   "status": "Retired",
+   "flights": 3,
+   "timeInSpace": "P97DT3H2M55S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Dragon C109",
+   "serial": "C109",
+   "status": "Destroyed",
+   "flights": 1,
+   "timeInSpace": "PT1M49S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Dragon C107",
+   "serial": "C107",
+   "status": "Retired",
+   "flights": 1,
+   "timeInSpace": "P31DT14H56M50S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Dragon C108",
+   "serial": "C108",
+   "status": "Retired",
+   "flights": 3,
+   "timeInSpace": "P98DT18H50M14S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Dragon C102",
+   "serial": "C102",
+   "status": "Retired",
+   "flights": 1,
+   "timeInSpace": "P9DT7H57M22S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Dragon C103",
+   "serial": "C103",
+   "status": "Retired",
+   "flights": 1,
+   "timeInSpace": "P20DT18H46M53S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Dragon C101",
+   "serial": "C101",
+   "status": "Retired",
+   "flights": 1,
+   "timeInSpace": "P0D",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Dragon C104",
+   "serial": "C104",
+   "status": "Retired",
+   "flights": 1,
+   "timeInSpace": "P25DT1H23M47S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Dragon C105",
+   "serial": "C105",
+   "status": "Retired",
+   "flights": 1,
+   "timeInSpace": "P29DT23H39M38S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Crew Dragon C204",
+   "serial": "C204",
+   "status": "Destroyed",
+   "flights": 1,
+   "timeInSpace": "P6DT5H56M",
+   "type": "Crew Dragon 2"
+  },
+  {
+   "name": "Dragon C111",
+   "serial": "C111",
+   "status": "Retired",
+   "flights": 2,
+   "timeInSpace": "P74DT23H35M50S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Dragon C113",
+   "serial": "C113",
+   "status": "Retired",
+   "flights": 2,
+   "timeInSpace": "P64DT12H41M25S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "DragonFly",
+   "serial": "C201",
+   "status": "Retired",
+   "flights": 0,
+   "timeInSpace": "P0D",
+   "type": "Crew Dragon 2"
+  },
+  {
+   "name": "Dragon C110",
+   "serial": "C110",
+   "status": "Retired",
+   "flights": 2,
+   "timeInSpace": "P65DT20H19M50S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Dragon C112",
+   "serial": "C112",
+   "status": "Retired",
+   "flights": 3,
+   "timeInSpace": "P99DT1H13S",
+   "type": "Dragon 1"
+  },
+  {
+   "name": "Cargo Dragon C209",
+   "serial": "C209",
+   "status": "Active",
+   "flights": 6,
+   "timeInSpace": "P208DT13H41M20S",
+   "type": "Cargo Dragon 2"
+  },
+  {
+   "name": "Crew Dragon Endeavour",
+   "serial": "C206",
+   "status": "Active",
+   "flights": 6,
+   "timeInSpace": "P868DT14H14M29S",
+   "type": "Crew Dragon 2"
+  },
+  {
+   "name": "Crew Dragon Resilience",
+   "serial": "C207",
+   "status": "Active",
+   "flights": 4,
+   "timeInSpace": "P179DT18H19M30S",
+   "type": "Crew Dragon 2"
+  },
+  {
+   "name": "Cargo Dragon C208",
+   "serial": "C208",
+   "status": "Active",
+   "flights": 5,
+   "timeInSpace": "P175DT13H52M12S",
+   "type": "Cargo Dragon 2"
+  },
+  {
+   "name": "Crew Dragon",
+   "serial": "TBD",
+   "status": "Active",
+   "flights": 0,
+   "timeInSpace": "P0D",
+   "type": "Crew Dragon 2"
+  },
+  {
+   "name": "Cargo Dragon C211",
+   "serial": "C211",
+   "status": "Active",
+   "flights": 4,
+   "timeInSpace": "P279DT23H25M10S",
+   "type": "Cargo Dragon 2"
+  },
+  {
+   "name": "Crew Dragon Endurance",
+   "serial": "C210",
+   "status": "Active",
+   "flights": 4,
+   "timeInSpace": "P680DT7H29M37S",
+   "type": "Crew Dragon 2"
+  },
+  {
+   "name": "Crew Dragon Freedom",
+   "serial": "C212",
+   "status": "Active",
+   "flights": 5,
+   "timeInSpace": "P609DT20H8M31S",
+   "type": "Crew Dragon 2"
+  },
+  {
+   "name": "Cargo Dragon",
+   "serial": "TBD",
+   "status": "Active",
+   "flights": 0,
+   "timeInSpace": "P0D",
+   "type": "Cargo Dragon 2"
+  }
+ ],
+ "starshipFlights": [
+  {
+   "name": "Starship Hopper | 20m Hop",
+   "net": "2019-07-26T03:45:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship Hopper | 150m Hop",
+   "net": "2019-08-27T22:02:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship SN5 | 150m Hop",
+   "net": "2020-08-04T23:57:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship SN6 | 150m Hop",
+   "net": "2020-09-03T17:48:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship SN8 | 12.5 km Flight",
+   "net": "2020-12-09T22:45:25Z",
+   "status": "Partial Failure",
+   "statusName": "Launch was a Partial Failure"
+  },
+  {
+   "name": "Starship SN9 | 10 km Flight",
+   "net": "2021-02-02T20:25:15Z",
+   "status": "Partial Failure",
+   "statusName": "Launch was a Partial Failure"
+  },
+  {
+   "name": "Starship SN10 | 10 km Flight",
+   "net": "2021-03-03T23:15:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship SN11 | 10 km Flight",
+   "net": "2021-03-30T13:00:00Z",
+   "status": "Failure",
+   "statusName": "Launch Failure"
+  },
+  {
+   "name": "Starship SN15 | 10 km Flight",
+   "net": "2021-05-05T22:24:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship | Integrated Flight Test",
+   "net": "2023-04-20T13:33:09Z",
+   "status": "Failure",
+   "statusName": "Launch Failure"
+  },
+  {
+   "name": "Starship | Integrated Flight Test 2",
+   "net": "2023-11-18T13:02:50Z",
+   "status": "Partial Failure",
+   "statusName": "Launch was a Partial Failure"
+  },
+  {
+   "name": "Starship | Integrated Flight Test 3",
+   "net": "2024-03-14T13:25:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship | Integrated Flight Test 4",
+   "net": "2024-06-06T12:50:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship | Integrated Flight Test 5",
+   "net": "2024-10-13T12:25:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship | Integrated Flight Test 6",
+   "net": "2024-11-19T22:00:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship | Flight 7",
+   "net": "2025-01-16T22:37:00Z",
+   "status": "Failure",
+   "statusName": "Launch Failure"
+  },
+  {
+   "name": "Starship | Flight 8",
+   "net": "2025-03-06T23:30:00Z",
+   "status": "Failure",
+   "statusName": "Launch Failure"
+  },
+  {
+   "name": "Starship | Flight 9",
+   "net": "2025-05-27T23:36:00Z",
+   "status": "Failure",
+   "statusName": "Launch Failure"
+  },
+  {
+   "name": "Starship | Flight 10",
+   "net": "2025-08-26T23:30:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship | Flight 11",
+   "net": "2025-10-13T23:23:41Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship | Flight 12",
+   "net": "2026-05-22T22:30:24Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship | Flight 13",
+   "net": "2026-07-24T22:51:00Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship | Starlink Group 31-1 (Starship Flight 14)",
+   "net": "2026-09-28T12:48:59Z",
+   "status": "Success",
+   "statusName": "Launch Successful"
+  },
+  {
+   "name": "Starship | Flight 15",
+   "net": "2026-12-31T00:00:00Z",
+   "status": "TBD",
+   "statusName": "To Be Determined"
+  },
+  {
+   "name": "Starship | SpaceX HLS LEO Demo",
+   "net": "2027-06-30T00:00:00Z",
+   "status": "TBD",
+   "statusName": "To Be Determined"
+  },
+  {
+   "name": "Starship | Superbird-9",
+   "net": "2028-12-31T00:00:00Z",
+   "status": "TBD",
+   "statusName": "To Be Determined"
+  },
+  {
+   "name": "Starship | Starlab",
+   "net": "2029-12-31T00:00:00Z",
+   "status": "TBD",
+   "statusName": "To Be Determined"
+  }
+ ],
+ "nroLaunches": [
+  {
+   "name": "Falcon 9 Full Thrust | NROL-76",
+   "net": "2017-05-01T11:15:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-108",
+   "net": "2020-12-19T14:00:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-87",
+   "net": "2022-02-02T20:27:26Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-85",
+   "net": "2022-04-17T13:13:12Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-146",
+   "net": "2024-05-22T08:00:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-186",
+   "net": "2024-06-29T03:14:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-113",
+   "net": "2024-09-06T03:20:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-167",
+   "net": "2024-10-24T17:14:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-126",
+   "net": "2024-11-30T08:10:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-149",
+   "net": "2024-12-17T13:19:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-153",
+   "net": "2025-01-10T03:53:49Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-57",
+   "net": "2025-03-21T06:49:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-69",
+   "net": "2025-03-24T17:48:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-192",
+   "net": "2025-04-12T12:25:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-145",
+   "net": "2025-04-20T12:29:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-48",
+   "net": "2025-09-22T17:38:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-77",
+   "net": "2025-12-09T19:16:25Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-105",
+   "net": "2026-01-17T04:39:51Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-172",
+   "net": "2026-05-12T02:13:50Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-179",
+   "net": "2026-06-19T08:50:45Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-95",
+   "net": "2026-07-30T07:10:19Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon Heavy | NROL-97",
+   "net": "2026-10-02T03:54:00Z",
+   "status": "Success"
+  },
+  {
+   "name": "Falcon Heavy | NROL-86",
+   "net": "2027-06-30T00:00:00Z",
+   "status": "TBD"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-96",
+   "net": "2029-12-31T00:00:00Z",
+   "status": "TBD"
+  },
+  {
+   "name": "Falcon 9 Block 5 | NROL-157",
+   "net": "2029-12-31T00:00:00Z",
+   "status": "TBD"
+  }
+ ]
+}
