@@ -50,7 +50,7 @@ Laptops render the arena on the Mars terrain from over the player's own shoulder
 
 Constants are placeholders in `server/src/game/rules.ts` (`SABER`). Gravity currently does not change saber combat. Space-data features are deferred until the duel works on devices.
 
-## Combat: rock duel (superseded by the lightsaber duel; server commands still exist)
+## Combat: rock duel (superseded by the lightsaber duel; code removed October 18, kept here as history)
 
 Initial rules: 60-second round, 100 health each, server-defined damage/cooldowns, win at zero opponent health or higher remaining health at the end; equal health is a draw. These are proposed design settings to tune, not scientific measurements.
 

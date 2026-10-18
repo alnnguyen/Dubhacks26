@@ -13,7 +13,6 @@ import type {
   Pilot,
   PlayerState,
   PlayerView,
-  ProjectileLanded,
   ArenaFrame,
   BodyPose,
   SaberAim,
@@ -21,7 +20,6 @@ import type {
   SaberResolved,
   SaberStatus,
   StepDirection,
-  Weapon,
   World,
 } from "../../../server/src/contracts"
 
@@ -35,7 +33,6 @@ export type {
   Pilot,
   PlayerState,
   PlayerView,
-  ProjectileLanded,
   ArenaFrame,
   BodyPose,
   SaberAim,
@@ -43,7 +40,6 @@ export type {
   SaberResolved,
   SaberStatus,
   StepDirection,
-  Weapon,
   World,
 }
 
@@ -93,7 +89,6 @@ export interface GameClient {
   onStatus(listener: (status: ConnectionStatus) => void): () => void
   onLobby(listener: (lobby: LobbyView) => void): () => void
   onView(listener: (view: PlayerView | null) => void): () => void
-  onProjectileLanded(listener: (event: ProjectileLanded) => void): () => void
   /** Both players' bodies and blades in the arena, every server tick. */
   onArena(listener: (frame: ArenaFrame) => void): () => void
   onSaberResolved(listener: (event: SaberResolved) => void): () => void
@@ -120,13 +115,6 @@ export interface GameClient {
   ready(): Promise<ClientReply>
   /** Back to the lobby. Before the match ends this forfeits it. */
   leaveMatch(): Promise<ClientReply>
-  /** Make a weapon active. Instant; only the active weapon can fire. */
-  gunActive(): Promise<ClientReply>
-  rockActive(): Promise<ClientReply>
-  fireGun(): Promise<ClientReply>
-  throwRock(): Promise<ClientReply>
-  startBlock(): Promise<ClientReply>
-  endBlock(): Promise<ClientReply>
   close(): void
 }
 
@@ -146,7 +134,6 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   const statusListeners = new Set<(status: ConnectionStatus) => void>()
   const lobbyListeners = new Set<(lobby: LobbyView) => void>()
   const viewListeners = new Set<(view: PlayerView | null) => void>()
-  const landedListeners = new Set<(event: ProjectileLanded) => void>()
   const arenaListeners = new Set<(frame: ArenaFrame) => void>()
   const phoneAimListeners = new Set<(aim: SaberAim) => void>()
   const steppedListeners = new Set<(event: { slot: 1 | 2; cell: { q: number; r: number }; orbitCenter?: [number, number] }) => void>()
@@ -190,7 +177,6 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   socket.on("connect_error", () => setStatus("offline"))
   socket.on("lobby", (next: LobbyView) => setLobby(next))
   socket.on("view", (next: PlayerView | null) => setView(next))
-  socket.on("projectileLanded", (event: ProjectileLanded) => landedListeners.forEach((listener) => listener(event)))
   socket.on("arena", (frame: ArenaFrame) => arenaListeners.forEach((listener) => listener(frame)))
   socket.on("phoneAim", (aim: SaberAim) => phoneAimListeners.forEach((listener) => listener(aim)))
   socket.on("stepped", (event: { slot: 1 | 2; cell: { q: number; r: number }; orbitCenter?: [number, number] }) => steppedListeners.forEach((listener) => listener(event)))
@@ -231,7 +217,6 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     onStatus: (listener) => subscribe(statusListeners, listener),
     onLobby: (listener) => subscribe(lobbyListeners, listener),
     onView: (listener) => subscribe(viewListeners, listener),
-    onProjectileLanded: (listener) => subscribe(landedListeners, listener),
     onArena: (listener) => subscribe(arenaListeners, listener),
     onPhoneAim: (listener) => subscribe(phoneAimListeners, listener),
     onStepped: (listener) => subscribe(steppedListeners, listener),
@@ -252,12 +237,6 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     cancelChallenge: (challengeId) => send({ type: "cancelChallenge", challengeId }),
     ready: () => send({ type: "ready" }),
     leaveMatch: () => send({ type: "leaveMatch" }),
-    gunActive: () => send({ type: "gunActive" }),
-    rockActive: () => send({ type: "rockActive" }),
-    fireGun: () => send({ type: "fireGun" }),
-    throwRock: () => send({ type: "throwRock" }),
-    startBlock: () => send({ type: "startBlock" }),
-    endBlock: () => send({ type: "endBlock" }),
     close: () => {
       socket.disconnect()
       setStatus("offline")

@@ -83,7 +83,7 @@ test("malformed join is rejected", async () => {
 });
 
 test("a socket that has not joined cannot send commands", async () => {
-  assert.deepEqual(await send(open(), { commandId: "c1", type: "throwRock" }), {
+  assert.deepEqual(await send(open(), { commandId: "c1", type: "ready" }), {
     commandId: "c1",
     status: "rejected",
     reason: "not_joined",
@@ -109,9 +109,8 @@ test("the match starts when both are ready, and a retried command isn't applied 
   await send(bob, { commandId: "ready-1", type: "ready" });
   await active;
 
-  const block = { commandId: "bob-block-1", type: "startBlock" } as const;
-  assert.deepEqual(await send(bob, block), { commandId: "bob-block-1", status: "accepted" });
-  assert.deepEqual(await send(bob, block), { commandId: "bob-block-1", status: "accepted" });
+  // A retry of an applied ready repeats its reply instead of being refused as match_not_active.
+  assert.deepEqual(await send(bob, { commandId: "ready-1", type: "ready" }), { commandId: "ready-1", status: "accepted" });
 });
 
 test("a phone pairs as a pilot's saber, and the arena shows the blade to both laptops", async () => {

@@ -12,13 +12,11 @@ export type {
   Pilot,
   PlayerState,
   PlayerView,
-  ProjectileLanded,
   ArenaFrame,
   BodyPose,
   SaberAim,
   SaberCalibration,
   SaberResolved,
   SaberStatus,
-  Weapon,
   World,
 } from "./gameClient"

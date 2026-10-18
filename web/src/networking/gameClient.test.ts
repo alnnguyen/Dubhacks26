@@ -39,14 +39,9 @@ const view = (health: number): PlayerView => {
     reconnectEndsInMs: null,
     ready: true,
     health,
-    action: "idle" as const,
-    weapon: "gun" as const,
-    cooldowns: { rock: null, gun: null },
-    block: { active: false, endsInMs: null, cooldownEndsInMs: null },
-    projectile: null,
     saber: { swinging: false, cooldownEndsInMs: null, paired: false, phoneLive: false, bodyReady: false, saberReady: false },
   })
-  const world = { id: "mars" as const, name: "Mars", gravityMps2: 3.7, rockFlightMs: 1302 }
+  const world = { id: "mars" as const, name: "Mars", gravityMps2: 3.7 }
   return {
     matchId: "m1",
     phase: "active",
@@ -176,14 +171,6 @@ describe("game state", () => {
     expect(seen).toEqual([80])
     expect(client.view()?.you.health).toBe(60)
   })
-
-  it("passes projectileLanded events to listeners", () => {
-    setup()
-    const events: unknown[] = []
-    client.onProjectileLanded((e) => events.push(e))
-    socket.fire("projectileLanded", { attackerSlot: 2, weapon: "gun", blocked: true, damage: 0 })
-    expect(events).toEqual([{ attackerSlot: 2, weapon: "gun", blocked: true, damage: 0 }])
-  })
 })
 
 describe("arena stream", () => {
@@ -234,18 +221,18 @@ describe("commands", () => {
   it("sends a fresh command ID and resolves with the server's reply", async () => {
     setup()
     joinOnline()
-    const first = client.startBlock()
+    const first = client.ready()
     const sentFirst = socket.last("command")
     sentFirst.ack(null, { commandId: sentFirst.payload.commandId, status: "accepted" })
 
-    const second = client.endBlock()
+    const second = client.ready()
     const sentSecond = socket.last("command")
-    sentSecond.ack(null, { commandId: sentSecond.payload.commandId, status: "rejected", reason: "not_blocking" })
+    sentSecond.ack(null, { commandId: sentSecond.payload.commandId, status: "rejected", reason: "match_not_active" })
 
-    expect(sentFirst.payload).toEqual({ commandId: "c5000", type: "startBlock" })
-    expect(sentSecond.payload).toEqual({ commandId: "c5001", type: "endBlock" })
+    expect(sentFirst.payload).toEqual({ commandId: "c5000", type: "ready" })
+    expect(sentSecond.payload).toEqual({ commandId: "c5001", type: "ready" })
     expect(await first).toEqual({ commandId: "c5000", status: "accepted" })
-    expect(await second).toMatchObject({ status: "rejected", reason: "not_blocking" })
+    expect(await second).toMatchObject({ status: "rejected", reason: "match_not_active" })
   })
 
   it("starts IDs from page-load time so a reload can't reuse an earlier ID", () => {
@@ -255,22 +242,11 @@ describe("commands", () => {
       socket = new FakeSocket()
       client = createGameClient({ storage, createSocket: () => socket, now: () => loadedAt })
       joinOnline()
-      void client.throwRock()
-      void client.throwRock()
+      void client.ready()
+      void client.ready()
       ids.push(...socket.sent.filter((s) => s.event === "command").map((s) => s.payload.commandId))
     }
     expect(ids).toEqual(["c1000000", "c1000001", "c1060000", "c1060001"])
-  })
-
-  it("each weapon function sends its own command type", () => {
-    setup()
-    joinOnline()
-    void client.gunActive()
-    void client.rockActive()
-    void client.fireGun()
-    void client.throwRock()
-    const types = socket.sent.filter((s) => s.event === "command").map((s) => s.payload.type)
-    expect(types).toEqual(["gunActive", "rockActive", "fireGun", "throwRock"])
   })
 
   it("lobby and match commands carry their arguments", () => {
@@ -295,14 +271,14 @@ describe("commands", () => {
 
   it("refuses commands while not online instead of queueing them", async () => {
     setup()
-    expect(await client.throwRock()).toMatchObject({ status: "rejected", reason: "offline" })
+    expect(await client.ready()).toMatchObject({ status: "rejected", reason: "offline" })
     expect(socket.sent.some((s) => s.event === "command")).toBe(false)
   })
 
   it("reports no_response when the server never answers", async () => {
     setup()
     joinOnline()
-    const reply = client.throwRock()
+    const reply = client.ready()
     socket.last("command").ack(new Error("operation has timed out"), undefined)
     expect(await reply).toMatchObject({ status: "rejected", reason: "no_response" })
     expect(REPLY_TIMEOUT_MS).toBe(3000)

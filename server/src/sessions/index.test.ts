@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, mock, test } from "node:test";
-import type { ProjectileLanded } from "../contracts.js";
 import { RULES } from "../game/rules.js";
 import { Lobby } from "./index.js";
 
@@ -10,18 +9,15 @@ const CAROL = "player-carol";
 
 let lobby: Lobby;
 let changes: number;
-let landed: { playerIds: string[]; event: ProjectileLanded }[];
 let nextId: number;
 
 beforeEach(() => {
   mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_000_000 });
   changes = 0;
-  landed = [];
   nextId = 0;
   lobby = new Lobby(
     {
       changed: () => changes++,
-      projectileLanded: (playerIds, event) => landed.push({ playerIds, event }),
       saberResolved: () => {},
       arenaFrame: () => {},
       stepped: () => {},
@@ -148,7 +144,7 @@ describe("challenges", () => {
     const a = lobby.matchView(ALICE)!;
     const b = lobby.matchView(BOB)!;
     assert.equal(a.matchId, b.matchId);
-    assert.deepEqual([a.phase, a.world.id, a.world.rockFlightMs], ["waiting", "moon", 1980]);
+    assert.deepEqual([a.phase, a.world.id, a.world.gravityMps2], ["waiting", "moon", 1.6]);
     assert.deepEqual([a.you.callsign, a.rival.callsign], ["ALICE", "BOB"]);
     assert.equal(lobby.lobbyView(ALICE).pilots[0].status, "in-duel");
   });
@@ -156,26 +152,20 @@ describe("challenges", () => {
 
 describe("matches", () => {
   test("combat commands are refused outside a match", () => {
-    assert.deepEqual(send(ALICE, { type: "throwRock" }, "t"), {
+    assert.deepEqual(send(ALICE, { type: "ready" }, "t"), {
       commandId: "t",
       status: "rejected",
       reason: "not_in_match",
     });
   });
 
-  test("a hit reaches both players and a knockout updates the record", () => {
+  test("a finished match updates both records and frees both pilots", () => {
     startMatch();
     assert.equal(lobby.matchView(ALICE)!.phase, "active");
-    send(ALICE, { type: "gunActive" });
-    for (let i = 0; i < 5; i++) {
-      assert.equal(send(ALICE, { type: "fireGun" }).status, "accepted");
-      mock.timers.tick(1000);
-    }
-    assert.deepEqual(landed[0].playerIds, [ALICE, BOB]);
-    assert.deepEqual(lobby.matchView(BOB)!.result, { winner: 1, reason: "knockout" });
+    send(BOB, { type: "leaveMatch" });
+    assert.deepEqual(lobby.matchView(ALICE)!.result, { winner: 1, reason: "forfeit" });
 
     send(ALICE, { type: "leaveMatch" });
-    send(BOB, { type: "leaveMatch" });
     assert.equal(lobby.matchView(ALICE), null);
     const view = lobby.lobbyView(ALICE);
     assert.deepEqual([view.you.wins, view.pilots[0].losses, view.pilots[0].status], [1, 1, "available"]);

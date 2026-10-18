@@ -11,7 +11,6 @@ import type {
   PlayerSlot,
   PlayerState,
   PlayerView,
-  ProjectileLanded,
   RejectReason,
   SaberAim,
   SaberCalibration,
@@ -20,10 +19,9 @@ import type {
   SetupStep,
   StepDirection,
   Vec3,
-  Weapon,
   WorldId,
 } from "../contracts.js";
-import { RULES, SABER, weaponsFor, world, type WeaponRules } from "./rules.js";
+import { RULES, SABER, world } from "./rules.js";
 import {
   add,
   bodyShape,
@@ -52,15 +50,9 @@ interface Player {
   connected: boolean;
   ready: boolean;
   health: number;
-  weapon: Weapon;
-  windupEndsAt: number | null;
-  cooldownEndsAt: Record<Weapon, number | null>;
-  blockEndsAt: number | null;
-  blockCooldownEndsAt: number | null;
-  projectile: { weapon: Weapon; landsAt: number } | null;
   reconnectEndsAt: number | null;
   saber: Saber;
-  timers: { windup?: Timer; block?: Timer; projectile?: Timer; reconnect?: Timer; step?: Timer };
+  timers: { reconnect?: Timer; step?: Timer };
 }
 
 // One player's saber inputs and swing. Times are server receive times.
@@ -98,7 +90,6 @@ const SETUP_STEPS: readonly SetupStep[] = ["stand", "phone", "forward", "up", "r
 
 export interface MatchEvents {
   changed: () => void;
-  projectileLanded: (event: ProjectileLanded) => void;
   saberResolved: (event: SaberResolved) => void;
   // A step was accepted: sent at once, ahead of the next arena frame.
   stepped: (event: { slot: PlayerSlot; cell: Cell; orbitCenter?: [number, number] }) => void;
@@ -115,21 +106,12 @@ export interface MatchPilot {
 export const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 // leaveMatch is handled by the lobby, which detaches the player after leave().
 export type InMatchCommandType = Exclude<MatchCommandType, "leaveMatch">;
-export const IN_MATCH_COMMAND_TYPES: readonly InMatchCommandType[] = [
-  "ready",
-  "rockActive",
-  "gunActive",
-  "throwRock",
-  "fireGun",
-  "startBlock",
-  "endBlock",
-];
+export const IN_MATCH_COMMAND_TYPES: readonly InMatchCommandType[] = ["ready"];
 
 export class Match {
   private players = new Map<PlayerSlot, Player>();
   private phase: MatchPhase = "waiting";
   private result: MatchResult | null = null;
-  private weapons: Record<Weapon, WeaponRules>;
   // Reply already sent for each "slot:commandId", so retries repeat it.
   private replies = new Map<string, CommandReply>();
   // The saber tick runs from the briefing (so laptops show both avatars during
@@ -144,7 +126,6 @@ export class Match {
     pilots: Record<PlayerSlot, MatchPilot>,
     private events: MatchEvents,
   ) {
-    this.weapons = weaponsFor(worldId);
     for (const slot of [1, 2] as const) this.addPlayer(slot, pilots[slot]);
     this.ticker = setInterval(() => this.tick(), SABER.tickMs);
     (this.ticker as { unref?: () => void }).unref?.();
@@ -162,12 +143,6 @@ export class Match {
       connected: true,
       ready: false,
       health: RULES.startingHealth,
-      weapon: RULES.startingWeapon,
-      windupEndsAt: null,
-      cooldownEndsAt: { rock: null, gun: null },
-      blockEndsAt: null,
-      blockCooldownEndsAt: null,
-      projectile: null,
       reconnectEndsAt: null,
       saber: newSaber(START_CELLS[slot]),
       timers: {},
@@ -186,9 +161,6 @@ export class Match {
   disconnect(slot: PlayerSlot): void {
     const player = this.players.get(slot)!;
     player.connected = false;
-    // The player's own shot and block are tied to them and end with them.
-    this.cancelProjectile(player);
-    this.clearBlock(player);
     player.saber.swinging = false;
 
     if (this.phase !== "finished") this.startGrace(player);
@@ -353,18 +325,6 @@ export class Match {
         reconnectEndsInMs: remaining(p.reconnectEndsAt),
         ready: p.ready,
         health: p.health,
-        action: p.blockEndsAt !== null ? "blocking" : p.windupEndsAt !== null ? "attacking" : "idle",
-        weapon: p.weapon,
-        cooldowns: { rock: remaining(p.cooldownEndsAt.rock), gun: remaining(p.cooldownEndsAt.gun) },
-        block: {
-          active: p.blockEndsAt !== null,
-          endsInMs: remaining(p.blockEndsAt),
-          cooldownEndsInMs: remaining(p.blockCooldownEndsAt),
-        },
-        projectile:
-          p.projectile === null
-            ? null
-            : { weapon: p.projectile.weapon, landsInMs: Math.max(0, p.projectile.landsAt - now) },
         saber: {
           swinging: p.saber.swinging,
           cooldownEndsInMs: remaining(p.saber.cooldownEndsAt),
@@ -398,84 +358,12 @@ export class Match {
     }
   }
 
-  private apply(player: Player, type: InMatchCommandType): RejectReason | null {
-    if (type === "ready") {
-      if (this.phase !== "waiting") return "match_not_active";
-      player.ready = true;
-      if ([...this.players.values()].every((p) => p.ready)) this.phase = "active";
-      return null;
-    }
-    if (this.phase !== "active") return "match_not_active";
-    const now = Date.now();
-
-    switch (type) {
-      // Switching is instant and allowed even mid-block.
-      case "rockActive":
-      case "gunActive":
-        player.weapon = type === "rockActive" ? "rock" : "gun";
-        return null;
-
-      case "throwRock":
-        return this.fire(player, "rock", now);
-      case "fireGun":
-        return this.fire(player, "gun", now);
-
-      case "startBlock": {
-        if (player.windupEndsAt !== null || player.blockEndsAt !== null) return "busy";
-        if (player.blockCooldownEndsAt !== null && now < player.blockCooldownEndsAt) return "on_cooldown";
-
-        player.blockEndsAt = now + RULES.blockLimitMs;
-        player.timers.block = setTimeout(() => {
-          this.clearBlock(player);
-          this.events.changed();
-        }, RULES.blockLimitMs);
-        return null;
-      }
-
-      case "endBlock": {
-        if (player.blockEndsAt === null) return "not_blocking";
-        this.clearBlock(player);
-        return null;
-      }
-    }
-  }
-
-  private fire(player: Player, weapon: Weapon, now: number): RejectReason | null {
-    if (player.weapon !== weapon) return "weapon_not_active";
-    if (player.windupEndsAt !== null || player.blockEndsAt !== null) return "busy";
-    if (player.projectile !== null) return "projectile_in_flight";
-    const cooldownEndsAt = player.cooldownEndsAt[weapon];
-    if (cooldownEndsAt !== null && now < cooldownEndsAt) return "on_cooldown";
-
-    const rules = this.weapons[weapon];
-    player.cooldownEndsAt[weapon] = now + rules.cooldownMs;
-    player.projectile = { weapon, landsAt: now + rules.flightMs };
-    player.timers.projectile = setTimeout(() => this.land(player), rules.flightMs);
-    if (rules.windupMs > 0) {
-      player.windupEndsAt = now + rules.windupMs;
-      player.timers.windup = setTimeout(() => {
-        player.windupEndsAt = null;
-        this.events.changed();
-      }, rules.windupMs);
-    }
+  // "ready" is the only in-match command; combat comes from the saber streams.
+  private apply(player: Player, _type: InMatchCommandType): RejectReason | null {
+    if (this.phase !== "waiting") return "match_not_active";
+    player.ready = true;
+    if ([...this.players.values()].every((p) => p.ready)) this.phase = "active";
     return null;
-  }
-
-  // Shots auto-lock onto the opponent; only a block active on arrival stops them.
-  private land(attacker: Player): void {
-    const weapon = attacker.projectile!.weapon;
-    attacker.projectile = null;
-    const defender = this.players.get(attacker.slot === 1 ? 2 : 1)!;
-    const blocked = defender.blockEndsAt !== null;
-    const damage = blocked ? 0 : Math.min(this.weapons[weapon].damage, defender.health);
-    defender.health -= damage;
-    if (damage > 0) this.knockBack(defender, attacker, Date.now());
-
-    this.events.projectileLanded({ attackerSlot: attacker.slot, weapon, blocked, damage });
-    if (defender.health === 0) {
-      this.finish({ winner: attacker.slot, reason: "knockout" });
-    }
-    this.events.changed();
   }
 
   // One server tick: fuse each blade from the latest body and aim, detect
@@ -663,32 +551,15 @@ export class Match {
     clearInterval(this.ticker);
     this.result = result;
     for (const player of this.players.values()) {
-      this.cancelProjectile(player);
-      this.clearBlock(player);
       player.saber.swinging = false;
       player.saber.queuedStep = null;
       clearTimeout(player.timers.step);
       player.saber.lastBlade = null;
       player.saber.lastBodyTip = null;
-      clearTimeout(player.timers.windup);
       clearTimeout(player.timers.reconnect);
-      player.windupEndsAt = null;
       player.reconnectEndsAt = null;
     }
     this.events.finished(result);
-  }
-
-  private cancelProjectile(player: Player): void {
-    clearTimeout(player.timers.projectile);
-    player.projectile = null;
-  }
-
-  // Ending a block, early or at its limit, starts the block cooldown.
-  private clearBlock(player: Player): void {
-    if (player.blockEndsAt === null) return;
-    clearTimeout(player.timers.block);
-    player.blockEndsAt = null;
-    player.blockCooldownEndsAt = Date.now() + RULES.blockCooldownMs;
   }
 }
 

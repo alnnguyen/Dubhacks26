@@ -5,22 +5,6 @@
 
 export type PlayerSlot = 1 | 2;
 
-// "attacking" covers a weapon's wind-up after firing (rock only, for now).
-export type PlayerAction = "idle" | "attacking" | "blocking";
-
-export interface BlockState {
-  active: boolean;
-  endsInMs: number | null;
-  cooldownEndsInMs: number | null;
-}
-
-export type Weapon = "rock" | "gun";
-
-export interface ProjectileInFlight {
-  weapon: Weapon;
-  landsInMs: number;
-}
-
 // Saber duel in a shared 3D arena, in meters. World frame: x to slot 1's
 // right, y up, z from slot 1 toward slot 2. A game space: each player is in
 // front of their own laptop, wherever that is.
@@ -159,8 +143,6 @@ export interface World {
   name: string;
   // Rounded NASA Planetary Fact Sheet surface gravity.
   gravityMps2: number;
-  // Gameplay mapping 0.8 × √(9.8 / gravity) s, not projectile physics.
-  rockFlightMs: number;
 }
 
 export interface PlayerState {
@@ -174,13 +156,6 @@ export interface PlayerState {
   // Pressed Ready after the briefing. The match starts when both are ready.
   ready: boolean;
   health: number;
-  action: PlayerAction;
-  // The active weapon; only it can fire. Switching is instant.
-  weapon: Weapon;
-  cooldowns: Record<Weapon, number | null>;
-  block: BlockState;
-  // This player's own shot, flying toward the opponent. At most one at a time.
-  projectile: ProjectileInFlight | null;
   saber: SaberState;
 }
 
@@ -211,13 +186,6 @@ export interface PlayerView {
   board: { cellSize: number; rows: number; stepMs: number };
   you: PlayerState;
   rival: PlayerState;
-}
-
-export interface ProjectileLanded {
-  attackerSlot: PlayerSlot;
-  weapon: Weapon;
-  blocked: boolean;
-  damage: number;
 }
 
 // "in-duel" pilots are in a match and can't be challenged.
@@ -254,15 +222,7 @@ export interface LobbyView {
 
 // Every command carries a unique ID so the server can recognise a retry and
 // return the original reply instead of applying it again.
-export type MatchCommandType =
-  | "ready"
-  | "leaveMatch"
-  | "rockActive"
-  | "gunActive"
-  | "throwRock"
-  | "fireGun"
-  | "startBlock"
-  | "endBlock";
+export type MatchCommandType = "ready" | "leaveMatch";
 
 export type Command =
   | { commandId: string; type: MatchCommandType }
@@ -281,10 +241,6 @@ export type RejectReason =
   | "not_in_match"
   | "in_match"
   | "busy"
-  | "on_cooldown"
-  | "weapon_not_active"
-  | "projectile_in_flight"
-  | "not_blocking"
   | "pilot_unavailable"
   // A step past the center line or the back of your side.
   | "blocked"
@@ -310,7 +266,6 @@ export interface ServerToClientEvents {
   lobby: (lobby: LobbyView) => void;
   // null while the player is not in a match.
   view: (view: PlayerView | null) => void;
-  projectileLanded: (event: ProjectileLanded) => void;
   arena: (frame: ArenaFrame) => void;
   saberResolved: (event: SaberResolved) => void;
   // To a paired phone.

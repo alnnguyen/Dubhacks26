@@ -46,9 +46,6 @@ export async function startServer(config: Config, options: LobbyOptions & { copi
           if (status) phone.emit("saberStatus", status);
         }
       },
-      projectileLanded: (playerIds, event) => {
-        for (const id of playerIds) socketsByPlayerId.get(id)?.emit("projectileLanded", event);
-      },
       saberResolved: (playerIds, event) => {
         for (const id of playerIds) {
           socketsByPlayerId.get(id)?.emit("saberResolved", event);

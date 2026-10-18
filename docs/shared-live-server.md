@@ -23,7 +23,7 @@ The arena QR opens Justin's public HTTPS frontend with `?saber=CODE`. His phone 
 - A teammate pulling code must copy `web/.env.example` to `.env.local` and set both values. Ignored local settings do not travel in Git. These are public endpoint settings, never API keys.
 - Cloudflare quick tunnel addresses can change. When Justin starts a replacement link, update BOTH values and restart Vite. Rebuild any production bundle because Vite injects these values at build time.
 - Clear both values to restore same-origin local development and local QR links. The existing Vite Socket.IO proxy remains unchanged.
-- Do not use `?pvp=1` for the new saber flow; it still selects the older rehearsal screen. Demo's post-travel placeholder is unchanged.
+- `?pvp=1` (the older rock/gun rehearsal screen) was removed October 18. Demo's post-travel placeholder is unchanged.
 
 ## Verification performed
 

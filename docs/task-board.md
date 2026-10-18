@@ -5,7 +5,7 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 ## Doing
 
 - B (Justin): **laptop + iPhone lightsaber duel in a shared 3D arena** merged via `main`/`saber-duel` into `alex-dev`. Server 3D collision/pairing, laptop arena (`web/src/arena3d`), phone saber (`web/src/saber`, `/?saber=CODE`). Scripted socket proof done; real laptop/iPhone QA still open — check `/?dev=arena` first.
-- C (Alan): rock/gun CV still on harness (`/?camera=1`); FlightApp live duel path is now saber arena. Phone QA in `docs/qa-checklist.md`.
+- C (Alan): rock/gun CV, `/?camera=1`, `/?dev=mars` and `/?pvp=1` were removed October 18 (lightsaber-only; see below). Saber arena phone QA in `docs/qa-checklist.md`.
 - D (Alex): Grok Bot planning bonus **claimed** (`docs/sponsor-evidence.md`). Remaining: Photon live-challenge binding + physical-phone LYRA mic QA.
 - A (Ally): **pull `alex-dev`** — Alan’s latest camera is merged; cockpit default + turn-to-look remain on ally paths. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
 
@@ -130,3 +130,9 @@ Shared music/effects mixer and supplied audio pack integrated into alex-dev work
 - Positive saber/projectile damage pushes the defender 0.65 m away from the attacker, capped at 3.9 m separation. Interrupts voluntary glides and clears buffered movement; blocks do not push. Rule tuning: SABER.knockbackMeters.
 - Validation: server build and all 61 game tests passed; frontend production build/typecheck passed. Updated cooldown/knockout tests to close distance after hits; hit and block regressions assert displacement/no displacement. Full server suite attempted but socket tests failed and the process did not finish in the restricted environment; stopped it. No claim of full-suite or actual-device verification.
 - Status: Integration; actual two-player visual/device check remains open. Branch: codex/damage-knockback. No new environment variables, external messages or deployment.
+
+## Rock/gun path removal — October 18
+
+- Goal: lightsaber-only combat, as requested by Justin. Removed rock/gun server commands, state, events and rules; matching web client API; the old phone-camera duel (LiveDuel, CameraDebugPage, DevMars, vision, overlay, gun model) and its routes. See docs/contracts.md. Excludes D's Grok briefing fixtures, shared manifests/dependencies and deployment.
+- Validation: server build plus 70 game/session/socket tests passed; web typecheck, 94 tests (one opt-in live test skipped) and production build passed. No device check yet.
+- Status: Integration; staged on saber-duel for Justin to commit. No new environment variables, external messages or deployment.
