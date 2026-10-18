@@ -4,12 +4,17 @@ import { ArenaDuel } from '../arena3d/ArenaDuel';
 import { useServerLobby } from '../lobby/useServerLobby';
 import { getGameClient, useGameLobby, useGameView, type ClientReply, type GameClient, type PlayerView } from '../networking';
 import './flight.css';
+import { useReplay } from '../replay/useReplay';
+import { ReplayPanel } from '../replay/ReplayPanel';
 
 // Every match number below comes from the game server's view; this screen only displays it.
 export function FlightApp({client: providedClient, cockpitControls}: {client?: GameClient; cockpitControls?: ReactNode} = {}) {
   const client = providedClient ?? getGameClient();
   const lobby = useServerLobby(client);
   const view = useGameView(client);
+  const replay = useReplay(view?.matchId);
+  const [replayEnabled, setReplayEnabled] = useState(false);
+  useEffect(() => { setReplayEnabled(false); }, [view?.matchId]);
   // Private pair code: a phone opening /?saber=<code> becomes this pilot's lightsaber.
   const pairCode = useGameLobby(client)?.pairCode ?? '';
   // The match this phone engaged into. A reload lands back in the cockpit with the match ready to re-engage.
@@ -76,6 +81,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     launchTimer.current = window.setTimeout(ready, 1500);
   }
   function leave() {
+    replay.discard(); setReplayEnabled(false);
     clearTimeout(launchTimer.current); setEntering(false); setVoiceWorld(''); setNote('');
     setEntered(null);
     void client.leaveMatch();
@@ -118,7 +124,8 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       <iframe key={world.id} ref={frame} className="flight-voice" title="Grok Voice briefing" allow="microphone; autoplay" src={`/copilot/?world=${world.id}`} />
     </>}
     {screen === 'duel' && (
-      <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave} />
+      <ArenaDuel client={client} view={view} pairCode={pairCode} note={duelNote(view, note)} onLeave={leave}
+        replayEnabled={replayEnabled} onReplayEnabled={setReplayEnabled} onReplaySource={replay.start} />
     )}
     {screen === 'result' && <section className="flight-panel">
       <p className="flight-eyebrow">DUEL COMPLETE</p>
@@ -126,6 +133,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       <p>You {you.health} · {rival.callsign} {rival.health}</p>
       <p>Camera stopped. Return to the cockpit to challenge again.</p>
       <button className="flight-primary" onClick={leave}>Back to bridge</button>
+      <ReplayPanel key={view.matchId} client={client} matchId={view.matchId} clip={replay.clip} status={replay.status} onDiscard={replay.discard} />
     </section>}
   </main>;
 }

@@ -1,5 +1,15 @@
 # Initial task board
 
+## Perceptron highlights — October 18 (Alan / Codex)
+
+- Doing on `codex/perceptron-highlights`, explicitly resumed by Alan from the interrupted cinematic replay session. Goal: opt-in local webcam recording and post-duel Perceptron-directed highlight playback.
+- Owned scope for this task: new replay modules, minimal ArenaDuel/FlightApp composition, server integration/route, networking RPC and shared contracts, Vite replay proxy, documentation. Existing exploration work is excluded; no manifests, lockfiles, combat rules, deployment or paid inference.
+- Interface: additive `replay:ticket` on the joined socket and bounded `POST /replay/:matchId` authenticated with a short-lived ticket. See contracts decision. Coordination handoff for B (transport) and D (provider) is recorded here and in `docs/contracts.md`; no external team messaging is authorized.
+- Acceptance: builds/typechecks, authorization/deduplication/parser tests, local recording/playback checks. Actual Perceptron key, accepted video format and physical-device inference remain open; Alan confirmed the key is not configured.
+- Update: Alan configured the key and explicitly requested testing. Real authenticated Mk1.5 clip + track requests passed on a 4.5-second synthetic WebM (1039/2610 ms); the app parsed one interval and eight boxes. No real-person footage was uploaded. Evidence/request IDs: `docs/sponsor-evidence.md`.
+- Implementation/local validation complete: server build + 101 tests; web typecheck/production build + 250 tests passed, one opt-in live-network test skipped. Synthetic in-app-browser capture/consent/playback/framing/discard verified, including 390-pixel layout and clean warning/error logs. Existing build warnings: Node 22.11 is below Vite's 22.12+ supported range; large exploration chunk.
+- Handoff: `docs/perceptron-replay.md`. New server-only env: `PERCEPTRON_API_KEY`, optional `PERCEPTRON_MODEL`. No deployment/commits or new dependencies. Actual consenting duel end-to-end, Safari/physical-device QA and deployed backend integration remain open, so this is not marked Done under the team's deployment/device definition.
+
 No implementation tasks are marked complete. Move work through Ready → Doing → Integration → Done. Done means merged, deployed where applicable, checked against current main and exercised on the selected devices.
 
 ## Doing

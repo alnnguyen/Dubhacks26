@@ -5,6 +5,7 @@ import { isAllowedOrigin, type Config } from "./config.js";
 import type { ClientToServerEvents, ServerToClientEvents } from "./contracts.js";
 import { createCopilotService, type CopilotOptions } from './integrations/copilot.js';
 import { Lobby, type LobbyOptions } from "./sessions/index.js";
+import { createReplayService, type ReplayOptions } from './integrations/perceptron/replay.js';
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
@@ -13,8 +14,25 @@ export interface RunningServer {
   close: () => Promise<void>;
 }
 
-export async function startServer(config: Config, options: LobbyOptions & { copilot?: CopilotOptions } = {}): Promise<RunningServer> {
+export async function startServer(config: Config, options: LobbyOptions & { copilot?: CopilotOptions; replay?: ReplayOptions } = {}): Promise<RunningServer> {
+  const replay = createReplayService(options.replay);
   const httpServer = createServer((req, res) => {
+    const replayPath = req.url?.match(/^\/replay\/([A-Za-z0-9_-]{1,100})$/);
+    if (replayPath) {
+      const origin = req.headers.origin;
+      if (!isAllowedOrigin(origin, config.allowedOrigins)) { res.writeHead(403).end(); return; }
+      if (origin) { res.setHeader('Access-Control-Allow-Origin', origin); res.setHeader('Vary', 'Origin'); }
+      res.setHeader('Cache-Control', 'no-store');
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, { 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Replay-Duration' }).end(); return;
+      }
+      if (req.method !== 'POST') { res.writeHead(405).end(); return; }
+      void replay.handle(req, res, replayPath[1], (actor, match) => {
+        const view = lobby.matchView(actor);
+        return socketsByPlayerId.has(actor) && view?.matchId === match && view.phase === 'finished';
+      }).catch(() => { if (!res.headersSent) res.writeHead(500).end(); else res.end(); });
+      return;
+    }
     if (req.url === "/health") {
       res.writeHead(200, { "content-type": "text/plain" }).end("ok");
       return;
@@ -76,6 +94,15 @@ export async function startServer(config: Config, options: LobbyOptions & { copi
     // A phone becomes a pilot's saber with their pair code. It controls only
     // that pilot's blade and never joins as a pilot itself.
     let saberOf: string | null = null;
+
+    socket.on('replay:ticket', (request, reply) => {
+      if (typeof reply !== 'function') return;
+      if (playerId === null || socketsByPlayerId.get(playerId) !== socket) return reply({ ok: false, reason: 'not_joined' });
+      if (!request || typeof request !== 'object' || Object.keys(request).length !== 1 || typeof request.matchId !== 'string') return reply({ ok: false, reason: 'invalid_request' });
+      const view = lobby.matchView(playerId);
+      if (view?.matchId !== request.matchId || view.phase !== 'finished') return reply({ ok: false, reason: 'not_finished' });
+      reply(replay.ticket(playerId, view.matchId));
+    });
 
     socket.on("join", (request, reply) => {
       if (typeof reply !== "function") return;

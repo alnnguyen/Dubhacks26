@@ -104,6 +104,9 @@ export function ArenaDuel({
   pairCode,
   note,
   onLeave,
+  replayEnabled = false,
+  onReplayEnabled,
+  onReplaySource,
 }: {
   client: GameClient;
   view: PlayerView;
@@ -111,6 +114,9 @@ export function ArenaDuel({
   note: string;
   /** Back to the cockpit; before the end this forfeits. */
   onLeave: () => void;
+  replayEnabled?: boolean;
+  onReplayEnabled?: (enabled: boolean) => void;
+  onReplaySource?: (video: HTMLVideoElement) => () => void;
 }) {
   const [basicGraphics, setBasicGraphics] = useState(false);
   const [renderAttempt, setRenderAttempt] = useState(0);
@@ -430,6 +436,9 @@ export function ArenaDuel({
   const youArmed = you.saber.bodyReady && you.saber.saberReady;
   const rivalArmed = rival.saber.bodyReady && rival.saber.saberReady;
   const fighting = view.phase === "active" && youArmed && rivalArmed;
+  useEffect(() => {
+    if (fighting && running && !loading && replayEnabled && videoRef.current && onReplaySource) return onReplaySource(videoRef.current);
+  }, [fighting, running, loading, replayEnabled, onReplaySource]);
   const currentIndex = CHECKLIST.indexOf(wizard.step);
 
   return (
@@ -452,6 +461,7 @@ export function ArenaDuel({
         <button type="button" className="arena-leave" onClick={onLeave}>
           Forfeit & return
         </button>
+        {fighting && replayEnabled && onReplayEnabled && <button type="button" onClick={() => onReplayEnabled(false)}>Stop replay recording</button>}
         <p className="arena-note" role="status">
           {fighting
             ? note
@@ -466,6 +476,7 @@ export function ArenaDuel({
       {!fighting && view.phase !== "finished" ? (
         <section className="arena-setup" aria-label="Setup">
           <h2>Link your saber</h2>
+          {onReplayEnabled && <label className="arena-replay-optin"><input type="checkbox" checked={replayEnabled} onChange={e => onReplayEnabled(e.target.checked)} /> Record a local webcam replay (first 45 seconds, silent). Everyone visible must agree to recording. Upload is a separate choice after the duel.</label>}
           <div className="arena-checks">
             <Check
               ok={running && bodySeen}

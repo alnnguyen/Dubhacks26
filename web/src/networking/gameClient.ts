@@ -3,6 +3,8 @@ import { io } from "socket.io-client"
 // Temporary cross-folder import until server/src/contracts.ts moves to packages/contracts.
 import type {
   ChallengeView,
+  ReplayTicketReply,
+  ReplayReply,
   CopilotSessionReply,
   CopilotContextReply,
   Command,
@@ -82,6 +84,8 @@ export interface GameClientOptions {
 }
 
 export interface GameClient {
+  /** Opt-in post-match analysis. The permanent provider key stays on the server. */
+  analyzeReplay(matchId: string, video: Blob, duration: number, signal?: AbortSignal): Promise<ReplayReply>
   /** Read-only Voice access on this already joined connection. */
   copilotSession(): Promise<CopilotSessionReply>
   copilotContext(): Promise<CopilotContextReply>
@@ -228,6 +232,23 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
   }
 
   return {
+    analyzeReplay: async (matchId, video, duration, signal) => {
+      if (status !== 'online' || !socket.connected) return { ok: false, reason: 'offline' }
+      const ticket = await new Promise<ReplayTicketReply>(resolve => {
+        socket.timeout(REPLY_TIMEOUT_MS).emit('replay:ticket', { matchId }, (err, reply) =>
+          resolve(err ? { ok: false, reason: 'no_response' } : reply))
+      })
+      if (!ticket.ok) return ticket
+      try {
+        const url = new URL(`/replay/${encodeURIComponent(matchId)}`, options.url ?? gameServerUrl() ?? location.origin)
+        const res = await fetch(url, { method: 'POST', body: video,
+          signal: AbortSignal.any([AbortSignal.timeout(65_000), ...(signal ? [signal] : [])]),
+          headers: { Authorization: `Bearer ${ticket.ticket}`, 'Content-Type': video.type, 'X-Replay-Duration': String(duration) } })
+        const reply = await res.json() as ReplayReply
+        if (typeof reply?.ok !== 'boolean' || (reply.ok && (!Array.isArray(reply.moments) || !Array.isArray(reply.boxes) || reply.source !== 'perceptron'))) return { ok: false, reason: 'provider_error' }
+        return reply
+      } catch { return { ok: false, reason: 'no_response' } }
+    },
     copilotSession: () => copilotRequest<CopilotSessionReply>('copilot:session', 18000),
     copilotContext: () => copilotRequest<CopilotContextReply>('copilot:context', REPLY_TIMEOUT_MS),
     status: () => status,

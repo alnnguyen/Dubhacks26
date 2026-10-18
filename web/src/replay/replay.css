@@ -1,0 +1,23 @@
+.replay-panel { margin-top: 28px; padding-top: 24px; border-top: 1px solid #34566a; }
+.replay-panel h2 { font-size: clamp(24px,4vw,36px); margin: 8px 0 16px; }
+.replay-screen { position: relative; isolation: isolate; overflow: hidden; aspect-ratio: 16/9; background:#02070c; border:1px solid #436377; border-radius:12px; }
+.replay-screen video { display:block; width:100%; height:100%; object-fit:contain; transition:transform 350ms ease; }
+.replay-screen--cinema::before,.replay-screen--cinema::after { content:''; position:absolute; left:0; right:0; height:7%; background:#01060be8; z-index:1; pointer-events:none; }
+.replay-screen--cinema::before { top:0; }
+.replay-screen--cinema::after { bottom:0; }
+.replay-caption { position:absolute; left:5%; right:5%; bottom:18%; z-index:2; pointer-events:none; padding:15px; border-left:2px solid #6bffe1; background:linear-gradient(90deg,#041622ed,transparent); animation:replay-cut 400ms ease-out; }
+.replay-caption span,.replay-caption small { display:block; color:#a1c6ce; font-size:10px; letter-spacing:.1em; }
+.replay-caption strong { display:block; margin:8px 0; color:#fff; font-size:clamp(16px,3vw,25px); }
+.replay-actions { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin:16px 0; }
+.replay-actions a { color:#91f8dc; padding:10px 0; }
+.replay-consent { display:flex; align-items:flex-start; gap:10px; line-height:1.5; margin:20px 0; }
+.replay-consent input { flex:none; margin-top:5px; }
+.replay-credit { color:#a8c8d7; font-size:13px; line-height:1.6; }
+.replay-moments { list-style:none; padding:0; display:grid; gap:8px; }
+.replay-moments button { width:100%; text-align:left; display:flex; gap:16px; align-items:center; }
+.replay-moments button[aria-pressed=true] { border-color:#70efcc; background:#153e43; }
+.replay-moments span { color:#91f8dc; flex:none; font-variant-numeric:tabular-nums; }
+.replay-panel details { overflow-wrap:anywhere; color:#9bb7c8; font-size:12px; }
+.arena-replay-optin { position:relative; display:block; margin:12px 0; max-width:36rem; font-size:13px; line-height:1.5; color:#cee1ef; }
+@keyframes replay-cut { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+@media(prefers-reduced-motion:reduce) { .replay-caption { animation:none; } .replay-screen video { transition:none; } }
