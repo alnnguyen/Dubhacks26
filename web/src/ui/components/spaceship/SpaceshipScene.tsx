@@ -27,12 +27,15 @@ export interface SpaceshipSceneProps {
   connection: ConnectionStatus;
   anchors: AnchorRegistry;
   cinematic: PlanetaryCinematicState;
+  prepareRoulette?: boolean;
+  onRoulettePrepared?: (ready: boolean) => void;
   /** Optional authored cockpit model (GLB/GLTF) to replace the procedural one. */
   cockpitModelUrl?: string;
   onNavigate: (view: LobbyView) => void;
   onSelectPilot: (id: string) => void;
   onLowPerformance?: () => void;
   onReady?: () => void;
+  onCinematicFrame?: (delta: number) => void;
 }
 
 /**
@@ -76,6 +79,11 @@ function PerfGuard({ onLow }: { onLow?: () => void }) {
       a.frames = 0;
     }
   });
+  return null;
+}
+
+function CinematicClock({ onFrame }: { onFrame?: (delta: number) => void }) {
+  useFrame((_, delta) => { if (!document.hidden) onFrame?.(delta); });
   return null;
 }
 
@@ -211,8 +219,9 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
         onActivate={() => props.onNavigate('radar')}
         onSelect={props.onSelectPilot}
       />
-      {cinematic.phase !== 'idle' && cinematic.phase !== 'video' && (
+      {props.prepareRoulette && (
         <PlanetaryRoulette
+          onPrepared={props.onRoulettePrepared}
           phase={cinematic.phase}
           selectedPlanet={cinematic.selectedPlanet}
           marsTarget={marsTarget}
@@ -223,6 +232,7 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
       <AnchorProjector registry={anchors} />
       <PerfGuard onLow={high && !cinematicActive ? props.onLowPerformance : undefined} />
       <FirstFrame onReady={props.onReady} />
+      <CinematicClock onFrame={props.onCinematicFrame} />
       {high && !cinematicActive && (
         <EffectComposer multisampling={0} enableNormalPass={false}>
           {/* Threshold above 1: only HDR emissives (holograms, indicator lights, strips) bloom. */}

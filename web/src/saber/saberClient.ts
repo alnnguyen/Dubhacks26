@@ -36,9 +36,9 @@ export interface SaberClient {
  */
 export function createSaberClient(
   code: string,
-  createSocket: () => SocketLike & {
+  createSocket: (url?: string) => SocketLike & {
     emit(event: string, payload: unknown, ack?: (reply: any) => void): unknown;
-  } = () => io(),
+  } = (url) => io(url),
 ): SaberClient {
   const socket = createSocket(gameServerUrl());
   let connection: SaberConnection = "connecting";

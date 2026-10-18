@@ -10,6 +10,7 @@ import { HologramCopilot } from '../../voice/HologramCopilot';
 import type { GameClient } from '../../networking';
 import { useMockLobby } from '../state/useMockLobby';
 import type { LobbyView, LobbyViewModel, NearbyPilot, SceneSettings } from '../state/lobbyTypes';
+import { preloadPlanetaryTextures } from '../cinematics/PlanetaryRoulette';
 import { PlanetaryTransition } from '../cinematics/PlanetaryTransition';
 import { PlanetarySound } from '../cinematics/PlanetarySound';
 import type { PlanetaryCinematicState } from '../cinematics/sequence';
@@ -54,9 +55,21 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
   const [settings, setSettings] = useState<SceneSettings>(initialSettings);
   const [autoDowngraded, setAutoDowngraded] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
+  const [rouletteAssetsReady, setRouletteAssetsReady] = useState(false);
+  const [rouletteReady, setRouletteReady] = useState(false);
+  const markRouletteReady = useCallback((ready: boolean) => setRouletteReady(ready), []);
+  useEffect(() => {
+    let cancelled = false;
+    const finish = () => { if (!cancelled) setRouletteAssetsReady(true); };
+    const timeout = window.setTimeout(finish, 10000);
+    void preloadPlanetaryTextures().then(finish);
+    return () => { cancelled = true; window.clearTimeout(timeout); };
+  }, []);
   const [handoff, setHandoff] = useState<NearbyPilot | null>(null);
   const [travelActive, setTravelActive] = useState(false);
   const [cinematic, setCinematic] = useState<PlanetaryCinematicState>({ phase: 'idle', selectedPlanet: 'earth' });
+  const cinematicTick = useRef<((delta: number) => void) | null>(null);
+  const tickCinematic = useCallback((delta: number) => cinematicTick.current?.(delta), []);
   const travelOpponent = useRef<NearbyPilot | null>(null);
   const sound = useMemo(() => new PlanetarySound(), []);
   const [audioEnabled, setAudioEnabled] = useState(false);
@@ -133,7 +146,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
     setView('radar');
   }, []);
 
-  const mood = challenge.kind === 'launching' ? 'launch' : challenge.kind === 'incoming' ? 'alert' : challenge.kind === 'ready' || challenge.kind === 'accepted' ? 'ready' : 'calm';
+  const mood = challenge.kind === 'launching' && cinematic.phase !== 'idle' ? 'launch' : challenge.kind === 'incoming' ? 'alert' : challenge.kind === 'ready' || challenge.kind === 'accepted' ? 'ready' : 'calm';
   const busy = challenge.kind !== 'idle' && challenge.kind !== 'declined';
   const lobbyView = view === 'lobby' && !busy;
 
@@ -158,6 +171,9 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
           view={view}
           mood={mood}
           cinematic={cinematic}
+          prepareRoulette={rouletteAssetsReady}
+          onRoulettePrepared={markRouletteReady}
+          onCinematicFrame={tickCinematic}
           pilots={lobby.nearby}
           selectedId={selectedId}
           callsign={lobby.self.callsign}
@@ -257,6 +273,8 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
 
       {travelActive && (
         <PlanetaryTransition
+          sceneReady={sceneReady && rouletteReady}
+          frameTick={cinematicTick}
           reducedMotion={settings.reducedMotion}
           audio={sound}
           audioEnabled={audioEnabled}

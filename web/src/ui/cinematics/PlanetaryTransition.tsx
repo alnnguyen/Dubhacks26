@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PlanetId, PlanetaryCinematicState } from './sequence';
-import { buildPlanetarySequence } from './sequence';
+import { advanceCinematicFrame, buildPlanetarySequence } from './sequence';
 import type { PlanetarySound } from './PlanetarySound';
 import './planetary-transition.css';
+import { preloadMarsTerrain } from '../../arena/mars/MarsEnvironment';
 
 const VIDEO_URL = '/cinematics/spacetomars.mp4';
 
@@ -19,6 +20,8 @@ const PLANET_NAMES: Record<PlanetId, string> = {
 
 export function PlanetaryTransition({
   reducedMotion,
+  sceneReady,
+  frameTick,
   audio,
   audioEnabled,
   audioUnavailable,
@@ -27,6 +30,8 @@ export function PlanetaryTransition({
   onComplete,
 }: {
   reducedMotion: boolean;
+  sceneReady: boolean;
+  frameTick: React.RefObject<((delta: number) => void) | null>;
   audio: PlanetarySound;
   audioEnabled: boolean;
   audioUnavailable: boolean;
@@ -37,32 +42,32 @@ export function PlanetaryTransition({
   const video = useRef<HTMLVideoElement>(null);
   const completeOnce = useRef(false);
   const [state, setState] = useState<PlanetaryCinematicState>({ phase: 'idle', selectedPlanet: 'earth' });
+  useEffect(() => {
+    void preloadMarsTerrain().catch(() => { /* Arena recovery handles failed terrain. */ });
+  }, []);
+
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [backdropImage, setBackdropImage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!sceneReady) return;
     const sequence = buildPlanetarySequence(reducedMotion);
-    let timeout = 0;
-    let index = 0;
-    let cancelled = false;
-
-    const advance = () => {
-      if (cancelled) return;
-      const step = sequence[index];
-      if (!step) return;
-      setState(step.state);
-      onStateChange(step.state);
-      index += 1;
-      if (step.durationMs > 0) timeout = window.setTimeout(advance, step.durationMs);
+    let cursor = { index: 0, elapsedMs: 0 };
+    const publish = () => {
+      const next = sequence[cursor.index].state;
+      setState(next);
+      onStateChange(next);
     };
-
-    advance();
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
+    publish();
+    // Advance only when the cockpit renders, using the same capped time as its motion.
+    frameTick.current = (delta) => {
+      const previousIndex = cursor.index;
+      cursor = advanceCinematicFrame(sequence, cursor.index, cursor.elapsedMs, delta);
+      if (cursor.index !== previousIndex) publish();
     };
-  }, [onStateChange, reducedMotion]);
+    return () => { frameTick.current = null; };
+  }, [onStateChange, reducedMotion, sceneReady, frameTick]);
 
   const complete = useCallback(() => {
     if (completeOnce.current) return;
@@ -170,7 +175,7 @@ export function PlanetaryTransition({
       {state.phase !== 'video' && (
         <div className="planetary-transition__heading" aria-live="polite">
           <p className="planetary-transition__eyebrow">
-            {state.phase === 'activating' ? 'Navigation core online' : locked ? 'Destination locked: Mars' : 'Scanning destinations'}
+            {!sceneReady ? 'Loading navigation visuals…' : state.phase === 'activating' ? 'Navigation core online' : locked ? 'Destination locked: Mars' : 'Scanning destinations'}
           </p>
             <h1 key={`${state.phase}:${state.selectedPlanet}`}>{locked ? 'MARS' : PLANET_NAMES[state.selectedPlanet].toUpperCase()}</h1>
           {locked ? (

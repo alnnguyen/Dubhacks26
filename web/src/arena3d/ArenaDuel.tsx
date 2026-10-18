@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Component, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import QRCode from "qrcode";
 import type {
@@ -10,6 +10,7 @@ import type {
   Vec3,
 } from "../../../server/src/contracts";
 import type { GameClient } from "../networking";
+import { saberControllerUrl } from "../networking/gameEndpoint";
 import { WASM_ROOT } from "../camera/mediapipeVision";
 import { placement, worldToBody } from "./bodyFrame";
 import { createArenaBuffer, pushFrame, sampleFrame } from "./arenaBuffer";
@@ -28,6 +29,24 @@ import {
   type WizardState,
 } from "./setupWizard";
 import "./arena3d.css";
+
+/** Keep renderer failures from taking down the match controls. */
+class ArenaRenderBoundary extends Component<{ children: ReactNode; onLeave: () => void; onBasic: () => void }, { error: boolean }> {
+  state = { error: false };
+  static getDerivedStateFromError() { return { error: true }; }
+  componentDidCatch(error: Error) { console.error('Arena renderer failed', error); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return <section className="arena-setup" style={{ zIndex: 10 }} role="alert">
+      <h2>Arena graphics could not load</h2>
+      <p>Your match is still connected. Try the simple arena or return to the cockpit.</p>
+      <div className="arena-setup-actions">
+        <button onClick={this.props.onBasic}>Use simple arena</button>{' '}
+        <button onClick={this.props.onLeave}>Return to cockpit</button>
+      </div>
+    </section>;
+  }
+}
 
 // The full model's 3D world landmarks are steadier than lite's, and a laptop can afford it.
 const POSE_MODEL_URL =
@@ -93,6 +112,8 @@ export function ArenaDuel({
   /** Back to the cockpit; before the end this forfeits. */
   onLeave: () => void;
 }) {
+  const [basicGraphics, setBasicGraphics] = useState(false);
+  const [renderAttempt, setRenderAttempt] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   // Latest raw frame (for effect positions) and the buffer the scene plays back smoothly.
   const frameRef = useRef<ArenaFrame | null>(null);
@@ -413,12 +434,15 @@ export function ArenaDuel({
 
   return (
     <main className="arena-duel">
+      <ArenaRenderBoundary key={renderAttempt} onLeave={onLeave} onBasic={() => { setBasicGraphics(true); setRenderAttempt((n) => n + 1); }}>
       <ArenaScene
+        basicGraphics={basicGraphics}
         getFrame={getFrame}
         flashRef={flashRef}
         mySlot={you.slot}
         board={view.board}
       />
+      </ArenaRenderBoundary>
 
       <div className="arena-hud">
         <div className="arena-bars">

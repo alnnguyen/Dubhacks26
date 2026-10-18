@@ -403,7 +403,8 @@ function FrameSampler({ getFrame, frameRef }: { getFrame: () => ArenaFrame | nul
   return null
 }
 
-export function ArenaScene({ getFrame, flashRef, mySlot, board }: {
+export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false }: {
+  basicGraphics?: boolean
   /** The arena to draw right now: blended server frames, with your own fighter drawn locally. */
   getFrame: () => ArenaFrame | null
   flashRef: RefObject<ImpactFlash | null>
@@ -420,7 +421,12 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board }: {
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
       <FrameSampler getFrame={getFrame} frameRef={frameRef} />
-      <Suspense
+      {basicGraphics ? <>
+        <color attach="background" args={["#1b0f0b"]} />
+        <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
+        <gridHelper args={[10, 20, "#a8643c", "#4a2a1a"]} />
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} />
+      </> : <Suspense
         fallback={
           // Plain floor while the Mars terrain loads, so the duel is playable immediately.
           <>
@@ -433,10 +439,10 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board }: {
       >
         <MarsEnvironment quality="low" obstacles={[]} />
         <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} />
-      </Suspense>
-      <EffectComposer multisampling={0} enableNormalPass={false}>
+      </Suspense>}
+      {!basicGraphics && <EffectComposer multisampling={0} enableNormalPass={false}>
         <Bloom mipmapBlur intensity={0.9} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.55} />
-      </EffectComposer>
+      </EffectComposer>}
     </Canvas>
   )
 }
