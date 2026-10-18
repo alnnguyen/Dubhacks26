@@ -60,3 +60,26 @@ test('per-actor rate limit applies to new fetches; cache hits stay free', async 
   assert.equal((await service.speak('pilot-a', 'setup_phone')).ok, true);
   assert.equal(calls, 2);
 });
+
+test('explore lines are sanitized, spoken once, then cached', async () => {
+  let calls = 0;
+  let lastText = '';
+  const service = createLyraNarration({
+    key: 'test-key',
+    now: () => 30_000,
+    fetchImpl: (async (_url, init) => {
+      calls++;
+      lastText = (JSON.parse(String(init?.body)) as { text: string }).text;
+      return new Response(Buffer.alloc(1200, 3));
+    }) as typeof fetch,
+  });
+  assert.deepEqual(await service.speakLine('pilot-a', ''), { ok: false, reason: 'invalid_request' });
+  assert.deepEqual(await service.speakLine('pilot-a', 'x'.repeat(400)), { ok: false, reason: 'invalid_request' });
+  const first = await service.speakLine('pilot-a', '  Mars.  Gravity is 3.7 m/s².  ');
+  assert.equal(first.ok, true);
+  if (first.ok) assert.equal(first.cue, 'explore');
+  assert.equal(lastText, 'Mars. Gravity is 3.7 m/s².');
+  const second = await service.speakLine('pilot-b', 'Mars. Gravity is 3.7 m/s².');
+  assert.equal(second.ok, true);
+  assert.equal(calls, 1);
+});
