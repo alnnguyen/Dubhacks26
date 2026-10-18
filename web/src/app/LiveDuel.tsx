@@ -14,7 +14,15 @@ function storedPilot() {
     const id = crypto.randomUUID(); sessionStorage.setItem('duel.live.pilot', id); return id;
   } catch { return crypto.randomUUID(); }
 }
-export function LiveDuel() {
+export type LiveDuelProps = {
+  /** Join the shared match immediately (used when entering from the cockpit). */
+  autoJoin?: boolean;
+  /** Display name for the opponent chosen in the cockpit. */
+  rivalLabel?: string;
+  /** In-app exit back to the cockpit; defaults to a link to "/". */
+  onExit?: () => void;
+};
+export function LiveDuel({ autoJoin = false, rivalLabel, onExit }: LiveDuelProps = {}) {
   const [pilot] = useState(storedPilot);
   const socketRef = useRef<GameSocket | null>(null);
   const snapshotRef = useRef<MatchSnapshot | null>(null);
@@ -54,8 +62,9 @@ export function LiveDuel() {
     socket.on('connect_error', () => { setConnected(false); setNote('Game server unavailable. Check the Node server and reconnect.'); });
     socket.on('rockLanded', e => { if (readyRef.current) setNote(e.blocked ? `Pilot ${e.attackerSlot} rock blocked — no damage.` : `Pilot ${e.attackerSlot} hit for ${e.damage}.`); });
     const timer = window.setInterval(() => setNow(performance.now()), 100);
+    if (autoJoin) socket.connect();
     return () => { clearInterval(timer); readyRef.current = false; socket.removeAllListeners(); socket.disconnect(); socketRef.current = null; };
-  }, [pilot]);
+  }, [pilot, autoJoin]);
   function send(command: Command) {
     const socket = socketRef.current;
     if (!socket?.connected || !readyRef.current || snapshotRef.current?.phase !== 'active') { setNote('Wait until both pilots are connected and the match is active.'); return; }
@@ -76,7 +85,7 @@ export function LiveDuel() {
   const remaining = (ms: number | null | undefined) => Math.max(0, (ms ?? 0) - elapsed);
   const result = snapshot?.result;
   return <main className="flight-flow">
-    <header className="flight-header"><span>LIVE TWO-PLAYER / MARS</span><a href="/">Back to cockpit</a></header>
+    <header className="flight-header"><span>LIVE TWO-PLAYER / MARS</span>{onExit ? <button onClick={onExit}>Back to cockpit</button> : <a href="/">Back to cockpit</a>}</header>
     <section className="flight-panel">
       <h1>Two-player duel</h1>
       <p>Both players open this same link. Each presses Join duel. The second join starts the round automatically.</p>
@@ -91,6 +100,6 @@ export function LiveDuel() {
       {snapshot?.phase === 'finished' && <div><h2>{result?.winner === null ? 'Draw' : result?.winner === slot ? 'You win!' : 'Rival wins'}</h2><p>Reason: {result?.reason}. Restart the demo server for a new round; rematch is not implemented yet.</p></div>}
       <p className="flight-muted">First use Throw/Block above to check both screens. Then Start camera below: palm lifts locally, fist sends throwRock, Block raises a server-timed shield. Camera effects are previews; server snapshots own damage/results. A refresh reclaims this tab’s pilot; use separate devices or independently opened tabs for separate pilots.</p>
     </section>
-    {active && <CameraDebugPage mode="duel" flightSeconds={1.302} duel={{worldName:'Mars', gravity:3.7, rivalName:`Pilot ${rival?.slot ?? '?'}`, health:self?.health ?? 100, rivalHealth:rival?.health ?? 100, incoming:remaining(rival?.rock?.landsInMs) > 0, note}} onCommands={cameraCommands} />}
+    {active && <CameraDebugPage mode="duel" flightSeconds={1.302} duel={{worldName:'Mars', gravity:3.7, rivalName: rivalLabel ?? `Pilot ${rival?.slot ?? '?'}`, health:self?.health ?? 100, rivalHealth:rival?.health ?? 100, incoming:remaining(rival?.rock?.landsInMs) > 0, note}} onCommands={cameraCommands} />}
   </main>;
 }

@@ -32,8 +32,9 @@ const Screen = marsDuel
         return { default: m.CameraDebugPage };
       })
     : lazy(async () => {
-        const m = await import('./ui/screens/SpaceshipHome');
-        return { default: m.SpaceshipHome };
+        // Cockpit → accepted challenge → live duel (camera) → cockpit.
+        const m = await import('./app/CockpitFlow');
+        return { default: m.CockpitFlow };
       });
 
 const root = document.getElementById('root');

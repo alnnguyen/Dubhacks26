@@ -27,6 +27,7 @@ uniform vec3 uWrap;       // ambient sky color for edge light-wrap
 uniform vec3 uShadow;     // xy = feet position (video uv), z = width (0 = none)
 uniform float uMirror;
 uniform float uDebug;
+uniform float uGhost;    // 0..1 raw camera shown under/around the cutout
 varying vec2 vUv;
 
 void main() {
@@ -55,8 +56,14 @@ void main() {
     vec2 d = (uvT - uShadow.xy) / vec2(uShadow.z, uShadow.z * 0.22);
     shadow = (1.0 - smoothstep(0.2, 1.0, length(d))) * 0.55 * uPresence;
   }
-  vec3 outC = mix(vec3(0.06, 0.03, 0.02), col, alpha);
-  float outA = max(alpha, shadow * (1.0 - alpha));
+  float s = shadow * (1.0 - alpha);
+  vec3 c = col * alpha + vec3(0.06, 0.03, 0.02) * s;
+  float a = alpha + s;
+  // Ghost camera: lets players find each other when nobody is tracked yet,
+  // and is the full fallback when segmentation is unavailable.
+  vec3 ghost = texture2D(tVideo, uv).rgb;
+  float outA = a + uGhost * (1.0 - a);
+  vec3 outC = (c + ghost * uGhost * (1.0 - a)) / max(outA, 1e-4);
   gl_FragColor = vec4(outC, outA);
   #include <colorspace_fragment>
 }
@@ -101,13 +108,15 @@ export function OpponentCutout({
       uWrap: { value: new THREE.Color(wrapColor) },
       uShadow: { value: new THREE.Vector3(0, 0, 0) },
       uMirror: { value: mirror ? 1 : 0 },
+      uGhost: { value: 0 },
       uDebug: { value: import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('cutoutDebug') ?? 0) : 0 },
     }),
     [videoTex, mask, wrapColor, mirror],
   )
 
   const lastVideoTime = useRef(-1)
-  useFrame(() => {
+  const mountedAt = useRef(performance.now())
+  useFrame((_, dt) => {
     if (video.readyState >= 2 && video.videoWidth && video.currentTime !== lastVideoTime.current) {
       lastVideoTime.current = video.currentTime
       const scale = Math.min(1, 480 / Math.max(video.videoWidth, video.videoHeight))
@@ -124,6 +133,9 @@ export function OpponentCutout({
     mask.tick(performance.now(), Boolean(pose.current))
     uniforms.tMask.value = mask.texture
     uniforms.uPresence.value = mask.presence
+    const searching = performance.now() - mountedAt.current > 1200 && mask.presence < 0.05
+    const ghostTarget = mask.failed ? 1 : searching ? 0.42 : 0
+    uniforms.uGhost.value += (ghostTarget - uniforms.uGhost.value) * Math.min(1, dt * 3)
     // object-fit: cover — identical to the <video>/<canvas> CSS in the duel.
     const vw = video.videoWidth || 640
     const vh = video.videoHeight || 480

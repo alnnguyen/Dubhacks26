@@ -48,7 +48,11 @@ export class PersonMask {
     this.texture.needsUpdate = true
   }
 
-  /** Consume (and close) masks from a PoseLandmarker result. */
+  /** True once mask readback has failed repeatedly (e.g. unsupported on this GPU). */
+  failed = false
+  private failures = 0
+
+  /** Consume (and close) masks from a PoseLandmarker result. Never throws into the CV loop. */
   update(masks: MaskLike[] | undefined, nowMs: number) {
     const mask = masks?.[0]
     try {
@@ -73,6 +77,12 @@ export class PersonMask {
       this.texture.needsUpdate = true
       this.lastUpdateMs = nowMs
       this.presence = 1
+      this.failures = 0
+    } catch (err) {
+      if (++this.failures >= 5 && !this.failed) {
+        this.failed = true
+        console.warn('Person segmentation unavailable; showing the camera instead.', err)
+      }
     } finally {
       masks?.forEach((m) => m.close())
     }

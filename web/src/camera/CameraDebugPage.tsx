@@ -401,6 +401,11 @@ export function CameraDebugPage({
           <video ref={videoRef} className={`video${immersive ? " video--source" : ""}`} playsInline muted autoPlay />
           <canvas ref={canvasRef} className="overlay" />
           {immersive ? null : <div className="duel-tint" aria-hidden />}
+          {immersive && running ? (
+            <p className={`mars-target ${poseOk ? "locked" : ""}`} role="status">
+              {poseOk ? "Opponent on Mars" : "Point the camera at your opponent"}
+            </p>
+          ) : null}
           {running ? <div className={`lock-banner ${lockPhase}`}>{lockBanner}</div> : null}
           <div className="duel-hud">
             <div className="duel-world-chip">
