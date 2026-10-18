@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
+import { bindUniforms } from '../../three/bindUniforms'
 
 /**
  * Mars sky dome. Grounded in rover imagery: a butterscotch/tan sky from
@@ -63,7 +64,7 @@ export function MarsSky({ sunDir, colors }: { sunDir: THREE.Vector3; colors: { z
   return (
     <mesh frustumCulled={false} renderOrder={-1}>
       <sphereGeometry args={[3000, 48, 24]} />
-      <shaderMaterial vertexShader={VERT} fragmentShader={FRAG} uniforms={uniforms} side={THREE.BackSide} depthWrite={false} fog={false} />
+      <shaderMaterial vertexShader={VERT} fragmentShader={FRAG} uniforms={uniforms} ref={bindUniforms(uniforms)} side={THREE.BackSide} depthWrite={false} fog={false} />
     </mesh>
   )
 }

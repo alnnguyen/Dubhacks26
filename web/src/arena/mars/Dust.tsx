@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
+import { bindUniforms } from '../../three/bindUniforms'
 
 /** Suspended dust drifting on a light wind. Artistic, kept sparse so it never hides gameplay. */
 const VERT = /* glsl */ `
@@ -64,7 +65,7 @@ export function Dust({ count, reducedMotion }: { count: number; reducedMotion: b
   })
   return (
     <points geometry={geometry} frustumCulled={false}>
-      <shaderMaterial vertexShader={VERT} fragmentShader={FRAG} uniforms={uniforms} transparent depthWrite={false} />
+      <shaderMaterial vertexShader={VERT} fragmentShader={FRAG} uniforms={uniforms} ref={bindUniforms(uniforms)} transparent depthWrite={false} />
     </points>
   )
 }

@@ -16,10 +16,21 @@ export type VisionBundle = {
   handLandmarker: HandLandmarker
   poseLandmarker: PoseLandmarker
   delegate: "GPU" | "CPU"
+  /** True when the pose pass also returns a person segmentation mask. */
+  segmentation: boolean
   close: () => void
 }
 
-async function createLandmarkers(fileset: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>, delegate: "GPU" | "CPU") {
+export type VisionOptions = {
+  /** Ask PoseLandmarker for person masks (used to composite the opponent into an arena). */
+  segmentation?: boolean
+}
+
+async function createLandmarkers(
+  fileset: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>,
+  delegate: "GPU" | "CPU",
+  segmentation: boolean,
+) {
   const [handLandmarker, poseLandmarker] = await Promise.all([
     HandLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate },
@@ -36,25 +47,28 @@ async function createLandmarkers(fileset: Awaited<ReturnType<typeof FilesetResol
       minPoseDetectionConfidence: 0.5,
       minPosePresenceConfidence: 0.5,
       minTrackingConfidence: 0.5,
+      outputSegmentationMasks: segmentation,
     }),
   ])
   return { handLandmarker, poseLandmarker }
 }
 
-export async function createVisionBundle(): Promise<VisionBundle> {
+export async function createVisionBundle(options: VisionOptions = {}): Promise<VisionBundle> {
+  const segmentation = Boolean(options.segmentation)
   const fileset = await FilesetResolver.forVisionTasks(WASM_ROOT)
   let delegate: "GPU" | "CPU" = "GPU"
   let landmarks: Awaited<ReturnType<typeof createLandmarkers>>
   try {
-    landmarks = await createLandmarkers(fileset, "GPU")
+    landmarks = await createLandmarkers(fileset, "GPU", segmentation)
   } catch {
     delegate = "CPU"
-    landmarks = await createLandmarkers(fileset, "CPU")
+    landmarks = await createLandmarkers(fileset, "CPU", segmentation)
   }
 
   return {
     ...landmarks,
     delegate,
+    segmentation,
     close() {
       landmarks.handLandmarker.close()
       landmarks.poseLandmarker.close()

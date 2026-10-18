@@ -160,3 +160,74 @@
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------- Immersive Mars duel */
+/* The duel page goes full-screen; the live camera stays as CV input but is not shown. */
+.duel-page--immersive {
+  max-width: none;
+  padding: 0;
+}
+
+.duel-stage.duel-stage--immersive {
+  position: fixed;
+  inset: 0;
+  aspect-ratio: auto;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: #2a1a12;
+}
+
+.mars-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.mars-backdrop canvas {
+  display: block;
+}
+
+.duel-stage--immersive .video--source {
+  /* Stays "visible" (so frames keep decoding) but sits under the opaque Mars canvas. */
+  z-index: 0;
+  pointer-events: none;
+}
+
+.duel-stage--immersive .mars-backdrop {
+  z-index: 1;
+}
+
+.duel-stage--immersive .overlay {
+  z-index: 2;
+}
+
+.duel-stage--immersive .lock-banner {
+  z-index: 3;
+  bottom: calc(max(env(safe-area-inset-bottom), 10px) + 64px);
+}
+
+.duel-page--immersive .duel-controls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  margin: 0;
+  padding: 8px max(env(safe-area-inset-left), 10px) max(env(safe-area-inset-bottom), 10px);
+  background: linear-gradient(0deg, rgba(20, 10, 6, 0.85), rgba(20, 10, 6, 0));
+}
+
+.duel-page--immersive .duel-hint,
+.duel-page--immersive .error {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(max(env(safe-area-inset-bottom), 10px) + 70px);
+  z-index: 4;
+  margin: 0;
+  padding: 8px 10px;
+  color: #f6e7da;
+  background: rgba(20, 10, 6, 0.7);
+}

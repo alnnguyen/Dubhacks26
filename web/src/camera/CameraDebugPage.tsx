@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { createBattleInput, stepBattleInput, type BattleInputState } from "../vision/battleInput"
 import { createHandLock, resetHandLock, tickHandLock, type HandLockState } from "../vision/handLock"
 import { classifyGesture } from "../vision/landmarks"
@@ -19,6 +19,12 @@ import {
   type VisionBundle,
 } from "./mediapipeVision"
 import { drawCameraOverlay } from "./drawOverlay"
+import { PersonMask } from "../arena/segmentation"
+import { useDeviceAim } from "../arena/mars/useDeviceAim"
+import type { ArenaObstacle } from "../arena/mars/obstacles"
+
+// Immersive Mars arena (3D scene + segmented opponent). Lazy so other routes don't load it.
+const MarsDuelBackdrop = lazy(() => import("../arena/MarsDuelBackdrop"))
 
 const SESSION_ID = "debug-pilot"
 const MATCH_ID = "debug-match"
@@ -38,6 +44,13 @@ export type DuelHudProps = {
   note?: string
   incoming?: boolean
   onSimulateRival?: () => void
+  /**
+   * Replace the real background with the 3D arena and composite the opponent
+   * in via segmentation. Defaults to true when the world is Mars.
+   */
+  immersive?: boolean
+  /** Arena formations (e.g. from the room scan). Defaults to a Jezero layout. */
+  arenaObstacles?: ArenaObstacle[]
 }
 
 function nowLabel() {
@@ -56,6 +69,11 @@ export function CameraDebugPage({
   duel?: DuelHudProps
 } = {}) {
   const isDuel = mode === "duel"
+  const immersive = isDuel && (duel?.immersive ?? (duel?.worldName ?? "").toLowerCase().includes("mars"))
+  const personMask = useMemo(() => new PersonMask(), [])
+  useEffect(() => () => personMask.dispose(), [personMask])
+  const aim = useDeviceAim()
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null)
   const commandSinkRef = useRef(onCommands)
   commandSinkRef.current = onCommands
   const duelRef = useRef(duel)
@@ -122,12 +140,14 @@ export function CameraDebugPage({
   }
 
   async function start() {
+    // iOS only grants motion access synchronously inside the tap, so ask first.
+    if (immersive && aim.status === "needs-permission") void aim.request()
     const generation = ++cameraGenerationRef.current
     setRunning(true)
     setError(null)
     setStatus("Loading MediaPipe…")
     try {
-      const vision = await createVisionBundle()
+      const vision = await createVisionBundle({ segmentation: immersive })
       if (generation !== cameraGenerationRef.current) {
         vision.close()
         return
@@ -159,6 +179,10 @@ export function CameraDebugPage({
       video.srcObject = session.stream as unknown as MediaStream
       await video.play()
       if (generation !== cameraGenerationRef.current) return
+      if (immersive) {
+        setVideoEl(video)
+        aim.recenter() // wherever the phone points now (the opponent) is "forward" on Mars
+      }
       commandSessionRef.current = `${SESSION_ID}:${crypto.randomUUID()}`
       lastVideoTimeRef.current = -1
       poseRef.current = null
@@ -219,6 +243,7 @@ export function CameraDebugPage({
       if (frameRef.current % POSE_EVERY_N_FRAMES === 0) {
         const poseResult = vision.poseLandmarker.detectForVideo(video, nowMs + 0.001)
         poseRef.current = poseFromLandmarker(poseResult)
+        if (vision.segmentation) personMask.update(poseResult.segmentationMasks, nowMs)
       }
 
       const lock = tickHandLock(lockRef.current, { nowMs, hands })
@@ -360,11 +385,22 @@ export function CameraDebugPage({
     const you = duel.health ?? 100
     const rival = duel.rivalHealth ?? 100
     return (
-      <main className="duel-page">
-        <div className={`duel-stage ${tintClass}`}>
-          <video ref={videoRef} className="video" playsInline muted autoPlay />
+      <main className={`duel-page${immersive ? " duel-page--immersive" : ""}`}>
+        <div className={`duel-stage ${immersive ? "duel-stage--immersive" : tintClass}`}>
+          {immersive ? (
+            <Suspense fallback={null}>
+              <MarsDuelBackdrop
+                video={running ? videoEl : null}
+                mask={personMask}
+                pose={poseRef}
+                deviceQuat={aim.quat}
+                obstacles={duel.arenaObstacles}
+              />
+            </Suspense>
+          ) : null}
+          <video ref={videoRef} className={`video${immersive ? " video--source" : ""}`} playsInline muted autoPlay />
           <canvas ref={canvasRef} className="overlay" />
-          <div className="duel-tint" aria-hidden />
+          {immersive ? null : <div className="duel-tint" aria-hidden />}
           {running ? <div className={`lock-banner ${lockPhase}`}>{lockBanner}</div> : null}
           <div className="duel-hud">
             <div className="duel-world-chip">

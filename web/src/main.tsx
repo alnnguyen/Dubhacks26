@@ -7,8 +7,15 @@ const cameraDebug = search.has('camera') || search.get('debug') === 'camera';
 const live = search.has('pvp');
 // Mars arena preview (no camera/networking): /?arena=mars
 const marsPreview = search.get('arena') === 'mars';
+// Single-phone Mars duel rehearsal (camera + gestures + immersive arena): /?duel=mars
+const marsDuel = search.get('duel') === 'mars';
 
-const Screen = marsPreview
+const Screen = marsDuel
+  ? lazy(async () => {
+      const m = await import('./arena/SoloMarsDuel');
+      return { default: m.SoloMarsDuel };
+    })
+  : marsPreview
   ? lazy(async () => {
       const m = await import('./arena/MarsPreview');
       return { default: m.MarsPreview };
