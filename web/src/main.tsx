@@ -8,8 +8,15 @@ const cameraDebug = search.has('camera') || search.get('debug') === 'camera';
 const marsPreview = search.get('arena') === 'mars';
 // Camera + CV + immersive Mars + detection diagnostics, no match: /?dev=mars
 const devMars = search.get('dev') === 'mars';
+// Standalone astronaut character creator: /avatar-creator (or /?avatar=1).
+const avatarCreator = window.location.pathname.replace(/\/+$/, '') === '/avatar-creator' || search.has('avatar');
 
-const Screen = devMars
+const Screen = avatarCreator
+  ? lazy(async () => {
+      const m = await import('./features/avatars/components/AvatarCreator');
+      return { default: m.AvatarCreator };
+    })
+  : devMars
   ? lazy(async () => {
       const m = await import('./arena/DevMars');
       return { default: m.DevMars };
