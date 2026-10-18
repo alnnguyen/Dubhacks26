@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GameClient } from '../networking';
-import type { ReplayReply } from '../../../server/src/contracts';
+import type { PlayerSlot, ReplayMoment, ReplayReply } from '../../../server/src/contracts';
 import type { RecordedReplay } from './recorder';
+import type { ArenaRecording } from './arenaRecording';
+import type { Board } from '../arena3d/gridBoard';
+import { CinematicReplay } from './CinematicReplay';
 import './replay.css';
 
 const ERRORS: Record<string, string> = {
@@ -16,9 +19,11 @@ const ERRORS: Record<string, string> = {
   offline: 'Reconnect before uploading your replay.',
   too_large: 'The replay exceeds the 8 MiB upload limit.',
 };
+const EMPTY_MOMENTS: ReplayMoment[] = [];
 
-export function ReplayPanel({ client, matchId, clip, status, onDiscard }: {
+export function ReplayPanel({ client, matchId, clip, status, onDiscard, arena, board, mySlot }: {
   client: GameClient; matchId: string; clip: RecordedReplay | null; status: string; onDiscard: () => void;
+  arena?: ArenaRecording | null; board?: Board; mySlot?: PlayerSlot;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const abort = useRef<AbortController | null>(null);
@@ -30,6 +35,19 @@ export function ReplayPanel({ client, matchId, clip, status, onDiscard }: {
   const [reel, setReel] = useState(false);
   const [time, setTime] = useState(0);
   const [playError, setPlayError] = useState('');
+  const [webcamGap, setWebcamGap] = useState(false);
+  const [cinematicPause, setCinematicPause] = useState(0);
+  const syncWebcam = useCallback((seconds: number, rate: number, playing: boolean) => {
+    const v = video.current;
+    if (!v || !clip) return;
+    if (playing) setReel(false);
+    const gap = seconds > clip.duration;
+    setWebcamGap(gap);
+    if (gap) { v.pause(); return; }
+    if (Math.abs(v.currentTime - seconds) > .16) v.currentTime = seconds;
+    if (rate < .05 || !playing) v.pause();
+    else { v.playbackRate = Math.max(.1, Math.min(2, rate)); if (v.paused) void v.play().catch(() => {}); }
+  }, [clip]);
   const reduced = useRef(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
   useEffect(() => {
     if (!clip) { setUrl(''); return; }
@@ -59,6 +77,7 @@ export function ReplayPanel({ client, matchId, clip, status, onDiscard }: {
   function playMoment(next: number) {
     const v = video.current, m = result?.moments[next];
     if (!v || !m) return;
+    setCinematicPause(n => n + 1); setWebcamGap(false);
     setPlayError(''); setIndex(next); setReel(true);
     v.currentTime = m.start;
     v.playbackRate = reduced.current ? 1 : 0.65;
@@ -79,7 +98,10 @@ export function ReplayPanel({ client, matchId, clip, status, onDiscard }: {
     <p className="flight-eyebrow">REPLAY / DIRECTOR</p>
     <h2>Your duel. The highlights.</h2>
     <p role="status">{busy ? 'Perceptron is selecting moments and framing the player…' : status || 'Enable local replay recording during arena setup to save a clip.'}</p>
+    {arena && board && mySlot && <CinematicReplay recording={arena} moments={result?.moments ?? EMPTY_MOMENTS} board={board} mySlot={mySlot} onSync={syncWebcam} pauseSignal={cinematicPause} />}
     {clip && url && <>
+      {arena && <h3>Original webcam / model evidence</h3>}
+      {webcamGap && <p className="flight-muted">Arena-only closing moment: the webcam capture ended before this part of the match. The finale comes from the server's recorded result.</p>}
       <div className={`replay-screen ${reel ? 'replay-screen--cinema' : ''}`}>
         <video ref={video} src={url} playsInline controls preload="metadata" onTimeUpdate={tick} onEnded={stopReel}
           onError={() => setPlayError('This browser could not decode the local recording. Download it to inspect the file.')}

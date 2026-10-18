@@ -1,5 +1,14 @@
 # Initial task board
 
+## Cinematic arena replay — October 18 (Alan / Codex)
+
+- Implemented locally on `codex/cinematic-arena-replay`: user explicitly requested cinematic replay to make Perceptron's contribution visible, then required the knockout as the last highlight. Owned paths: `web/src/replay`, minimal `ArenaScene`/`FlightApp`/dev-route composition, recorder lifecycle and docs. No combat/server/provider contracts, dependencies, manifests, deployment or external messaging.
+- Goal/interface: record bounded local copies of existing `arena` frames and `saberResolved` events on the webcam recorder's monotonic start time. Replay Perceptron's actual chosen intervals with a new camera director, slow motion and effects from recorded server outcomes. Keep webcam evidence accessible; label server-only fallback selections.
+- Acceptance: meaningful capture/timeline/director tests, full frontend suite/build/typecheck, browser QA with explicitly synthetic fixtures and graphics fallback. Real consenting-duel capture and physical-phone performance remain human checks. No new paid inference is needed for camera presentation.
+- Delivered: bounded opening/closing motion capture, continuously replayed joints/blades/cells, Perceptron-directed earlier scenes, server-confirmed finishing blow always last (including after the webcam's 45-second cap), orbit/low/overhead cameras, speed ramps, impact freeze, sparks/shock ring/camera kick, wipes, captions, seeking, simple graphics and Reduce motion support. Forfeits/missing terminal events never produce fake knockout scenes; projectile outcomes cannot be mistaken for an earlier saber hit.
+- Validation: frontend production build/typecheck passed; 259 tests passed, one opt-in live-network test skipped. Nine new capture/director checks include a three-minute match's retained kill shot. Browser verified Mars rendering, full reel reaching the final knockout hold, distinct camera views, simple graphics, seeking and 390/390-pixel mobile layout. Fresh warning/error logs after fixing an initial duplicate-key warning were empty. The preview now includes a sidestep. Existing Node/Vite support and large-chunk warnings remain.
+- Handoff: `docs/perceptron-replay.md`. New environment variables: none. Preview `/?dev=replay` is synthetic throughout. No new inference, deployment, commit, movie export or physical-device/full-duel claim. Local preview server is intentionally left running for Alan's review. Actual consenting-duel/provider-to-3D QA remains open, so not moved to Done under the team's deployed/device acceptance rule.
+
 ## Perceptron highlights — October 18 (Alan / Codex)
 
 - Doing on `codex/perceptron-highlights`, explicitly resumed by Alan from the interrupted cinematic replay session. Goal: opt-in local webcam recording and post-duel Perceptron-directed highlight playback.

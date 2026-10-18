@@ -45,6 +45,7 @@ Detailed proofs, limits, and what is / isn’t claimed live in [`docs/sponsor-ev
 ### Perceptron replay highlights
 - Opt in during saber setup to record up to 45 seconds of silent webcam footage locally; upload consent is separate on the result screen.
 - Perceptron selects intervals/captions and tracks player boxes; browser playback adds cuts, slow motion and reframing. Original video can be saved locally.
+- Cinematic arena replay adds orbit/low/overhead shots, continuous recorded movement, speed ramps, sparks and impact holds. The captured server knockout is always the final scene, separately credited from Perceptron's earlier selections. `/?dev=replay` is a labeled synthetic preview.
 - Real synthetic-WebM clip/track API proof passed; a complete recorded duel and phone-browser QA remain pending. Setup and limits: [`docs/perceptron-replay.md`](docs/perceptron-replay.md).
 
 ### Camera duel (Alan)

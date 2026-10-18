@@ -12,6 +12,8 @@ Record evidence location, owner, time and observed result. Avoid secrets or pers
 
 ## Perceptron Mk1.5 — synthetic video proof, October 18
 
+- Cinematic extension: model-selected video intervals now select earlier scenes in a locally recorded 3D arena replay; the server-confirmed knockout is always a separate, labeled finale. Game code renders camera angles, slow motion, sparks, transitions and impact holds. `/?dev=replay` is a clearly labeled synthetic presentation fixture, not an additional model run. No new inference or provider claims were made during this extension. Real consenting-duel/provider-to-3D acceptance remains open; earlier API request IDs below are unchanged.
+
 - Alan / Codex resumed the interrupted highlights task. Key configured in Git-ignored `server/.env`, server-only; no key value logged or committed. User explicitly requested testing it.
 - Official `GET /v1/models`: authenticated 200; `perceptron-mk1.5` listed.
 - Actual laptop-browser MediaRecorder generated a silent ~4.5-second 640×360 WebM of an animated mint rectangle. **Synthetic QA footage, no real person.** This was sent inline to the official `POST https://api.perceptron.inc/v1/chat/completions` endpoint.

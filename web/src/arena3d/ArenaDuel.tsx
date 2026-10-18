@@ -461,7 +461,7 @@ export function ArenaDuel({
         <button type="button" className="arena-leave" onClick={onLeave}>
           Forfeit & return
         </button>
-        {fighting && replayEnabled && onReplayEnabled && <button type="button" onClick={() => onReplayEnabled(false)}>Stop replay recording</button>}
+        {fighting && replayEnabled && onReplayEnabled && <button type="button" className="arena-replay-stop" onClick={() => onReplayEnabled(false)}>Stop replay recording</button>}
         <p className="arena-note" role="status">
           {fighting
             ? note
@@ -476,7 +476,7 @@ export function ArenaDuel({
       {!fighting && view.phase !== "finished" ? (
         <section className="arena-setup" aria-label="Setup">
           <h2>Link your saber</h2>
-          {onReplayEnabled && <label className="arena-replay-optin"><input type="checkbox" checked={replayEnabled} onChange={e => onReplayEnabled(e.target.checked)} /> Record a local webcam replay (first 45 seconds, silent). Everyone visible must agree to recording. Upload is a separate choice after the duel.</label>}
+          {onReplayEnabled && <label className="arena-replay-optin"><input type="checkbox" checked={replayEnabled} onChange={e => onReplayEnabled(e.target.checked)} /> Record a local replay: silent webcam (first 45 seconds) plus arena motion through the finishing blow. Everyone visible must agree to recording. Upload is a separate choice after the duel.</label>}
           <div className="arena-checks">
             <Check
               ok={running && bodySeen}

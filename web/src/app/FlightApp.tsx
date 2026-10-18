@@ -12,8 +12,8 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   const client = providedClient ?? getGameClient();
   const lobby = useServerLobby(client);
   const view = useGameView(client);
-  const replay = useReplay(view?.matchId);
   const [replayEnabled, setReplayEnabled] = useState(false);
+  const replay = useReplay(view?.matchId, client, replayEnabled);
   useEffect(() => { setReplayEnabled(false); }, [view?.matchId]);
   // Private pair code: a phone opening /?saber=<code> becomes this pilot's lightsaber.
   const pairCode = useGameLobby(client)?.pairCode ?? '';
@@ -133,7 +133,7 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
       <p>You {you.health} · {rival.callsign} {rival.health}</p>
       <p>Camera stopped. Return to the cockpit to challenge again.</p>
       <button className="flight-primary" onClick={leave}>Back to bridge</button>
-      <ReplayPanel key={view.matchId} client={client} matchId={view.matchId} clip={replay.clip} status={replay.status} onDiscard={replay.discard} />
+      <ReplayPanel key={view.matchId} client={client} matchId={view.matchId} clip={replay.clip} arena={replay.arena} board={view.board} mySlot={you.slot} status={replay.status} onDiscard={replay.discard} />
     </section>}
   </main>;
 }
