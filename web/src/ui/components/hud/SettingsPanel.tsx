@@ -77,7 +77,7 @@ export function SettingsPanel({ open, settings, callsign, connection, autoDowngr
         </div>
       </div>
       <Toggle label="Reduce motion" hint="Stops camera drift and slows holograms" checked={settings.reducedMotion} onChange={(v) => onChange({ ...settings, reducedMotion: v })} />
-      <Toggle label="Camera parallax" hint="Lean the view with mouse or drag" checked={settings.parallax} onChange={(v) => onChange({ ...settings, parallax: v })} />
+      <Toggle label="Camera parallax" hint="Turn your phone to look around; mouse or drag to lean" checked={settings.parallax} onChange={(v) => onChange({ ...settings, parallax: v })} />
 
       {dev && (
         <div className="sd-dev">

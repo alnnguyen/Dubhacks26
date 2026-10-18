@@ -15,12 +15,14 @@ describe("openDebugCamera", () => {
     const stop = vi.fn()
     const getUserMedia = vi
       .fn()
-      .mockRejectedValueOnce(new DOMException("none", "OverconstrainedError"))
-      .mockResolvedValueOnce({ getTracks: () => [{ kind: "video", stop }] })
+      .mockRejectedValueOnce(new DOMException("none", "OverconstrainedError")) // wide rear
+      .mockRejectedValueOnce(new DOMException("none", "OverconstrainedError")) // default rear
+      .mockResolvedValueOnce({ getTracks: () => [{ kind: "video", stop }] }) // user fallback
     const session = await openDebugCamera({ getUserMedia }, true)
     expect(session.kind).toBe("user")
+    expect(session.wide).toBe(false)
     expect(session.note.toLowerCase()).toContain("laptop")
-    expect(getUserMedia).toHaveBeenCalledTimes(2)
+    expect(getUserMedia).toHaveBeenCalledTimes(3)
   })
 
   it("does not fall back when permission is denied", async () => {
@@ -29,7 +31,8 @@ describe("openDebugCamera", () => {
     })
     await expect(openDebugCamera({ getUserMedia }, true)).rejects.toBeInstanceOf(CameraStartError)
     await expect(openDebugCamera({ getUserMedia }, true)).rejects.toMatchObject({ code: "denied" })
-    expect(getUserMedia).toHaveBeenCalledTimes(2) // two attempts of the same failing start call
+    // Denied on the first wide attempt; no second rear try and no user fallback.
+    expect(getUserMedia).toHaveBeenCalledTimes(2)
   })
 
   it("refuses insecure contexts", async () => {

@@ -150,7 +150,7 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
       <CockpitEnvironment high={high} />
       <Lights mood={mood} high={high} />
       <BakeShadows />
-      <CameraController pose={pose} reducedMotion={settings.reducedMotion} parallax={settings.parallax} panelOpen={view !== 'lobby' && view !== 'console' && mood !== 'launch'} />
+      <CameraController pose={pose} reducedMotion={settings.reducedMotion} parallax={settings.parallax} panelOpen={view !== 'lobby' && view !== 'console' && mood !== 'launch'} lookAround={view === 'lobby' && mood !== 'launch'} />
       <SpaceEnvironment quality={settings.quality} warp={mood === 'launch' ? 1 : 0} />
       <Cockpit
         modelUrl={props.cockpitModelUrl}

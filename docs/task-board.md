@@ -4,9 +4,9 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 
 ## Doing
 
-- C (Alan) + Alex QA: phone framing + gestures on **duel HUD** (flight flow), not only `/?camera=1`. Checklist in `docs/qa-checklist.md`. Gun/saber deferred.
+- C (Alan) + Alex QA: phone framing + gestures on **duel HUD** (FlightApp / LiveDuel) and full harness at `/?debug=camera` or `/?camera=1`. Hand lock + wide rear merged into alex-dev Oct 17. Checklist in `docs/qa-checklist.md`. Gun/saber deferred.
 - D (Alex): Grok Bot bonus session (template in `docs/sponsor-evidence.md`). Live Photon/Voice on real challenges **blocked on B**.
-- A (Ally): continue presentation **on `alex-dev`**. Do **not** merge stale `origin/alan` (already in alex-dev at `5f4bcbc`). Optional: merge your `cockpit-scene` tip `dacca30` (orientation look) into alex-dev if desired. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
+- A (Ally): **pull `alex-dev`** — Alan’s latest camera is merged; cockpit default + turn-to-look remain on ally paths. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
 
 ## Ready — unblock first
 
@@ -51,8 +51,8 @@ Full text: `server/src/integrations/HANDOFF.md`.
 
 ### Git coordination
 
-- **Do not merge `origin/alan` into alex-dev again** — tip `e6cd4b7` is already an ancestor. If Alan has new work, he must push first.
-- Shared integration branch: **`alex-dev`** (`0f7dda5`+). Ally/Alan pull from there.
+- **Oct 17:** Alan’s newer camera (hand lock, wide rear, rock retune) merged into **`alex-dev`**. Ally should pull alex-dev before more cockpit work.
+- Shared integration branch: **`alex-dev`**. Alan pushes new camera work to `origin/alan` first; Alex merges when ready.
 
 ## Integrated local rehearsal — October 17
 

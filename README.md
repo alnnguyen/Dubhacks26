@@ -41,10 +41,18 @@ docs/                      Team, interface, QA, deployment and evidence notes
 
 ## Current status
 
-Integrated on `alex-dev`: Ally cockpit + Grok briefing + Alan camera duel HUD (local rehearsal). Justin’s Socket.IO demo match lives under `server/` (two players join, rock/block, snapshots). D Photon/Voice fixtures are separate until B exposes `createGamePort`.
+**Integrated on `alex-dev` (Oct 17 merge):** Ally’s 3D cockpit (default), Alan’s latest camera (hand lock, wide rear, first-person rock retune), Alex LiveDuel `/?pvp=1` rehearsal, Justin’s Socket.IO demo match under `server/`, and D Photon/Voice fixtures. **Ally should pull `alex-dev`** after this merge for cockpit + camera together.
+
+**Server (B / Justin):** first runnable slice with demo match + rock events. Verified commands in [server/README.md](server/README.md):
 
 ```bash
-# Web (cockpit / camera)
+cd server && npm install && npm test
+```
+
+**Web (A cockpit + C camera):** Ally’s spaceship lobby is the default app. Alan’s camera harness: `/?debug=camera` or legacy `/?camera=1`. Live duel rehearsal: `/?pvp=1`.
+
+```bash
+# Web (cockpit / camera / pvp rehearsal)
 cd web && npm install && npm test && npm run dev
 
 # Authoritative demo match (B)

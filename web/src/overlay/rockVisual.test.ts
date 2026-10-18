@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
 import { synthesizeHand } from "../vision/syntheticHands"
 import type { BattleCommand } from "../vision/types"
-import { createRockVisual, handFloatPoint, tickRockVisual, DEBUG_FLIGHT_SECONDS } from "./rockVisual"
+import {
+  createRockVisual,
+  handFloatPoint,
+  tickRockVisual,
+  GROUND_Y,
+  HELD_ROCK_SCALE,
+  PICKUP_DISTANCE,
+} from "./rockVisual"
 
 function command(name: BattleCommand["name"], sentAtMs = 0): BattleCommand {
   return {
@@ -14,118 +21,116 @@ function command(name: BattleCommand["name"], sentAtMs = 0): BattleCommand {
 }
 
 describe("handFloatPoint", () => {
-  it("sits above the palm and rejects short landmark lists", () => {
+  it("sits above the palm", () => {
     const hand = synthesizeHand("palm", { id: "own", origin: { x: 0.5, y: 0.8 } })
     const point = handFloatPoint(hand)
     expect(point).not.toBeNull()
     expect(point!.y).toBeLessThan(0.8)
-    hand.landmarks = hand.landmarks.slice(0, 4)
-    expect(handFloatPoint(hand)).toBeNull()
   })
 })
 
-describe("tickRockVisual", () => {
-  const hand = synthesizeHand("palm", { id: "own", scale: 1.8, origin: { x: 0.55, y: 0.84 } })
-  const target = { x: 0.35, y: 0.3 }
-
-  it("hides until HELD, then follows the hand", () => {
-    let state = createRockVisual()
-    const charging = tickRockVisual(state, {
-      nowMs: 0,
-      phase: "CHARGING",
-      commands: [],
-      ownHand: hand,
-      target,
-    })
-    expect(charging.drawAt).toBeNull()
-    expect(charging.state.mode).toBe("hidden")
-
-    const held = tickRockVisual(charging.state, {
-      nowMs: 500,
-      phase: "HELD",
-      commands: [command("startLift", 500)],
-      ownHand: hand,
-      target,
-    })
-    expect(held.state.mode).toBe("held")
-    expect(held.drawAt).not.toBeNull()
-    state = held.state
+describe("AR rock POC", () => {
+  const lowPalm = synthesizeHand("palm", {
+    id: "own",
+    scale: 1.8,
+    origin: { x: 0.5, y: 0.86 },
   })
 
-  it("flies on releaseRock and clears when flight ends", () => {
+  it("spawns visible ground rocks in the lower third", () => {
+    const frame = tickRockVisual(createRockVisual(), {
+      nowMs: 0,
+      phase: "IDLE",
+      commands: [],
+      ownHand: null,
+      target: null,
+      palmOpen: false,
+    })
+    expect(frame.state.mode).toBe("ground")
+    expect(frame.draw.rocks.some((rock) => rock.kind === "ground")).toBe(true)
+    expect(frame.state.ground.every((rock) => rock.point.y >= 0.67)).toBe(true)
+    expect(GROUND_Y).toBeGreaterThanOrEqual(0.75)
+    expect(frame.drawAt).toBeNull()
+  })
+
+  it("pulls a nearby ground rock toward an open palm", () => {
+    const state = createRockVisual()
+    const near = {
+      ...state,
+      ground: state.ground.map((rock, index) =>
+        index === 0 ? { ...rock, point: { x: 0.5, y: GROUND_Y } } : rock,
+      ),
+    }
+    const hand = handFloatPoint(lowPalm)!
+    expect(Math.hypot(hand.x - near.ground[0].point.x, hand.y - near.ground[0].point.y)).toBeLessThan(
+      PICKUP_DISTANCE + 0.05,
+    )
+    const lifting = tickRockVisual(near, {
+      nowMs: 10,
+      phase: "IDLE",
+      commands: [],
+      ownHand: lowPalm,
+      target: { x: 0.3, y: 0.3 },
+      palmOpen: true,
+    })
+    expect(lifting.state.mode).toBe("lifting")
+    expect(lifting.draw.active).not.toBeNull()
+  })
+
+  it("locks to the hand on startLift and throws with velocity on releaseRock", () => {
     let frame = tickRockVisual(createRockVisual(), {
       nowMs: 0,
       phase: "HELD",
       commands: [command("startLift")],
-      ownHand: hand,
-      target,
+      ownHand: lowPalm,
+      target: { x: 0.3, y: 0.3 },
+      palmOpen: true,
+    })
+    expect(frame.state.mode).toBe("held")
+    expect(frame.draw.active?.lift).toBeGreaterThan(0.5)
+    expect(frame.draw.active?.scale).toBe(HELD_ROCK_SCALE)
+
+    // Swipe samples accumulate while held.
+    const swiping = synthesizeHand("fist", { id: "own", scale: 1.8, origin: { x: 0.35, y: 0.55 } })
+    frame = tickRockVisual(frame.state, {
+      nowMs: 40,
+      phase: "HELD",
+      commands: [],
+      ownHand: swiping,
+      target: { x: 0.3, y: 0.3 },
+      palmOpen: false,
     })
     frame = tickRockVisual(frame.state, {
-      nowMs: 10,
+      nowMs: 80,
       phase: "COOLDOWN",
-      commands: [command("releaseRock", 10)],
-      ownHand: hand,
-      target,
+      commands: [command("releaseRock", 80)],
+      ownHand: swiping,
+      target: { x: 0.3, y: 0.3 },
+      palmOpen: false,
     })
     expect(frame.state.mode).toBe("flying")
-    expect(frame.drawAt).toEqual(frame.state.from)
-
-    const mid = tickRockVisual(frame.state, {
-      nowMs: 10 + (DEBUG_FLIGHT_SECONDS * 1000) / 2,
-      phase: "COOLDOWN",
-      commands: [],
-      ownHand: hand,
-      target,
-    })
-    expect(mid.state.mode).toBe("flying")
-    expect(mid.drawAt!.y).toBeLessThan(((frame.state.from!.y + frame.state.to!.y) / 2) + 0.01)
-
-    const done = tickRockVisual(mid.state, {
-      nowMs: 10 + DEBUG_FLIGHT_SECONDS * 1000,
-      phase: "COOLDOWN",
-      commands: [],
-      ownHand: hand,
-      target,
-    })
-    expect(done.state.mode).toBe("hidden")
-    expect(done.drawAt).toBeNull()
+    expect(frame.state.flight).not.toBeNull()
+    expect(frame.draw.active?.scale).toBeLessThanOrEqual(1.15)
   })
 
-  it("removes the rock immediately on cancelLift and never keeps a flight", () => {
+  it("cancel clears the active rock and restores ground props", () => {
     let frame = tickRockVisual(createRockVisual(), {
       nowMs: 0,
       phase: "HELD",
       commands: [command("startLift")],
-      ownHand: hand,
-      target,
+      ownHand: lowPalm,
+      target: null,
+      palmOpen: true,
     })
     frame = tickRockVisual(frame.state, {
       nowMs: 20,
       phase: "IDLE",
       commands: [command("cancelLift", 20)],
       ownHand: null,
-      target,
-    })
-    expect(frame.state.mode).toBe("hidden")
-    expect(frame.drawAt).toBeNull()
-  })
-
-  it("falls back to an upward target when pose shoulders are missing", () => {
-    const held = tickRockVisual(createRockVisual(), {
-      nowMs: 0,
-      phase: "HELD",
-      commands: [command("startLift")],
-      ownHand: hand,
       target: null,
+      palmOpen: false,
     })
-    const thrown = tickRockVisual(held.state, {
-      nowMs: 5,
-      phase: "COOLDOWN",
-      commands: [command("releaseRock", 5)],
-      ownHand: hand,
-      target: null,
-    })
-    expect(thrown.state.mode).toBe("flying")
-    expect(thrown.state.to!.y).toBeLessThan(thrown.state.from!.y)
+    expect(frame.state.mode).toBe("ground")
+    expect(frame.draw.rocks.some((rock) => rock.kind === "ground")).toBe(true)
+    expect(frame.draw.active).toBeNull()
   })
 })

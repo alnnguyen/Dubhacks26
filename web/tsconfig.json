@@ -10,6 +10,7 @@
     "noEmit": true,
     "isolatedModules": true,
     "resolveJsonModule": true,
+    "noFallthroughCasesInSwitch": true,
     "types": ["vite/client"]
   },
   "include": ["src"]
