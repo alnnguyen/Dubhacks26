@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '../brand';
 import { AnimatePresence } from 'motion/react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExploreBoundary } from '../components/explore/ExploreBoundary';
@@ -6,6 +7,7 @@ import { isLocalDestination, type LocalZoomCommand, type LocalZoomRequest } from
 import { ExploreHud, type ExploreMode } from '../components/explore/ExploreHud';
 import { MissionBanner, type Mission } from '../components/explore/MissionBanner';
 import { ModeSwitchDialog } from '../components/explore/ModeSwitchDialog';
+import { ExploreIntro } from '../components/explore/ExploreIntro';
 import { DESTINATIONS, destinationById, type ExploreDestination } from '../components/explore/destinations';
 import type { FlightInput, FlightTelemetry } from '../components/explore/ShipFlightController';
 import { planetFacts, scienceForBodyId, type BodyScience } from '../components/explore/bodiesScience';
@@ -73,7 +75,14 @@ export interface ExploreAppProps {
   copilotClient?: GameClient;
 }
 
-export function ExploreApp({ lobby: external, settings: settingsProp, onSettingsChange, onExit, onMatchLaunch, onEngage, copilotClient }: ExploreAppProps = {}) {
+export function ExploreApp(props: ExploreAppProps = {}) {
+  const [entryMode, setEntryMode] = useState<ExploreMode | null>(null);
+  if (entryMode === null) return <ExploreIntro initialMode={initialMode()} reducedMotion={props.settings?.reducedMotion}
+    onEnter={setEntryMode} onBack={() => props.onExit ? props.onExit() : window.location.assign('/')} />;
+  return <ExploreFlight {...props} entryMode={entryMode} />;
+}
+
+function ExploreFlight({ lobby: external, settings: settingsProp, onSettingsChange, onExit, onMatchLaunch, onEngage, copilotClient, entryMode }: ExploreAppProps & { entryMode: ExploreMode }) {
   const mock = useMockLobby({ enabled: false });
   const lobby = external ?? mock.lobby;
   const { challenge, actions } = lobby;
@@ -96,7 +105,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
   const missionSeq = useRef(0);
   const announce = useCallback((m: Omit<Mission, 'id'>) => setMission({ ...m, id: ++missionSeq.current }), []);
   const clearMission = useCallback(() => setMission(null), []);
-  const [mode, setMode] = useState<ExploreMode>(initialMode);
+  const [mode, setMode] = useState<ExploreMode>(entryMode);
   const [pendingMode, setPendingMode] = useState<ExploreMode | null>(null);
   const [wipe, setWipe] = useState(0);
   const entered = useRef(false);
@@ -523,7 +532,7 @@ export function ExploreApp({ lobby: external, settings: settingsProp, onSettings
       )}
 
       <div className="sd-boot" data-done={sceneReady} aria-hidden={sceneReady}>
-        <p className="sd-eyebrow">Jedi Space Duels</p>
+        <p className="sd-eyebrow ko-wordmark">{BRAND_NAME}</p>
         <p className="sd-boot__line">{slowLoad ? 'Flight is taking longer to load' : 'Preparing your flight view…'}</p>
         {!sceneReady && <p>{loadingAssets ? `Loading artwork · ${Math.round(assetProgress)}%` : 'Starting 3D renderer'}</p>}
         {slowLoad && !sceneReady && <HoloButton onClick={retryScene}>Retry with simpler graphics</HoloButton>}

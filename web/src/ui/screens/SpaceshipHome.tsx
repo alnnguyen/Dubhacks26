@@ -1,3 +1,4 @@
+import { BRAND_NAME } from '../brand';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnchorRegistry } from '../components/spaceship/anchors';
 import { ProfileChip, ProfilePanel } from '../components/hud/PlayerProfile';
@@ -276,7 +277,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
       <div className="sd-hud" aria-hidden={travelActive}>
         <header className="sd-topbar">
           <p className="sd-brand">
-            <span>Jedi Space Duels</span>
+            <span className="ko-wordmark">{BRAND_NAME}</span>
             <span className="sd-brand__sub">
               {phase === 'boarding' || view === 'pilot' ? 'Pilot seat // Boarding' : 'Bridge // Lobby'}
             </span>
@@ -412,7 +413,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, onTravelComplete
       )}
 
       <div className="sd-boot" data-done={sceneReady} aria-hidden={sceneReady}>
-        <p className="sd-eyebrow">Jedi Space Duels</p>
+        <p className="sd-eyebrow ko-wordmark">{BRAND_NAME}</p>
         <p className="sd-boot__line">Powering bridge systems…</p>
       </div>
     </div>

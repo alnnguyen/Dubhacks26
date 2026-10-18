@@ -1,5 +1,6 @@
 import { LOCAL_OBJECT_MANIFEST, LOCAL_OBJECTS } from './localObjects';
-import { useMemo, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
+import { BRAND_NAME } from '../../brand';
 import { CATALOG_MANIFEST, CATALOG_STARS, CATALOG_PLANETS, CATALOG_GALAXIES, HOST_PLANETS, PLANET_INDEX, catalogDestination } from './catalog';
 import type { LocalZoomCommand } from './localNavigation';
 import { DESTINATIONS, type ExploreDestination } from './destinations';
@@ -120,6 +121,8 @@ export function ExploreHud({
   onLearnClose,
   onOpenArena,
 }: ExploreHudProps) {
+  const [worldOpen, setWorldOpen] = useState(false);
+  const worldDetails = useId();
   const relatedHost = learn ? (PLANET_INDEX.get(learn.id)?.host ?? (learn.id.startsWith('host:') ? learn.id.slice(5) : null)) : null;
   const relatedPlanets = relatedHost ? HOST_PLANETS.get(relatedHost) ?? [] : [];
   const learnDestination = learn ? catalogDestination(learn.id) ?? DESTINATIONS.find(d => d.bodyId === learn.id) : null;
@@ -133,7 +136,7 @@ export function ExploreHud({
       <header className="ex-topbar">
         <p className="gx-mark">
           <span className="gx-mark__star" aria-hidden>✦</span>
-          <strong>Space Battles</strong>
+          <strong className="ko-wordmark">{BRAND_NAME}</strong>
           <span className="gx-mark__slash" aria-hidden>/</span>
           <span className="gx-mark__sector">{destination.label} · {telemetry.scaleLabel}</span>
         </p>
@@ -158,11 +161,17 @@ export function ExploreHud({
         </div>
       </header>
 
-      <section className="ex-telemetry gx-world" aria-label="Destination in focus" data-ready={ready}>
-        <p className="gx-eyebrow">Destination / {catalogMode || telemetry.localNavigation ? 'in focus' : 'nearest'}</p>
+      <section className="ex-telemetry gx-world" aria-label="Destination in focus" data-ready={ready} data-expanded={worldOpen}
+        onKeyDown={e => { if (e.key==='Escape' && worldOpen) { e.stopPropagation(); setWorldOpen(false); } }}>
+        <h2 className="gx-world__heading"><button type="button" className="gx-world__toggle" aria-expanded={worldOpen} aria-controls={worldDetails}
+          aria-label={`Destination details: ${ready ? telemetry.nearestName : 'Loading'}`} onClick={() => setWorldOpen(open => !open)}>
+          <span><span className="gx-eyebrow">Destination / {catalogMode || telemetry.localNavigation ? 'in focus' : 'nearest'}</span>
+            <span className="gx-world__name">{ready ? telemetry.nearestName : 'Loading…'}</span></span>
+          <svg className="gx-world__chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button></h2>
+        <div id={worldDetails} hidden={!worldOpen} className="gx-world__details">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={ready ? telemetry.nearestId : 'loading'} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }} transition={{ duration: .22, ease: [.18, .92, .24, 1] }}>
-            <h2 className="gx-world__name">{ready ? telemetry.nearestName : 'Loading…'}</h2>
             {ready && nearestScience && <p className="gx-world__blurb">{nearestScience.blurb}</p>}
             {ready && !nearestScience && <p className="gx-world__blurb">No catalog record for this object yet.</p>}
           </motion.div>
@@ -182,6 +191,7 @@ export function ExploreHud({
         <button type="button" className="gx-primary" onClick={onLearnNearest} disabled={!ready || !nearestScience}>
           <span>Inspect {ready ? telemetry.nearestName : ''}</span><b aria-hidden>↗</b>
         </button>
+        </div>
       </section>
 
       {mode === 'explore' && !onZoom && (

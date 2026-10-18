@@ -1,4 +1,4 @@
-# Jedi Space Battles
+# KO.rbit
 
 **DubHacks 2026** · Two phones. One cockpit. A camera duel shaped by real planetary gravity.
 

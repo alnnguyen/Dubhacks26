@@ -2,10 +2,10 @@ import type { CSSProperties } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 
 /** Each line flies as a single slanted type-and-plate unit. */
-export function KeywordBlock({ text, delay = 0 }: { text: string; delay?: number }) {
+export function KeywordBlock({ text, delay = 0, preserveCase = false }: { text: string; delay?: number; preserveCase?: boolean }) {
   const reduce = useReducedMotion() ?? false;
   return (
-    <span className="obn-kw" aria-label={text}>
+    <span className={`obn-kw${preserveCase ? ' obn-kw--brand' : ''}`} aria-label={text}>
       {text.split(' ').map((word, index) => (
         <motion.span
           className="obn-kw__flight"

@@ -1,5 +1,6 @@
 import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
+import './ui/styles/brand.css';
 
 const search = new URLSearchParams(window.location.search);
 // Alan's camera harness: /?camera=1 or /?debug=camera.

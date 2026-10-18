@@ -1,5 +1,12 @@
 # Initial task board
 
+## KO.rbit rebrand and exploration entry — October 18 (Alan / Codex)
+
+- Doing on `codex/ko-rbit-brand-exploration`. Goal: change visible title/corner branding to KO.rbit, add a branded exploration intro, and make the top-left destination card collapsible.
+- User-authorized owned paths: onboarding, exploration/cockpit UI, shared frontend brand styling, HTML title and docs. Preserve unrelated `.vscode/` files. No server/game/provider contracts, manifests, dependencies or deployment changes.
+- Interface: existing exploration props stay compatible; an internal entry choice selects Explore/Flight before the scene mounts. The destination card uses native button disclosure semantics, with keyboard support and a stable details region.
+- Acceptance: frontend build/typecheck and existing tests, browser checks for title casing, intro entry/mode selection and repeated mouse/keyboard destination toggling; phone-width visual check. No new tests are needed for copy/CSS alone.
+
 ## Cinematic arena replay — October 18 (Alan / Codex)
 
 - Implemented locally on `codex/cinematic-arena-replay`: user explicitly requested cinematic replay to make Perceptron's contribution visible, then required the knockout as the last highlight. Owned paths: `web/src/replay`, minimal `ArenaScene`/`FlightApp`/dev-route composition, recorder lifecycle and docs. No combat/server/provider contracts, dependencies, manifests, deployment or external messaging.

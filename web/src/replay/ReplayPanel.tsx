@@ -6,6 +6,7 @@ import type { ArenaRecording } from './arenaRecording';
 import type { Board } from '../arena3d/gridBoard';
 import { CinematicReplay } from './CinematicReplay';
 import './replay.css';
+import { BRAND_NAME } from '../ui/brand';
 
 const ERRORS: Record<string, string> = {
   unavailable: 'Perceptron is not configured on this game server yet. Your recording remains local.',
@@ -124,7 +125,7 @@ export function ReplayPanel({ client, matchId, clip, status, onDiscard, arena, b
       </>}
       {reply && !reply.ok && <p role="alert">{ERRORS[reply.reason] ?? `Replay unavailable (${reply.reason}).`}</p>}
       {result && <>
-        <p className="replay-credit">Moments and captions: Perceptron · cuts and slow motion: Space Battles.
+        <p className="replay-credit">Moments and captions: Perceptron · cuts and slow motion: {BRAND_NAME}.
           {result.framing === 'unavailable' ? ' AI framing unavailable; playing the original view.' : ' Camera crops follow Perceptron’s player boxes.'}</p>
         <div className="replay-actions"><button className="flight-primary" onClick={() => playMoment(0)}>Play highlight reel</button><button onClick={stopReel}>Stop highlights</button></div>
         <ol className="replay-moments">{result.moments.map((m, i) => <li key={`${m.start}-${i}`}>

@@ -1,5 +1,5 @@
 /*
- * Space Battles brand applied to galaxy exploration (Alex's UI handoff, Oct 18 2026).
+ * KO.rbit brand applied to galaxy exploration (Alex's UI handoff, Oct 18 2026).
  * Everything is scoped under .galaxy-exploration; no global selectors change.
  * Values come from BRAND-GUIDELINES.md / the saber cinematic preview. Text is set at the
  * handoff's recommended gameplay sizes (12–16px), not the prototype's 6–9px microtype.
@@ -217,6 +217,16 @@
   background: linear-gradient(#71c5ff0a 1px, transparent 1px), linear-gradient(90deg, #71c5ff0a 1px, transparent 1px);
   background-size: 28px 28px;
 }
+.galaxy-exploration .gx-world__heading { margin:0; }
+.galaxy-exploration .gx-world__toggle { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; padding:0; margin:0; border:0; border-radius:0; background:none; color:var(--sb-hero); cursor:pointer; text-align:left; }
+.galaxy-exploration .gx-world__toggle > span { min-width:0; }
+.galaxy-exploration .gx-world__toggle .gx-eyebrow { display:block; }
+.galaxy-exploration .gx-world__toggle .gx-world__name { display:block; overflow-wrap:anywhere; }
+.galaxy-exploration .gx-world__chevron { flex:none; color:var(--sb-cyan); transition:transform .18s ease; }
+.galaxy-exploration .gx-world__toggle[aria-expanded=true] .gx-world__chevron { transform:rotate(180deg); }
+.galaxy-exploration .gx-world__details[hidden] { display:none; }
+.galaxy-exploration .gx-world__details { max-height:calc(100dvh - 280px); overflow-y:auto; overscroll-behavior:contain; }
+.galaxy-exploration .gx-world[data-expanded=false] { padding-bottom:14px; }
 .galaxy-exploration .gx-world__name {
   margin: 6px 0 8px;
   font: italic 800 clamp(22px, 2.2vw, 30px)/1.1 var(--display);
@@ -830,3 +840,12 @@
 .galaxy-exploration .sd-boot .sd-eyebrow { display: none; }
 .galaxy-exploration .sd-boot p { font: 400 12px var(--mono); letter-spacing: .24em; text-transform: uppercase; color: #87dcff; }
 .galaxy-exploration .sd-boot p + p { color: #5f819f; letter-spacing: .12em; font-size: 11px; }
+
+/* Compact name stays visible on phones; optional details are available when deliberately opened. */
+.galaxy-exploration .gx-mark strong.ko-wordmark { display:block; }
+@media(max-width:700px) {
+  .galaxy-exploration .gx-mark strong.ko-wordmark { font-size:11px; letter-spacing:-.035em; }
+  .galaxy-exploration .gx-world[data-expanded=true] .gx-world__blurb { display:-webkit-box; -webkit-line-clamp:3; }
+  .galaxy-exploration .gx-world[data-expanded=true] .gx-world__data { display:grid; }
+  .galaxy-exploration .gx-world[data-expanded=true] .gx-world__source { display:block; font-size:10px; }
+}
