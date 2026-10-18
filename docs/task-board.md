@@ -4,6 +4,7 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 
 ## Doing
 
+- B (Justin): saber setup reworked October 18 (scan → stand → upright → right → thrust; see contracts.md); needs real laptop/iPhone timing QA.
 - B (Justin): **laptop + iPhone lightsaber duel in a shared 3D arena** merged via `main`/`saber-duel` into `alex-dev`. Server 3D collision/pairing, laptop arena (`web/src/arena3d`), phone saber (`web/src/saber`, `/?saber=CODE`). Scripted socket proof done; real laptop/iPhone QA still open — check `/?dev=arena` first.
 - C (Alan): rock/gun CV, `/?camera=1`, `/?dev=mars` and `/?pvp=1` were removed October 18 (lightsaber-only; see below). Saber arena phone QA in `docs/qa-checklist.md`.
 - D (Alex): Grok Bot planning bonus **claimed** (`docs/sponsor-evidence.md`). Remaining: Photon live-challenge binding + physical-phone LYRA mic QA.

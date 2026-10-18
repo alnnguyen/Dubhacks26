@@ -97,7 +97,7 @@ const START_CELLS: Record<PlayerSlot, Cell> = { 1: { q: 0, r: -2 }, 2: { q: 0, r
 // Each player faces down the lane toward the other side, whatever column either is in.
 const FACING: Record<PlayerSlot, Facing> = { 1: [0, 1], 2: [0, -1] };
 
-const SETUP_STEPS: readonly SetupStep[] = ["stand", "phone", "forward", "up", "right", "reach", "done"];
+const SETUP_STEPS: readonly SetupStep[] = ["phone", "stand", "upright", "right", "reach", "done"];
 
 export interface MatchEvents {
   changed: () => void;

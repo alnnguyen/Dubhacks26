@@ -36,10 +36,9 @@ export interface GridCell {
 }
 
 export type SetupStep =
-  | "stand"
   | "phone"
-  | "forward"
-  | "up"
+  | "stand"
+  | "upright"
   | "right"
   | "reach"
   | "done";

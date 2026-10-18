@@ -115,3 +115,13 @@ Every positive-damage saber or projectile hit forces the defender away from the 
 ## Rock/gun path removed — October 18, user-authorized server/web/voice update
 
 The duel is lightsaber-only. Removed from the wire: commands `rockActive`, `gunActive`, `throwRock`, `fireGun`, `startBlock`, `endBlock`; the `projectileLanded` event and `ProjectileLanded`; `PlayerState.action`, `weapon`, `cooldowns`, `block` and `projectile` (with `PlayerAction`, `BlockState`, `Weapon`, `ProjectileInFlight`); `World.rockFlightMs`; reject reasons `on_cooldown`, `weapon_not_active`, `projectile_in_flight` and `not_blocking`. `MatchCommandType` is now `ready | leaveMatch`; saber swings, blocks and knockback come only from the body/aim streams. Rules lose `startingWeapon`, `blockLimitMs`, `blockCooldownMs`, `rockFlightMs()` and `weaponsFor()`; world gravity stays. Web removes the matching `GameClient` methods and `onProjectileLanded`, the `/?pvp=1`, `/?camera=1` / `/?debug=camera` and `/?dev=mars` routes, `LiveDuel`, `liveCommands`, `CameraDebugPage`, `DevMars`, the Mars camera backdrop/cutout, `src/vision`, `src/overlay` and `public/models/gun.glb`; `camera/mediapipeVision.ts` keeps only `WASM_ROOT`. LYRA's control help now describes the saber duel. Affects A (routes), C (camera/vision/overlay/models), D (copilot text, `game-smoke.mjs` deleted). D's Grok briefing fixtures still compute their own `rockFlightSeconds` and were not changed. No external messages or deployment.
+
+## Faster saber setup — October 18, user-authorized web/server update
+
+`SetupStep` is now `phone | stand | upright | right | reach | done`, in that order (was `stand | phone | forward | up | right | reach | done`). `forward` and `up` are removed and `upright` is added. Server `SETUP_STEPS` (`server/src/game/match.ts`) matches. No shape changes: `BodyPose.setup` and `SaberCalibration` are unchanged. Laptop-only behavior (`web/src/arena3d/setupWizard.ts`):
+- `stand` (body in view, standing still) now comes after the phone step.
+- `upright` picks the saber hand.
+- `right` stores the phone's "right" heading and sets a provisional `forward`.
+- `reach` (a thrust at the screen) sets the final `forward` and `mirror`.
+
+Holds are 0/600/500/500/400 ms and the camera give-up is 2.5 s. The phone shows the new `INSTRUCTIONS` text automatically. No external messages or deployment.
