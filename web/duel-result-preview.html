@@ -319,10 +319,16 @@
       font-size: clamp(28px, 4vw, 48px);
       font-weight: 900;
       letter-spacing: -.08em;
-      transform: rotate(-12deg) skewX(-10deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      align-self: end;
+      min-height: calc(clamp(22px, 3.2vw, 40px) * 1.1 + 20px);
+      line-height: 1;
+      transform: skewX(-6deg);
       color: #d6f1ff;
       text-shadow: -3px -2px #67bdff, 3px 3px #13233b;
-      padding-bottom: 18px;
+      padding: 0 4px;
     }
     .bars { display: grid; gap: 10px; }
     .bar {

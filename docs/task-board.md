@@ -138,3 +138,7 @@ Feature port from `origin/alan` `b637186`: free flight, destination search/catal
 ## Shared button feedback — Alex branch
 
 Applied the supplied button handoff visual treatment globally: hover grow/glow/icon nudge, press/focus/reduced-motion. Actual onboarding hover/focus checked in browser; build passed. Concurrent audio revisions are preserved separately and are not part of this visual commit. No server/contract/env changes. See `docs/button-feedback.md` for scope and verification.
+
+## Result preview VS alignment
+
+Adjusted only the standalone `web/duel-result-preview.html`: removed VS rotation, reduced skew to -6 degrees, and centered it on both pilot name plates. Browser verified shared vertical center and Victory/Defeat toggles; diff whitespace check passed. Production result wiring is still pending. No audio/server changes.
