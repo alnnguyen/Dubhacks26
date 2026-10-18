@@ -133,7 +133,7 @@ export type RockVisualTick = {
   /** Open palm from classifier — enables proximity pickup without waiting for HELD. */
   palmOpen: boolean
   /** When "gun", ground/held rocks are hidden; only an in-flight rock can finish. */
-  weapon?: "rock" | "gun"
+  weapon?: "rock" | "gun" | "saber"
 }
 
 export type RockVisualFrame = {
@@ -185,7 +185,7 @@ export function tickRockVisual(state: RockVisualState, tick: RockVisualTick): Ro
   }
 
   // Gun mode: hide every rock except a throw already in the air.
-  if (tick.weapon === "gun" && next.mode !== "flying") {
+  if ((tick.weapon === "gun" || tick.weapon === "saber") && next.mode !== "flying") {
     const cleared: RockVisualState = {
       ...createRockVisual(state.flightSeconds),
       smoothedHand: next.smoothedHand,
@@ -196,7 +196,7 @@ export function tickRockVisual(state: RockVisualState, tick: RockVisualTick): Ro
   }
 
   // Coming back from gun: restore ground rocks if the field was cleared.
-  if (tick.weapon !== "gun" && next.ground.length === 0 && next.mode === "ground") {
+  if (tick.weapon !== "gun" && tick.weapon !== "saber" && next.ground.length === 0 && next.mode === "ground") {
     next = { ...next, ground: spawnGround(tick.nowMs) }
   }
 

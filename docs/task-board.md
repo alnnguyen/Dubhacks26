@@ -4,7 +4,7 @@ No implementation tasks are marked complete. Move work through Ready → Doing �
 
 ## Doing
 
-- C (Alan): live duel gestures — rock palm→fist→fling; gun fist-hold then index+middle fire. Still on `createGameClient`. Phone QA in `docs/qa-checklist.md`. Saber / lobby / Photon deferred.
+- C (Alan): live duel gestures — rock palm→fist→fling; gun fist-hold then index+middle fire; saber fist-hold + lateral slash (Wii timing window). Still on `createGameClient`. Phone QA in `docs/qa-checklist.md`. Lobby / Photon deferred.
 - D (Alex): Grok Bot bonus session (template in `docs/sponsor-evidence.md`). Live Photon/Voice on real challenges **blocked on B**.
 - A (Ally): **pull `alex-dev`** — Alan’s latest camera is merged; cockpit default + turn-to-look remain on ally paths. Keep live camera as duel surface (PLAN); arena polish = overlays/cockpit, not room scan.
 
@@ -59,3 +59,58 @@ Full text: `server/src/integrations/HANDOFF.md`.
 - A/C/D composition on alex-dev: cockpit → world/Voice briefing → **duel HUD** camera → result → cockpit. Duel mode hides lab chrome; `/?camera=1` remains full MediaPipe harness.
 - Provider proofs (Photon fixtures, Grok TTS/S2S/narration) recorded in `docs/sponsor-evidence.md`.
 - B blocker unchanged until `createGamePort` exists.
+
+
+## Exploration flight repair — October 17 (Alan / Codex)
+
+- Goal: reliable free flight, explicit scene readiness and visit/learn navigation. Owned paths: existing exploration components, ExploreApp and exploration CSS. Frontend-only interface; no server/duel contracts or environment variables changed.
+- Implemented: value-based spawn reset (fixes the 10 Hz teleport loop), W/S thrust and reverse, arrows/drag steering, strafe/lift, brake/cruise, blur/modal input reset, body safety spheres, direct body visits, searchable navigation, artistic galaxy destination, learning cards and source links.
+- Rendering: custom shaders now participate in logarithmic depth; missing optional textures fall back, shader failure has retry UI, and quality reduction no longer remounts the flight controller. Procedural stars occupy a volume; scale labels no longer imply measured light-year travel.
+- Checks actually run: frontend typecheck; production build; 117 frontend tests passed, 1 live-network test skipped (includes 8 new flight/destination regressions). Build warns that installed Node 22.11.0 is below Vite's supported 22.12+ range, but completes.
+- Browser evidence: lunar cruise moved from z=32 to z=9.5 and Stop held the new position; clean graphics logs in the repaired lunar scene; readiness/artwork feedback, destination search pausing flight, and Earth/Jupiter learning cards observed. Jupiter arrival and return to Earth at [98.9, 0.8, 37.0], stopped and facing Earth, were verified. Renderer warning/error logs were empty after the final repair. Keyboard input changed position. No actual phone performance or end-to-end duel claim; those remain human integration checks. No deployment performed.
+- Handoff: docs/exploration-flight-handoff.md. Status: implemented and locally checked; phone acceptance pending.
+
+## Real universe catalog expansion — user-authorized follow-up
+
+- Goal/owner: Alan / Codex, exploration UI and local catalog import. User explicitly requested this scope expansion beyond the original feature freeze; no deployment or combat changes.
+- Imported local snapshots: 24,835 HYG stars, 5,301 NASA archive planet records across 3,894 hosts (<1,000 pc), 1,034 published GALEX Atlas galaxies hosted by NASA/IPAC NED.
+- Implemented catalog categories/search, star and galaxy coordinate frames, selectable batched points, illustrative host systems, sourced learning facts/siblings, data credits and reproducible import/integrity scripts. No server contract/dependency/environment-variable changes.
+- Handoff/source limitations and acceptance evidence: docs/universe-catalog-handoff.md. Phone performance and deployed end-to-end flow remain pending.
+- Final local validation for catalog expansion: SHA-256/source integrity script passed; 124 frontend tests passed, 1 live-network test skipped; production typecheck/build passed with an exploration-chunk size warning. Browser verified TRAPPIST-1 facts/siblings, Andromeda archival facts, cross-layer Sirius travel and moving cruise; fresh renderer logs clean. Implemented/local checks complete; phone acceptance pending.
+
+## Continuous local zoom — user-authorized bounded follow-up
+
+- Goal/owned paths: exploration UI and local camera only; Earth → solar system → nearby stars → Earth without renderer reset. Interface is frontend zoom/telemetry; no server or combat changes.
+- Implemented scroll/+−/touch-button zoom, persistent local canvas, 25 pc HYG layer (3,081 source stars), smooth approach/return, camera-relative render scaling, source-data labels and existing jump fallback outside the local scope.
+- Validation: 132 frontend tests passed, 1 live-network test skipped; 8 targeted navigation regressions passed after final fixes; typecheck/build passed with existing catalog chunk warning. Browser canvas-instance ID stayed identical through zoom, Sirius visit and Earth return; source card and clean renderer logs observed. Actual-phone/deployed acceptance pending.
+- Handoff: docs/local-zoom-handoff.md. New environment variables: none. No deployment or external messaging.
+
+## Proximity flight and intent-aware zoom — October 18
+
+- Goal/owner: Alan / Codex, user-authorized precision near bodies and faster sustained outward zoom. Paths: exploration navigation/controller/HUD/motion/tests plus frontend docs. Optional local proximity-speed interface only; combat, server, dependencies, environment variables and deployments excluded.
+- Implemented: single proximity speed curve with immediate incoming-velocity limit; gentler bounded wheel input; decaying outward acceleration for rapid successive gestures; immediate reversal discards pending outward travel; stop/pause/steering reset scroll effort.
+- Acceptance/checks: 138 frontend tests passed, 1 live-network test skipped, including six new behavior regressions; typecheck/production build passed with existing Node/catalog-size warnings. Browser verified wheel zoom, Earth return, slow close cruise and Stop with clean warning/error logs. Actual phone gestures/performance remain unverified.
+- Handoff and changed paths: docs/local-zoom-handoff.md, latest tuning section. No new environment variables or blockers for local implementation.
+
+## Solar visibility and body labels — October 18
+
+- Goal/owned paths: Alan / Codex; user-authorized brighter solar navigation and nearby names. Exploration lighting, local body labels and CSS/docs only. Interface: existing onLearn callback; no server/combat/dependency/environment changes.
+- Implemented: scale-stable Sun/fill lighting, original texture colors, gentler Earth dark side, subdued local sky, clickable screen-sized names/rings with distance fade and occlusion/overlap/offscreen suppression. Existing learn/Visit flow retained.
+- Checks: 138 frontend tests passed, one live-network test skipped; typecheck/production build passed with existing warnings. Browser verified overview labels and Jupiter label/card/visit/close lighting. Phone acceptance pending. No deployment or external messages.
+- Handoff: docs/local-zoom-handoff.md, latest section; changed files listed there. No new environment variables.
+
+## Local solar catalog expansion — October 18
+
+- Goal/owner: Alan / Codex, explicit user request to complete planets and add ISS/Starlink/asteroid/comet catalog detail. Owned paths: exploration UI/data/importer/docs only. Frontend destination/science kinds extended; server/combat/shared dependencies/deployment excluded.
+- Implemented all eight major planets (Saturn rings); ISS/Hubble + 18 recent mirrored Starlink records; 42 asteroids/18 comets from NASA/JPL, including Halley, 67P, Ceres, Bennu/Ryugu. Search/categories/source/epoch/facts, schematic selected objects/orbits and anti-solar illustrative tails. Earth's Moon remains the only natural moon in this bounded set.
+- Snapshots are static at individual record epochs, not live tracking/current ephemerides. Satellite altitude and craft/small-body sizes exaggerated; Starlink is a sample. Final importer caches each successful response for two hours and uses a NASA-listed independent TLE mirror for Starlink after the initial full-feed download/import failure.
+- Checks actually run: 144 frontend tests passed, one live-network test skipped; typecheck/build passed with existing Node/catalog chunk warnings; all ten raw source hashes verified against cached downloads; existing catalog integrity checks passed. Browser verified Saturn, ISS card/visit, Halley card/visit and 18 Starlink search results/source card. Phone/deployed acceptance pending.
+- Changed paths, sources, limitations and screenshots: docs/local-solar-catalog-handoff.md. New environment variables: none. No deployment/external messaging.
+
+## Planet-view reference integration and repair — October 18
+
+- Goal/owner: Alan / Codex; user-authorized import/repair of supplied showcase animations, archive UI and planet dissections. Existing exploration UI/camera model/shaders/styles/docs only. Frontend inspect props; no server/combat/dependency/manifests/deployment changes.
+- Repaired duplicate covering sphere, mismatched clipping/world coordinates, stale render scale and close-triggered destination reset. Actual textured Earth/cloud/atmosphere support clipping. Material state and overlays clean up.
+- Added refined Motion springs/tab exits/shared underline/cards/counters, planet switcher, comparison circles, educational gravity arc, numbered highlighted layers and desktop leader lines; responsive sheet and reduced-motion handling. Exact supplied facts retained with provenance/confidence/snapshot labels.
+- Checks: 150 frontend tests passed, one live-network test skipped; typecheck/build passed with catalog chunk warning. Five added tests cover framing/return/scale/cancellation/layer-data invariants. Browser Mars/Earth cutaways and source UI observed. Phone performance pending.
+- Handoff: docs/planet-inspector-handoff.md. New environment variables: none. No deployment or external messages.

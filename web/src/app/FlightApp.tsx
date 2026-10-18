@@ -2,9 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { SpaceshipHome } from '../ui/screens/SpaceshipHome';
 import { CameraDebugPage } from '../camera/CameraDebugPage';
 import { useServerLobby } from '../lobby/useServerLobby';
-import { getGameClient, useGameView, type ClientReply, type PlayerView } from '../networking';
+import { getGameClient, useGameView, type ClientReply, type PlayerView, type Weapon } from '../networking';
 import type { BattleCommand } from '../vision/types';
+import { dispatchBattleCommand } from './liveCommands';
 import './flight.css';
+
+const GUN_FLIGHT_MS = 800;
 
 // Every match number below comes from the game server's view; this screen only displays it.
 export function FlightApp() {
@@ -16,6 +19,9 @@ export function FlightApp() {
   const [voiceWorld, setVoiceWorld] = useState('');
   const [entering, setEntering] = useState(false);
   const [note, setNote] = useState('');
+  const [bolt, setBolt] = useState<{ startedAt: number } | null>(null);
+  const [slashAt, setSlashAt] = useState<number | null>(null);
+  const [rockResolvedAt, setRockResolvedAt] = useState(0);
   const frame = useRef<HTMLIFrameElement>(null);
   const launchTimer = useRef<number | undefined>(undefined);
 
@@ -41,9 +47,16 @@ export function FlightApp() {
 
   useEffect(() => client.onProjectileLanded(event => {
     const mine = event.attackerSlot === client.view()?.you.slot;
-    const weapon = event.weapon === 'rock' ? 'Rock' : 'Bolt';
-    if (mine) setNote(event.blocked ? `${weapon} blocked by rival.` : `${weapon} hit: −${event.damage} rival health.`);
-    else setNote(event.blocked ? `Blocked the incoming ${weapon.toLowerCase()}.` : `Hit: −${event.damage} health.`);
+    const weapon =
+      event.weapon === 'rock' ? 'Rock' : event.weapon === 'saber' ? 'Saber slash' : 'Bolt';
+    if (mine) {
+      setNote(event.blocked ? `${weapon} blocked by rival.` : `${weapon} hit: −${event.damage} rival health.`);
+      if (event.weapon === 'rock') setRockResolvedAt(performance.now());
+      if (event.weapon === 'gun') setBolt(null);
+      if (event.weapon === 'saber') setSlashAt(null);
+    } else {
+      setNote(event.blocked ? `Blocked the incoming ${weapon.toLowerCase()}.` : `Hit: −${event.damage} health.`);
+    }
   }), [client]);
 
   // A match that ended while this phone was in the cockpit (e.g. after a reload) has no result
@@ -60,18 +73,41 @@ export function FlightApp() {
   function leave() {
     clearTimeout(launchTimer.current); setEntering(false); setVoiceWorld(''); setNote('');
     setEntered(null);
+    setBolt(null);
+    setSlashAt(null);
     void client.leaveMatch();
   }
 
+  async function ensureWeapon(weapon: Weapon) {
+    const current = client.view()?.you.weapon;
+    if (current === weapon) return;
+    if (weapon === 'rock') await client.rockActive();
+    else if (weapon === 'saber') await client.saberActive();
+    else await client.gunActive();
+  }
+
+  async function run(label: string, action: () => Promise<ClientReply>) {
+    const reply = await action();
+    if (reply.status === 'rejected') setNote(rejectionNote(reply));
+    else setNote(`${label} accepted.`);
+    if (label === 'fireGun' && reply.status === 'accepted') setBolt({ startedAt: performance.now() });
+    if (label === 'slash' && reply.status === 'accepted') setSlashAt(performance.now());
+    return reply;
+  }
+
   // Same validated server commands for gestures and touch buttons.
-  function onCommands(commands: BattleCommand[]) {
+  async function onCommands(commands: BattleCommand[]) {
     for (const command of commands) {
-      const send = command.name === 'startLift'
-        ? (client.view()?.you.weapon === 'rock' ? null : client.rockActive)
-        : command.name === 'releaseRock' ? client.throwRock
-        : command.name === 'block' ? client.startBlock
-        : null; // cancelLift: the held rock is local until thrown.
-      void send?.().then(reply => reply.status === 'rejected' && setNote(rejectionNote(reply)));
+      const reply = await dispatchBattleCommand(client, command);
+      if (!reply) continue;
+      if (reply.status === 'rejected') setNote(rejectionNote(reply));
+      else setNote(`${command.name} accepted.`);
+      if (command.name === 'fireGun' && reply.status === 'accepted') {
+        setBolt({ startedAt: performance.now() });
+      }
+      if (command.name === 'slash' && reply.status === 'accepted') {
+        setSlashAt(performance.now());
+      }
     }
   }
 
@@ -111,9 +147,29 @@ export function FlightApp() {
           health: you.health,
           rivalHealth: rival.health,
           note: duelNote(view, note),
+          serverNote: note,
           incoming: rival.projectile !== null,
+          weapon: you.weapon,
+          onSelectRock: () => void run('rockActive', () => client.rockActive()),
+          onSelectGun: () => void run('gunActive', () => client.gunActive()),
+          onSelectSaber: () => void run('saberActive', () => client.saberActive()),
+          onFireGun: () =>
+            void run('fireGun', async () => {
+              await ensureWeapon('gun');
+              return client.fireGun();
+            }),
+          onSlash: () =>
+            void run('slash', async () => {
+              await ensureWeapon('saber');
+              return client.slash();
+            }),
+          boltStartedAt: bolt?.startedAt ?? null,
+          boltFlightMs: GUN_FLIGHT_MS,
+          slashStartedAt: slashAt,
+          rockResolvedAt,
+          immersive: world.id === 'mars',
         }}
-        onCommands={onCommands}
+        onCommands={(commands) => void onCommands(commands)}
       />
     )}
     {screen === 'result' && <section className="flight-panel">
@@ -131,7 +187,7 @@ function duelNote(view: PlayerView, note: string): string {
   if (view.phase === 'waiting') return `Waiting for ${rival.callsign} to finish the briefing…`;
   if (!rival.connected) return `${rival.callsign} lost connection — they forfeit unless they return shortly.`;
   if (rival.projectile) return `Incoming ${rival.projectile.weapon}! Block before impact.`;
-  return note || 'Lift then throw. Block when a rock is incoming.';
+  return note || 'Rock / Gun / Saber · Block when something is incoming.';
 }
 
 function resultTitle({ result, you, rival }: PlayerView): string {
@@ -145,6 +201,7 @@ const REJECTION_NOTES: Record<string, string> = {
   on_cooldown: 'Still cooling down.',
   busy: 'Busy — wait for your throw or block to finish.',
   projectile_in_flight: 'Your last shot is still in flight.',
+  weapon_not_active: 'Switch weapon first (Rock / Gun / Saber).',
   match_not_active: 'The round has not started.',
   offline: 'Offline — command not sent.',
   no_response: 'Server did not answer in time.',

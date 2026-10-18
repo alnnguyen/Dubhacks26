@@ -1,14 +1,21 @@
 import { estimateHandVelocity, pushHandSample, type HandSample } from "../overlay/throwPhysics"
-import { GUN_VELOCITY_WINDOW_MS } from "./constants"
+import { analyzeTipSwing, isSwingSlash, tipPointFromLandmarks } from "../overlay/swingDetect"
+import {
+  GUN_VELOCITY_WINDOW_MS,
+  SWING_PATH_MIN,
+  SWING_SPEED_MIN,
+  SWING_WINDOW_MS,
+} from "./constants"
 import { classifyGesture, handCenter, observeHand } from "./landmarks"
 import { createGestureMachine, tickGestureMachine, type GestureMachineState } from "./gestureMachine"
 import { selectLockedHand, type HandLockHint } from "./handLock"
 import { selectOwnHand, type HandSelection } from "./selectOwnHand"
-import type { BattleCommand, Gesture, HandTrack, Intent, Phase, TouchInput } from "./types"
+import type { BattleCommand, Gesture, HandTrack, Intent, Phase, TouchInput, WeaponChoice } from "./types"
 
 export type BattleInputState = {
   machine: GestureMachineState
   handSamples: HandSample[]
+  tipSamples: HandSample[]
 }
 
 export type BattleStep = {
@@ -17,12 +24,9 @@ export type BattleStep = {
   touch: TouchInput | null
   sessionId: string
   matchId: string
-  /** When set, prefer the calibrated near hand over heuristic own-hand pick. */
   lockHint?: HandLockHint | null
-  /** When true, camera gestures pause (lock lost / calibrating) but touch still works. */
   gesturesPaused?: boolean
-  /** Active weapon from the server / Rock-Gun buttons. */
-  weapon?: "rock" | "gun"
+  weapon?: WeaponChoice
 }
 
 export type BattleStepResult = {
@@ -33,14 +37,17 @@ export type BattleStepResult = {
   gesture: Gesture
   intent: Intent
   ownHandId: string | null
-  /** Live CV readout for the duel HUD. */
   handSpeed: number
+  handVx: number
   handVy: number
   handUpDelta: number
+  tipSpeed: number
+  swingDx: number
+  swingDy: number
 }
 
 export function createBattleInput(nowMs: number): BattleInputState {
-  return { machine: createGestureMachine(nowMs), handSamples: [] }
+  return { machine: createGestureMachine(nowMs), handSamples: [], tipSamples: [] }
 }
 
 export function resolveIntent(selection: HandSelection, gesture: Gesture, touch: TouchInput | null): Intent {
@@ -83,7 +90,9 @@ export function stepBattleInput(state: BattleInputState, step: BattleStep): Batt
   const weapon = step.weapon ?? "rock"
 
   let handSamples = state.handSamples
+  let tipSamples = state.tipSamples
   const center = own && !step.gesturesPaused ? handCenter(own.landmarks) : null
+  const tip = own && !step.gesturesPaused ? tipPointFromLandmarks(own.landmarks) : null
   if (center) {
     handSamples = pushHandSample(handSamples, step.nowMs, center)
   } else if (step.touch?.throw || step.touch?.lift) {
@@ -91,25 +100,48 @@ export function stepBattleInput(state: BattleInputState, step: BattleStep): Batt
   } else {
     handSamples = []
   }
+  if (tip && weapon === "saber") {
+    tipSamples = pushHandSample(tipSamples, step.nowMs, tip, 16)
+  } else if (weapon !== "saber") {
+    tipSamples = []
+  }
+
   const velocity = estimateHandVelocity(handSamples, step.nowMs, GUN_VELOCITY_WINDOW_MS)
   const handSpeed = Math.hypot(velocity.vx, velocity.vy)
   const upDelta = handUpDelta(handSamples, step.nowMs, GUN_VELOCITY_WINDOW_MS)
+  const swing = analyzeTipSwing(tipSamples, step.nowMs, SWING_WINDOW_MS)
+  const tipSwing =
+    weapon === "saber" &&
+    state.machine.phase === "GUN_AIM" &&
+    isSwingSlash(swing, { pathMin: SWING_PATH_MIN, speedMin: SWING_SPEED_MIN })
+
+  const aimingSaber =
+    weapon === "saber" &&
+    (state.machine.phase === "GUN_AIM" || state.machine.phase === "SABER_RECOVER")
+  const forceThrow = Boolean(
+    step.touch?.throw && (state.machine.phase === "HELD" || aimingSaber),
+  )
 
   const ticked = tickGestureMachine(state.machine, {
     nowMs: step.nowMs,
     intent,
     blockPressed: step.touch?.block ?? false,
-    handSpeed: step.touch?.throw ? Math.max(handSpeed, THROW_TOUCH_SPEED) : handSpeed,
+    handSpeed: forceThrow ? Math.max(handSpeed, THROW_TOUCH_SPEED) : handSpeed,
+    handVx: velocity.vx,
     handVy: velocity.vy,
     handUpDelta: upDelta,
-    forceThrow: Boolean(step.touch?.throw && state.machine.phase === "HELD"),
+    tipSwing,
+    tipSwingDx: swing.dx,
+    tipSwingDy: swing.dy,
+    tipSpeed: swing.peakSpeed,
+    forceThrow,
     weapon,
     sessionId: step.sessionId,
     matchId: step.matchId,
   })
 
   return {
-    state: { machine: ticked.state, handSamples },
+    state: { machine: ticked.state, handSamples, tipSamples },
     commands: ticked.commands,
     phase: ticked.state.phase,
     selection: effectiveSelection,
@@ -117,10 +149,13 @@ export function stepBattleInput(state: BattleInputState, step: BattleStep): Batt
     intent,
     ownHandId: !step.gesturesPaused && selection.status === "ok" ? selection.handId : null,
     handSpeed,
+    handVx: velocity.vx,
     handVy: velocity.vy,
     handUpDelta: upDelta,
+    tipSpeed: swing.peakSpeed,
+    swingDx: ticked.state.lastSwingDx || swing.dx,
+    swingDy: ticked.state.lastSwingDy || swing.dy,
   }
 }
 
-/** Ensure touch Throw from HELD always clears the speed gate. */
 const THROW_TOUCH_SPEED = 1.2

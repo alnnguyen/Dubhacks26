@@ -10,7 +10,8 @@ import {
   tickTracers,
   type TracerShot,
 } from "../overlay/bulletTracer"
-import { createGunModel, gunPoseFromLandmarks, type GunModelHandle } from "../overlay/gunModel"
+import { createWeaponOverlay, type WeaponOverlayHandle } from "../overlay/weaponOverlay"
+import type { WeaponChoice } from "../vision/types"
 import {
   createRockVisual,
   DEFAULT_AIM,
@@ -64,15 +65,19 @@ export type DuelHudProps = {
   immersive?: boolean
   /** Arena formations (e.g. from the room scan). Defaults to a Jezero layout. */
   arenaObstacles?: ArenaObstacle[]
-  /** Active server weapon, used to highlight Rock / Gun. */
-  weapon?: "rock" | "gun"
+  /** Active server weapon, used to highlight Rock / Gun / Saber. */
+  weapon?: WeaponChoice
   onSelectRock?: () => void
   onSelectGun?: () => void
+  onSelectSaber?: () => void
   onFireGun?: () => void
+  onSlash?: () => void
   /** When set, spawn a forward tracer from the muzzle (Fire gun button / accepted shot). */
   boltStartedAt?: number | null
   /** Server gun flight window in ms. */
   boltFlightMs?: number
+  /** Bumps when a saber slash is accepted (cosmetic kick). */
+  slashStartedAt?: number | null
   /** Bumps when the server resolves our rock, so the arc stops with the hit. */
   rockResolvedAt?: number
   /** Latest server reply / status line from LiveDuel. */
@@ -108,8 +113,11 @@ export function CameraDebugPage({
   const commandSessionRef = useRef(SESSION_ID)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const gunCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const gunModelRef = useRef<GunModelHandle | null>(null)
+  const weaponCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const weaponOverlayRef = useRef<WeaponOverlayHandle | null>(null)
+  const slashStartedSeen = useRef(0)
+  const slashKickUntil = useRef(0)
+  const lastSwingRef = useRef({ dx: 0, dy: 0, tipSpeed: 0 })
   const battleRef = useRef<BattleInputState>(createBattleInput(performance.now()))
   const rockRef = useRef<RockVisualState>(createRockVisual(flightSeconds))
   const tracersRef = useRef<TracerShot[]>([])
@@ -255,8 +263,8 @@ export function CameraDebugPage({
     stopCameraRef.current = null
     visionRef.current?.close()
     visionRef.current = null
-    gunModelRef.current?.dispose()
-    gunModelRef.current = null
+    weaponOverlayRef.current?.dispose()
+    weaponOverlayRef.current = null
     const video = videoRef.current
     if (video) video.srcObject = null
     setRunning(false)
@@ -320,6 +328,11 @@ export function CameraDebugPage({
       setHandSpeed(stepped.handSpeed)
       setHandVy(stepped.handVy)
       setHandUpDelta(stepped.handUpDelta)
+      lastSwingRef.current = {
+        dx: stepped.swingDx,
+        dy: stepped.swingDy,
+        tipSpeed: stepped.tipSpeed,
+      }
 
       const flightSecondsNow = flightSecondsRef.current
       if (rockRef.current.flightSeconds !== flightSecondsNow && rockRef.current.mode !== "flying") {
@@ -399,23 +412,42 @@ export function CameraDebugPage({
         })
       }
 
-      const gunCanvas = gunCanvasRef.current
-      let gun = gunModelRef.current
-      if (gunCanvas && !gun) {
-        gun = createGunModel(gunCanvas)
-        gunModelRef.current = gun
+      // One shared WebGL layer — show/hide gun vs saber; never dispose on swap.
+      const weaponCanvas = weaponCanvasRef.current
+      let weapons = weaponOverlayRef.current
+      if (weaponCanvas && !weapons) {
+        weapons = createWeaponOverlay(weaponCanvas)
+        weaponOverlayRef.current = weapons
       }
-      if (gun && gunCanvas) {
-        if (gunCanvas.width !== width || gunCanvas.height !== height) {
-          gunCanvas.width = width
-          gunCanvas.height = height
-          gun.resize(width, height)
+      if (weapons && weaponCanvas) {
+        if (weaponCanvas.width !== width || weaponCanvas.height !== height) {
+          weaponCanvas.width = width
+          weaponCanvas.height = height
+          weapons.resize(width, height)
         }
-        const showGun = activeWeapon === "gun"
-        const pose = showGun ? gunPoseFromLandmarks(ownHand?.landmarks ?? rockHand?.landmarks) : null
+        for (const command of stepped.commands) {
+          if (command.name === "slash") slashKickUntil.current = nowMs + 280
+        }
+        const slashAt = duelRef.current?.slashStartedAt ?? null
+        if (slashAt != null && slashAt !== slashStartedSeen.current) {
+          slashStartedSeen.current = slashAt
+          slashKickUntil.current = nowMs + 280
+        }
+        const slash01 =
+          slashKickUntil.current > nowMs ? (slashKickUntil.current - nowMs) / 280 : 0
         const newest = tracerFrame.draw[tracerFrame.draw.length - 1]
         const recoil = newest && newest.progress < 0.35 ? 1 - newest.progress / 0.35 : 0
-        gun.draw(pose, recoil)
+        const marks = ownHand?.landmarks ?? rockHand?.landmarks
+        const swing = lastSwingRef.current
+        weapons.draw({
+          weapon: activeWeapon === "gun" || activeWeapon === "saber" ? activeWeapon : "rock",
+          landmarks: marks,
+          recoil01: recoil,
+          slash01,
+          tipSpeed: swing.tipSpeed,
+          swingDx: swing.dx,
+          swingDy: swing.dy,
+        })
       }
     }
 
@@ -480,7 +512,7 @@ export function CameraDebugPage({
       >
         Block
       </button>
-      {duel?.onSelectRock || duel?.onSelectGun ? (
+      {duel?.onSelectRock || duel?.onSelectGun || duel?.onSelectSaber ? (
         <span className="weapon-switch" role="group" aria-label="Switch weapon">
           {duel?.onSelectRock ? (
             <button
@@ -502,11 +534,26 @@ export function CameraDebugPage({
               Gun
             </button>
           ) : null}
+          {duel?.onSelectSaber ? (
+            <button
+              type="button"
+              className={duel.weapon === "saber" ? "on" : ""}
+              aria-pressed={duel.weapon === "saber"}
+              onClick={duel.onSelectSaber}
+            >
+              Saber
+            </button>
+          ) : null}
         </span>
       ) : null}
       {duel?.onFireGun ? (
         <button type="button" className="primary" onClick={duel.onFireGun}>
           Fire gun
+        </button>
+      ) : null}
+      {duel?.onSlash ? (
+        <button type="button" className="primary" onClick={duel.onSlash}>
+          Slash
         </button>
       ) : null}
       <button
@@ -545,7 +592,7 @@ export function CameraDebugPage({
           ) : null}
           <video ref={videoRef} className={`video${immersive ? " video--source" : ""}`} playsInline muted autoPlay />
           <canvas ref={canvasRef} className="overlay" />
-          <canvas ref={gunCanvasRef} className="overlay gun-layer" />
+          <canvas ref={weaponCanvasRef} className="overlay gun-layer" />
           {immersive ? null : <div className="duel-tint" aria-hidden />}
           {immersive && running ? (
             <p className={`mars-target ${poseOk ? "locked" : ""}`} role="status">
@@ -612,8 +659,9 @@ export function CameraDebugPage({
         {error ? <p className="error">{error}</p> : null}
         {!running ? (
           <p className="duel-hint">
-            Start camera, recalibrate if needed. Rock: palm → fist grab → fling. Gun: fist holds the grip, extend
-            index + middle to fire. Rock/Gun buttons switch weapons; Fire gun still works as a touch backup.
+            Start camera, recalibrate if needed. Rock: palm → fist → fling. Gun: fist hold, index+middle fire.
+            Saber: swing to slash (Wii-style timing window, not blade contact). Block still works. Slash / Fire
+            gun are touch backups.
           </p>
         ) : null}
       </main>
@@ -634,7 +682,7 @@ export function CameraDebugPage({
       <section className="stage">
         <video ref={videoRef} className="video" playsInline muted autoPlay />
         <canvas ref={canvasRef} className="overlay" />
-        <canvas ref={gunCanvasRef} className="overlay gun-layer" />
+        <canvas ref={weaponCanvasRef} className="overlay gun-layer" />
         {running ? <div className={`lock-banner ${lockPhase}`}>{lockBanner}</div> : null}
       </section>
 

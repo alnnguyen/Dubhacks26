@@ -44,5 +44,7 @@ export function weaponsFor(id: WorldId): Record<Weapon, WeaponRules> {
     rock: { damage: 20, windupMs: 300, cooldownMs: 3000, flightMs: world(id).rockFlightMs },
     // A slow bolt, so the defender can see it coming and block.
     gun: { damage: 20, windupMs: 0, cooldownMs: 1000, flightMs: 800 },
+    // Wii-style slash window: short "flight" is the hit timing, not blade physics.
+    saber: { damage: 25, windupMs: 0, cooldownMs: 900, flightMs: 350 },
   };
 }

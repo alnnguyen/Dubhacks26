@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { PlayerView, Weapon } from '../networking';
+import type { LobbyView, PlayerView, Weapon } from '../networking';
 import { createGameClient, type ClientReply, type ConnectionStatus, type GameClient } from '../networking';
 import type { BattleCommand } from '../vision/types';
 import { CameraDebugPage } from '../camera/CameraDebugPage';
@@ -8,6 +8,44 @@ import { accentCss, loadPilotIdentity } from './pilotIdentity';
 import './flight.css';
 
 const GUN_FLIGHT_MS = 800;
+
+/**
+ * /?pvp=1 rehearsal: lobby has no auto-match, so we challenge / accept / ready ourselves.
+ * Only one pairing attempt at a time so two tabs don't spam challenges.
+ */
+async function autoPairFromLobby(client: GameClient, lobby: LobbyView): Promise<string | null> {
+  const challenge = lobby.challenge;
+  if (challenge?.status === 'pending' && challenge.role === 'defender') {
+    const reply = await client.acceptChallenge(challenge.id);
+    return reply.status === 'accepted'
+      ? `Accepted ${challenge.opponent.callsign}'s challenge.`
+      : `Accept failed: ${reply.status === 'rejected' ? reply.reason : 'unknown'}`;
+  }
+  if (challenge?.status === 'pending' && challenge.role === 'challenger') {
+    return `Waiting for ${challenge.opponent.callsign} to accept… (${lobby.pilots.length} other pilot(s) in lobby)`;
+  }
+  if (client.view()) return null;
+
+  const available = lobby.pilots.filter((p) => p.status === 'available');
+  const names = lobby.pilots.map((p) => `${p.callsign}${p.status === 'in-duel' ? '*' : ''}`).join(', ');
+
+  if (available.length === 0) {
+    return lobby.pilots.length === 0
+      ? 'In lobby alone — open the SAME ngrok /?pvp=1 URL on the other device.'
+      : `Lobby has ${lobby.pilots.length} busy pilot(s) [${names}]. Restart game server to clear ghosts.`;
+  }
+
+  // Extra leftover tabs/phones make auto-pair pick the wrong rival.
+  if (available.length > 1) {
+    return `Too many pilots in lobby (${available.length} available: ${names}). Close extra /?pvp=1 tabs, restart \`server\` (Ctrl+C → node dist/index.js), then reopen exactly 2 clients on the ngrok URL.`;
+  }
+
+  const rival = available[0]!;
+  const reply = await client.challenge(rival.id);
+  return reply.status === 'accepted'
+    ? `Challenged ${rival.callsign}. Waiting for accept…`
+    : `Challenge failed: ${reply.status === 'rejected' ? reply.reason : 'unknown'}`;
+}
 
 /** Per-tab identity so two tabs on one laptop can still be two pilots. Phones keep their own storage naturally. */
 function tabStorage(): Pick<Storage, 'getItem' | 'setItem'> {
@@ -42,27 +80,63 @@ export function LiveDuel() {
   const [now, setNow] = useState(performance.now());
   const [busy, setBusy] = useState(false);
   const [bolt, setBolt] = useState<{ startedAt: number } | null>(null);
+  const [slashAt, setSlashAt] = useState<number | null>(null);
   const [rockResolvedAt, setRockResolvedAt] = useState(0);
+  const [lobbyInfo, setLobbyInfo] = useState<string>('—');
 
   useEffect(() => {
     const client = createGameClient({ storage: tabStorage() });
     clientRef.current = client;
     viewRef.current = client.view();
+    let pairing = false;
+    let pairingNote = '';
+
+    // Distinct callsigns help you see which device is which in the lobby list.
+    void client.setCallsign(callsign);
 
     const offStatus = client.onStatus((next) => {
       setStatus(next);
       setJoinError(client.joinError());
-      if (next === 'connecting') setNote('Joining the shared match…');
+      if (next === 'connecting') setNote('Joining the lobby…');
       if (next === 'offline') {
         const err = client.joinError();
         setNote(
-          err === 'match_full'
-            ? 'Two pilots already occupy this demo. Close extra tabs and restart the demo server for a fresh round.'
-            : err
-              ? `Join rejected: ${err}`
-              : 'Connection lost. Reloading this page reclaims the same pilot; no offline attacks are queued.',
+          err
+            ? `Join rejected: ${err}`
+            : 'Connection lost (is the game server on :3001?). Reload after it is up.',
         );
       }
+      if (next === 'online') {
+        const lobby = client.lobby();
+        if (lobby && !client.view()) {
+          void (async () => {
+            if (pairing) return;
+            pairing = true;
+            try {
+              pairingNote = (await autoPairFromLobby(client, lobby)) ?? pairingNote;
+              if (pairingNote) setNote(pairingNote);
+            } finally {
+              pairing = false;
+            }
+          })();
+        }
+      }
+    });
+
+    const offLobby = client.onLobby((lobby) => {
+      const others = lobby.pilots.map((p) => p.callsign).join(', ') || 'none';
+      setLobbyInfo(`you=${lobby.you.callsign} · others=[${others}] · challenge=${lobby.challenge?.status ?? 'none'}`);
+      if (client.view()) return;
+      void (async () => {
+        if (pairing) return;
+        pairing = true;
+        try {
+          pairingNote = (await autoPairFromLobby(client, lobby)) ?? pairingNote;
+          if (pairingNote) setNote(pairingNote);
+        } finally {
+          pairing = false;
+        }
+      })();
     });
 
     const offView = client.onView((next) => {
@@ -71,24 +145,37 @@ export function LiveDuel() {
       setView(next);
       setReceivedAt(performance.now());
       if (!next) {
-        setNote('Left the match. Challenge again from the cockpit, or reopen /?pvp=1.');
+        setNote(pairingNote || 'In lobby — waiting for a second /?pvp=1 client to pair.');
         return;
       }
+      if (next.phase === 'waiting' && !next.you.ready) {
+        setNote('Match created — pressing Ready…');
+        void client.ready().then((reply) => {
+          if (reply.status === 'rejected') setNote(`Ready failed: ${reply.reason}`);
+        });
+      }
       if (previous === 'waiting' && next.phase === 'active') {
-        setNote('Both pilots joined. Rock: palm → fist → fling. Gun: fist hold, index+middle fire.');
+        setNote(
+          'Duel active. Rock: palm→fist→fling. Gun: fist→index+middle. Saber: swing to slash (timing window) · Block works.',
+        );
       } else if (next.phase === 'waiting') {
-        setNote('You joined. Waiting for the second player on this same link.');
+        setNote(
+          next.you.ready
+            ? `Ready — waiting for ${next.rival.callsign}…`
+            : 'Match created — pressing Ready…',
+        );
       } else if (next.phase === 'active') {
         setNote('Connected. Health and attacks are server-controlled.');
       } else if (next.phase === 'finished') {
-        setNote('Match finished.');
+        setNote('Match finished. Reload both clients for a new round.');
       }
     });
 
     const offLanded = client.onProjectileLanded((event) => {
       if (!viewRef.current) return;
       const mine = viewRef.current.you.slot === event.attackerSlot;
-      const weapon = event.weapon === 'gun' ? 'gun bolt' : 'rock';
+      const weapon =
+        event.weapon === 'gun' ? 'gun bolt' : event.weapon === 'saber' ? 'saber slash' : 'rock';
       setNote(
         event.blocked
           ? `Pilot ${event.attackerSlot} ${weapon} blocked — no damage.`
@@ -97,18 +184,20 @@ export function LiveDuel() {
       if (!mine) return;
       if (event.weapon === 'rock') setRockResolvedAt(performance.now());
       if (event.weapon === 'gun') setBolt(null);
+      if (event.weapon === 'saber') setSlashAt(null);
     });
 
     const timer = window.setInterval(() => setNow(performance.now()), 100);
     return () => {
       clearInterval(timer);
       offStatus();
+      offLobby();
       offView();
       offLanded();
       client.close();
       clientRef.current = null;
     };
-  }, []);
+  }, [callsign]);
 
   async function run(label: string, action: () => Promise<ClientReply>) {
     const client = clientRef.current;
@@ -123,18 +212,23 @@ export function LiveDuel() {
       if (label === 'fireGun' && reply.status === 'accepted') {
         setBolt({ startedAt: performance.now() });
       }
+      if (label === 'slash' && reply.status === 'accepted') {
+        setSlashAt(performance.now());
+      }
     } finally {
       setBusy(false);
     }
   }
 
-  /** Gun starts active on the server — select rock before a throw. */
+  /** Gun starts active on the server — select the matching weapon before firing. */
   async function ensureWeapon(weapon: Weapon) {
     const client = clientRef.current;
     if (!client) return;
     const current = client.view()?.you.weapon;
     if (current === weapon) return;
-    await (weapon === 'rock' ? client.rockActive() : client.gunActive());
+    if (weapon === 'rock') await client.rockActive();
+    else if (weapon === 'saber') await client.saberActive();
+    else await client.gunActive();
   }
 
   async function cameraCommands(commands: BattleCommand[]) {
@@ -150,6 +244,9 @@ export function LiveDuel() {
       if (command.name === 'fireGun' && reply.status === 'accepted') {
         setBolt({ startedAt: performance.now() });
       }
+      if (command.name === 'slash' && reply.status === 'accepted') {
+        setSlashAt(performance.now());
+      }
     }
   }
 
@@ -162,6 +259,7 @@ export function LiveDuel() {
   const result = view?.result;
   const rockCd = remaining(you?.cooldowns.rock);
   const gunCd = remaining(you?.cooldowns.gun);
+  const saberCd = remaining(you?.cooldowns.saber);
   const incoming = remaining(rival?.projectile?.landsInMs) > 0;
 
   return (
@@ -172,21 +270,27 @@ export function LiveDuel() {
       </header>
       <section className="flight-panel">
         <h1>Two-player duel</h1>
-        <p>Both players open this same link. The second join starts the round automatically (Justin’s createGameClient).</p>
+        <p>
+          Both players open <code>/?pvp=1</code>. This page auto-challenges, accepts, and presses Ready — keep the
+          game server on port 3001.
+        </p>
         <p className="flight-notice" style={{ borderColor: accentCss(accent) }}>
           Flying as <strong>{callsign}</strong> aboard <strong>{shipName}</strong>. Real shared combat · one demo room · Mars
           arena. Cockpit challenges can route here; rehearsal link is <code>/?pvp=1</code>.
         </p>
         <p role="status">{note}</p>
+        <p className="flight-muted" role="status">
+          Lobby: {lobbyInfo}
+        </p>
         {!online && (
           <button className="flight-primary" type="button" onClick={() => window.location.reload()}>
             Reconnect
           </button>
         )}
         <p>
-          <strong data-testid="live-phase">{view?.phase ?? 'not joined'}</strong>
+          <strong data-testid="live-phase">{view?.phase ?? (online ? 'lobby' : 'offline')}</strong>
           {' · '}
-          {you ? `You are Pilot ${you.slot} (${callsign})` : 'No pilot slot'}
+          {you ? `You are Pilot ${you.slot} (${callsign})` : online ? `Lobby as ${callsign}` : 'Not connected'}
           {' · '}
           {status}
           {joinError ? ` (${joinError})` : ''}
@@ -200,7 +304,8 @@ export function LiveDuel() {
         <p>
           Weapon: <strong>{you?.weapon ?? '—'}</strong>
           {' · '}
-          rock CD {(rockCd / 1000).toFixed(1)}s · gun CD {(gunCd / 1000).toFixed(1)}s
+          rock CD {(rockCd / 1000).toFixed(1)}s · gun CD {(gunCd / 1000).toFixed(1)}s · saber CD{' '}
+          {(saberCd / 1000).toFixed(1)}s
           {' · '}
           shield {you?.block.active ? 'UP' : 'down'}
           {' · '}
@@ -213,6 +318,13 @@ export function LiveDuel() {
             </button>
             <button type="button" disabled={busy} onClick={() => void run('gunActive', () => clientRef.current!.gunActive())}>
               Select gun
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void run('saberActive', () => clientRef.current!.saberActive())}
+            >
+              Select saber
             </button>
             <button
               type="button"
@@ -238,6 +350,18 @@ export function LiveDuel() {
             >
               Fire gun
             </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                void run('slash', async () => {
+                  await ensureWeapon('saber');
+                  return clientRef.current!.slash();
+                })
+              }
+            >
+              Slash
+            </button>
             <button type="button" disabled={busy} onClick={() => void run('startBlock', () => clientRef.current!.startBlock())}>
               Block (up to 1.5s)
             </button>
@@ -251,10 +375,16 @@ export function LiveDuel() {
           <div>
             <h2>{result?.winner === null ? 'Draw' : result?.winner === you?.slot ? 'You win!' : 'Rival wins'}</h2>
             <p>Reason: {result?.reason}. Restart the demo server for a new round; rematch is not implemented yet.</p>
+            {new URLSearchParams(window.location.search).get('from') === 'explore' && (
+              <p>
+                <a href="/?explore=1">Return to free-flight explore</a>
+              </p>
+            )}
           </div>
         )}
         <p className="flight-muted">
-          Server owns damage. Camera: rock palm→fist→fling; gun fist→index+middle. Mars arena composites the opponent cutout.
+          Server owns damage. Saber hits are a short timing window (Wii-style), not physical blade contact. Mars arena
+          composites the opponent cutout.
         </p>
       </section>
       {active && you && (
@@ -273,13 +403,20 @@ export function LiveDuel() {
             weapon: you.weapon,
             onSelectRock: () => void run('rockActive', () => clientRef.current!.rockActive()),
             onSelectGun: () => void run('gunActive', () => clientRef.current!.gunActive()),
+            onSelectSaber: () => void run('saberActive', () => clientRef.current!.saberActive()),
             onFireGun: () =>
               void run('fireGun', async () => {
                 await ensureWeapon('gun');
                 return clientRef.current!.fireGun();
               }),
+            onSlash: () =>
+              void run('slash', async () => {
+                await ensureWeapon('saber');
+                return clientRef.current!.slash();
+              }),
             boltStartedAt: bolt?.startedAt ?? null,
             boltFlightMs: GUN_FLIGHT_MS,
+            slashStartedAt: slashAt,
             rockResolvedAt,
             immersive: true,
           }}

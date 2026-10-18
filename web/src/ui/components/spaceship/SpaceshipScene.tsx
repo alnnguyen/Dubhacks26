@@ -9,6 +9,7 @@ import { SpaceEnvironment } from './SpaceEnvironment';
 import { HolographicConsole } from './HolographicConsole';
 import { CommanderDisplay } from './CommanderDisplay';
 import { ConsoleHotspot } from './ConsoleHotspot';
+import { SeatHotspot } from './SeatHotspot';
 import { CameraController } from './CameraController';
 import { AnchorProjector, type AnchorRegistry } from './anchors';
 import { CAMERA_POSES } from './cockpitLayout';
@@ -150,7 +151,13 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
       <CockpitEnvironment high={high} />
       <Lights mood={mood} high={high} />
       <BakeShadows />
-      <CameraController pose={pose} reducedMotion={settings.reducedMotion} parallax={settings.parallax} panelOpen={view !== 'lobby' && view !== 'console' && mood !== 'launch'} lookAround={view === 'lobby' && mood !== 'launch'} />
+      <CameraController
+        pose={pose}
+        reducedMotion={settings.reducedMotion}
+        parallax={settings.parallax}
+        panelOpen={view !== 'lobby' && view !== 'console' && view !== 'pilot' && mood !== 'launch'}
+        lookAround={(view === 'lobby' || view === 'pilot') && mood !== 'launch'}
+      />
       <SpaceEnvironment quality={settings.quality} warp={mood === 'launch' ? 1 : 0} />
       <Cockpit
         modelUrl={props.cockpitModelUrl}
@@ -179,6 +186,7 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
         onSelect={props.onSelectPilot}
       />
       <ConsoleHotspot interactive={view === 'lobby' && mood !== 'launch'} onActivate={() => props.onNavigate('console')} />
+      <SeatHotspot interactive={view === 'lobby' && mood !== 'launch'} onActivate={() => props.onNavigate('pilot')} />
       <AnchorProjector registry={anchors} />
       <PerfGuard onLow={high ? props.onLowPerformance : undefined} />
       <FirstFrame onReady={props.onReady} />

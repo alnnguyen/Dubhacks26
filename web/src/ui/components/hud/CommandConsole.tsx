@@ -16,12 +16,14 @@ export function CockpitShortcuts({
   hidden,
   onRadar,
   onConsole,
+  onPilot,
 }: {
   count: number;
   connection: ConnectionStatus;
   hidden: boolean;
   onRadar: () => void;
   onConsole: () => void;
+  onPilot?: () => void;
 }) {
   const radarMeta = connection === 'online' ? `${count} nearby` : connection === 'connecting' ? 'Scanning…' : 'No link';
   return (
@@ -44,6 +46,24 @@ export function CockpitShortcuts({
           <span className="sd-shortcut__meta">Controls</span>
         </span>
       </button>
+      {onPilot && (
+        <button type="button" className="sd-shortcut" onClick={onPilot} aria-label="Sit in pilot seat">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+            <path
+              d="M6 19v-6a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v6M4 19h16M9 9V5a3 3 0 0 1 6 0v4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="sd-shortcut__text">
+            <span className="sd-shortcut__label">Seat</span>
+            <span className="sd-shortcut__meta">First person</span>
+          </span>
+        </button>
+      )}
     </nav>
   );
 }

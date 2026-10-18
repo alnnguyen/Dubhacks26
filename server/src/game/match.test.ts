@@ -72,6 +72,23 @@ describe("weapons", () => {
   });
 });
 
+describe("saber", () => {
+  const SABER = weaponsFor("mars").saber;
+
+  test("a slash lands after its timing window and deals damage", () => {
+    assert.equal(send(1, "saberActive").status, "accepted");
+    assert.equal(player(1).weapon, "saber");
+    assert.equal(send(1, "slash").status, "accepted");
+    assert.deepEqual(player(1).projectile, { weapon: "saber", landsInMs: SABER.flightMs });
+    mock.timers.tick(SABER.flightMs);
+    assert.equal(player(2).health, 100 - SABER.damage);
+  });
+
+  test("slash requires saber to be active", () => {
+    assert.deepEqual(send(1, "slash", "s"), { commandId: "s", status: "rejected", reason: "weapon_not_active" });
+  });
+});
+
 describe("gun", () => {
   test("an unblocked bolt lands after its travel time and deals damage", () => {
     assert.equal(send(1, "fireGun").status, "accepted");

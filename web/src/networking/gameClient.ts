@@ -83,8 +83,10 @@ export interface GameClient {
   /** Make a weapon active. Instant; only the active weapon can fire. */
   gunActive(): Promise<ClientReply>
   rockActive(): Promise<ClientReply>
+  saberActive(): Promise<ClientReply>
   fireGun(): Promise<ClientReply>
   throwRock(): Promise<ClientReply>
+  slash(): Promise<ClientReply>
   startBlock(): Promise<ClientReply>
   endBlock(): Promise<ClientReply>
   close(): void
@@ -185,8 +187,10 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
     leaveMatch: () => send({ type: "leaveMatch" }),
     gunActive: () => send({ type: "gunActive" }),
     rockActive: () => send({ type: "rockActive" }),
+    saberActive: () => send({ type: "saberActive" }),
     fireGun: () => send({ type: "fireGun" }),
     throwRock: () => send({ type: "throwRock" }),
+    slash: () => send({ type: "slash" }),
     startBlock: () => send({ type: "startBlock" }),
     endBlock: () => send({ type: "endBlock" }),
     close: () => {

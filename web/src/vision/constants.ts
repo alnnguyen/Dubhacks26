@@ -20,6 +20,15 @@ export const GUN_POSE_LOSS_GRACE_MS = 400
 export const GUN_FLICK_VY = -0.1
 export const GUN_FLICK_DELTA_Y = -0.028
 export const GUN_VELOCITY_WINDOW_MS = 220
+/** Legacy hand-center slash gates (kept for tests / fallback). */
+export const SLASH_SPEED_MIN = 0.45
+export const SLASH_VX_MIN = 0.18
+/** Tip-path swing (Wii-style): path length in screen units + peak tip speed. */
+export const SWING_PATH_MIN = 0.07
+export const SWING_SPEED_MIN = 0.9
+export const SWING_WINDOW_MS = 160
+/** Short recover after a slash — not the 3 s rock/gun cooldown. */
+export const SABER_RECOVER_MS = 420
 
 /** Nearer hand should be clearly larger and lower in the frame. */
 export const OWN_HAND_SPAN_RATIO = 1.35

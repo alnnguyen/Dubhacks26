@@ -40,7 +40,7 @@ const view = (health: number): PlayerView => {
     health,
     action: "idle" as const,
     weapon: "gun" as const,
-    cooldowns: { rock: null, gun: null },
+    cooldowns: { rock: null, gun: null, saber: null },
     block: { active: false, endsInMs: null, cooldownEndsInMs: null },
     projectile: null,
   })
@@ -197,10 +197,12 @@ describe("commands", () => {
     joinOnline()
     void client.gunActive()
     void client.rockActive()
+    void client.saberActive()
     void client.fireGun()
     void client.throwRock()
+    void client.slash()
     const types = socket.sent.filter((s) => s.event === "command").map((s) => s.payload.type)
-    expect(types).toEqual(["gunActive", "rockActive", "fireGun", "throwRock"])
+    expect(types).toEqual(["gunActive", "rockActive", "saberActive", "fireGun", "throwRock", "slash"])
   })
 
   it("lobby and match commands carry their arguments", () => {

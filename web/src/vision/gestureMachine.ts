@@ -4,11 +4,12 @@ import {
   GUN_AIM_STABLE_MS,
   GUN_POSE_LOSS_GRACE_MS,
   MAX_HELD_MS,
+  SABER_RECOVER_MS,
   SOFT_RELEASE_CANCEL_MS,
   THROW_FLING_SPEED,
   THROW_SPEED_MIN,
 } from "./constants"
-import type { BattleCommand, BattleCommandName, Intent, Phase } from "./types"
+import type { BattleCommand, BattleCommandName, Intent, Phase, WeaponChoice } from "./types"
 
 export type GestureMachineState = {
   phase: Phase
@@ -23,6 +24,9 @@ export type GestureMachineState = {
   gunShotReady: boolean
   blockHeld: boolean
   commandSeq: number
+  /** Last slash swing direction (for overlay bias). */
+  lastSwingDx: number
+  lastSwingDy: number
 }
 
 export type GestureTick = {
@@ -31,14 +35,17 @@ export type GestureTick = {
   blockPressed: boolean
   /** Screen-space speed for throw gating. */
   handSpeed: number
-  /** Screen Y velocity; negative is upward. */
+  handVx: number
   handVy: number
-  /** Recent upward travel (last.y - first.y); negative is up. */
   handUpDelta: number
-  /** Touch Throw: always release when held. */
+  /** Tip-path Wii swing detected this frame. */
+  tipSwing: boolean
+  tipSwingDx: number
+  tipSwingDy: number
+  tipSpeed: number
+  /** Touch Throw / Slash backup. */
   forceThrow: boolean
-  /** Server / button active weapon. */
-  weapon: "rock" | "gun"
+  weapon: WeaponChoice
   sessionId: string
   matchId: string
 }
@@ -56,6 +63,8 @@ export function createGestureMachine(nowMs: number): GestureMachineState {
     gunShotReady: false,
     blockHeld: false,
     commandSeq: 0,
+    lastSwingDx: 0,
+    lastSwingDy: 0,
   }
 }
 
@@ -65,11 +74,11 @@ function enter(state: GestureMachineState, phase: Phase, nowMs: number): Gesture
     phase,
     phaseEnteredAtMs: nowMs,
     fistSinceMs: null,
-    gunSinceMs: null,
+    gunSinceMs: phase === "GUN_AIM" ? state.gunSinceMs : null,
     gunPoseLostSinceMs: null,
     emptySinceMs: null,
     softOpenSinceMs: null,
-    gunActiveEmitted: phase === "GUN_AIM" ? state.gunActiveEmitted : false,
+    gunActiveEmitted: phase === "GUN_AIM" || phase === "SABER_RECOVER" ? state.gunActiveEmitted : false,
     gunShotReady: phase === "GUN_AIM" ? state.gunShotReady : false,
   }
 }
@@ -92,9 +101,12 @@ function emit(
   }
 }
 
-/** Fist grip while Gun is selected — hold the handle. */
-function gunFistHold(tick: GestureTick): boolean {
-  return tick.weapon === "gun" && tick.intent === "fist"
+function isRangedHoldWeapon(weapon: WeaponChoice): boolean {
+  return weapon === "gun" || weapon === "saber"
+}
+
+function rangedFistHold(tick: GestureTick): boolean {
+  return isRangedHoldWeapon(tick.weapon) && tick.intent === "fist"
 }
 
 export function tickGestureMachine(
@@ -122,6 +134,20 @@ export function tickGestureMachine(
     next = enter(next, "IDLE", tick.nowMs)
   }
 
+  if (next.phase === "SABER_RECOVER") {
+    if (tick.nowMs - next.phaseEnteredAtMs < SABER_RECOVER_MS) {
+      // Stay aiming visually once recover ends; keep weapon selected.
+      if (tick.weapon !== "saber") {
+        next = enter(next, "IDLE", tick.nowMs)
+      }
+      return { state: next, commands }
+    }
+    next = enter(next, tick.weapon === "saber" ? "GUN_AIM" : "IDLE", tick.nowMs)
+    if (tick.weapon === "saber") {
+      next = { ...next, gunActiveEmitted: true, gunSinceMs: tick.nowMs }
+    }
+  }
+
   if (tick.intent === "lost" || tick.intent === "ambiguous") {
     if (next.phase === "HELD") {
       const emitted = emit(next, "cancelLift", tick)
@@ -134,7 +160,7 @@ export function tickGestureMachine(
       return { state: next, commands }
     }
     if (next.phase === "GUN_AIM") {
-      if (tick.weapon !== "gun") {
+      if (!isRangedHoldWeapon(tick.weapon)) {
         const lostSince = next.gunPoseLostSinceMs ?? tick.nowMs
         next = { ...next, gunPoseLostSinceMs: lostSince }
         if (tick.nowMs - lostSince >= GUN_POSE_LOSS_GRACE_MS) {
@@ -146,9 +172,13 @@ export function tickGestureMachine(
     return { state: next, commands }
   }
 
-  // --- GUN_AIM: fist holds / cocks; index+middle trigger fires once per cock ---
+  // --- GUN_AIM: gun trigger OR saber tip-path swing ---
   if (next.phase === "GUN_AIM") {
-    if (tick.intent === "fist" || tick.intent === "gun" || tick.weapon === "gun") {
+    if (
+      tick.intent === "fist" ||
+      tick.intent === "gun" ||
+      isRangedHoldWeapon(tick.weapon)
+    ) {
       next = { ...next, gunPoseLostSinceMs: null }
     } else {
       const lostSince = next.gunPoseLostSinceMs ?? tick.nowMs
@@ -162,22 +192,43 @@ export function tickGestureMachine(
     const gunSinceMs = next.gunSinceMs ?? tick.nowMs
     next = { ...next, gunSinceMs }
 
-    if (tick.weapon === "gun" && !next.gunActiveEmitted) {
+    if (isRangedHoldWeapon(tick.weapon) && !next.gunActiveEmitted) {
       next = { ...next, gunActiveEmitted: true }
     }
     if (!next.gunActiveEmitted && tick.nowMs - gunSinceMs >= GUN_AIM_STABLE_MS) {
-      const emitted = emit(next, "gunActive", tick)
+      const activeName: BattleCommandName = tick.weapon === "saber" ? "saberActive" : "gunActive"
+      const emitted = emit(next, activeName, tick)
       next = { ...emitted.state, gunActiveEmitted: true }
       commands.push(emitted.command)
     }
 
-    // Fist = grip the handle and cock for the next shot.
+    if (tick.weapon === "saber") {
+      // Wii-style: swing-to-hit — no fist cock. Touch Slash still works.
+      if (next.gunActiveEmitted && (tick.forceThrow || tick.tipSwing)) {
+        const emitted = emit(next, "slash", tick)
+        next = enter(emitted.state, "SABER_RECOVER", tick.nowMs)
+        next = {
+          ...next,
+          gunShotReady: false,
+          lastSwingDx: tick.tipSwingDx,
+          lastSwingDy: tick.tipSwingDy,
+          gunActiveEmitted: true,
+        }
+        commands.push(emitted.command)
+        return { state: next, commands }
+      }
+      if (tick.intent === "fist") {
+        next = { ...next, fistSinceMs: next.fistSinceMs ?? tick.nowMs }
+      }
+      return { state: next, commands }
+    }
+
+    // Fist = cock for gun.
     if (tick.intent === "fist") {
       next = { ...next, gunShotReady: true, fistSinceMs: next.fistSinceMs ?? tick.nowMs }
       return { state: next, commands }
     }
 
-    // Trigger = pointer + middle extended (handgun CV pose) after a fist cock.
     if (tick.intent === "gun" && next.gunActiveEmitted && next.gunShotReady) {
       const emitted = emit(next, "fireGun", tick)
       next = enter(emitted.state, "COOLDOWN", tick.nowMs)
@@ -191,7 +242,7 @@ export function tickGestureMachine(
 
   // --- HELD (fist grab): throw on fling-open or touch Throw ---
   if (next.phase === "HELD") {
-    if (tick.weapon === "gun") {
+    if (isRangedHoldWeapon(tick.weapon)) {
       const emitted = emit(next, "cancelLift", tick)
       next = enter(emitted.state, "GUN_AIM", tick.nowMs)
       next = { ...next, gunSinceMs: tick.nowMs, gunShotReady: tick.intent === "fist" }
@@ -235,9 +286,9 @@ export function tickGestureMachine(
     return { state: next, commands }
   }
 
-  // --- CHARGING (palm): fist grabs rock, or switches to gun grip when Gun is selected ---
+  // --- CHARGING ---
   if (next.phase === "CHARGING") {
-    if (gunFistHold(tick)) {
+    if (rangedFistHold(tick)) {
       next = enter(next, "GUN_AIM", tick.nowMs)
       next = { ...next, gunSinceMs: tick.nowMs, gunShotReady: true }
       return { state: next, commands }
@@ -245,6 +296,11 @@ export function tickGestureMachine(
     if (tick.weapon === "gun" && tick.intent === "gun") {
       next = enter(next, "GUN_AIM", tick.nowMs)
       next = { ...next, gunSinceMs: tick.nowMs, gunShotReady: false }
+      return { state: next, commands }
+    }
+    if (tick.weapon === "saber") {
+      next = enter(next, "GUN_AIM", tick.nowMs)
+      next = { ...next, gunSinceMs: tick.nowMs, gunActiveEmitted: true, gunShotReady: false }
       return { state: next, commands }
     }
     if (tick.intent === "release") {
@@ -272,15 +328,14 @@ export function tickGestureMachine(
   }
 
   // --- IDLE ---
-  if (gunFistHold(tick)) {
+  if (rangedFistHold(tick)) {
     next = enter(next, "GUN_AIM", tick.nowMs)
     next = { ...next, gunSinceMs: tick.nowMs, gunShotReady: true }
-    if (tick.weapon === "gun") next = { ...next, gunActiveEmitted: true }
+    if (isRangedHoldWeapon(tick.weapon)) next = { ...next, gunActiveEmitted: true }
     return { state: next, commands }
   }
 
-  // Gun button selected: stay in aim overlay without requiring a fist yet (touch Fire still works).
-  if (tick.weapon === "gun") {
+  if (isRangedHoldWeapon(tick.weapon)) {
     next = enter(next, "GUN_AIM", tick.nowMs)
     next = { ...next, gunSinceMs: tick.nowMs, gunActiveEmitted: true, gunShotReady: false }
     return { state: next, commands }

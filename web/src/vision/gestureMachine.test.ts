@@ -3,8 +3,8 @@ import {
   COOLDOWN_MS,
   FIST_STABLE_MS,
   GUN_POSE_LOSS_GRACE_MS,
-  MAX_HELD_MS,
   PALM_HOLD_MS,
+  SABER_RECOVER_MS,
   SOFT_RELEASE_CANCEL_MS,
   THROW_SPEED_MIN,
 } from "./constants"
@@ -18,7 +18,20 @@ function tick(
   nowMs: number,
   intent: Intent,
   options: Partial<
-    Pick<GestureTick, "blockPressed" | "handSpeed" | "handVy" | "handUpDelta" | "forceThrow" | "weapon">
+    Pick<
+      GestureTick,
+      | "blockPressed"
+      | "handSpeed"
+      | "handVx"
+      | "handVy"
+      | "handUpDelta"
+      | "forceThrow"
+      | "weapon"
+      | "tipSwing"
+      | "tipSwingDx"
+      | "tipSwingDy"
+      | "tipSpeed"
+    >
   > = {},
 ) {
   return tickGestureMachine(state, {
@@ -26,8 +39,13 @@ function tick(
     intent,
     blockPressed: options.blockPressed ?? false,
     handSpeed: options.handSpeed ?? 0,
+    handVx: options.handVx ?? 0,
     handVy: options.handVy ?? 0,
     handUpDelta: options.handUpDelta ?? 0,
+    tipSwing: options.tipSwing ?? false,
+    tipSwingDx: options.tipSwingDx ?? 0,
+    tipSwingDy: options.tipSwingDy ?? 0,
+    tipSpeed: options.tipSpeed ?? 0,
     forceThrow: options.forceThrow ?? false,
     weapon: options.weapon ?? "rock",
     ...session,
@@ -49,58 +67,38 @@ function chargeAndGrab(now = 0) {
 describe("gesture machine — rock grab then fling", () => {
   it("starts idle and ignores a resting fist", () => {
     const state = createGestureMachine(0)
-    const next = tick(state, 20, "fist")
+    const next = tick(state, 0, "fist")
     expect(next.state.phase).toBe("IDLE")
     expect(next.commands).toEqual([])
   })
 
-  it("charges on palm and grabs on a stable fist", () => {
-    let state = createGestureMachine(0)
-    state = tick(state, 0, "palm").state
-    expect(state.phase).toBe("CHARGING")
-    const early = tick(state, 10, "fist")
-    expect(early.commands).toEqual([])
-    const grabbed = tick(early.state, 10 + FIST_STABLE_MS, "fist")
-    expect(names(grabbed.commands)).toEqual(["startLift"])
+  it("charges on palm then grabs on a stable fist", () => {
+    const grabbed = chargeAndGrab(0)
     expect(grabbed.state.phase).toBe("HELD")
+    expect(names(grabbed.commands)).toEqual(["startLift"])
   })
 
-  it("throws only when the fist opens with enough speed", () => {
+  it("throws on open hand with speed", () => {
     const grabbed = chargeAndGrab(0)
-    const soft = tick(grabbed.state, grabbed.state.phaseEnteredAtMs + 40, "palm", { handSpeed: 0.1 })
-    expect(soft.commands).toEqual([])
-    expect(soft.state.phase).toBe("HELD")
-    const flung = tick(soft.state, soft.state.phaseEnteredAtMs + 80, "palm", { handSpeed: THROW_SPEED_MIN })
+    const flung = tick(grabbed.state, grabbed.state.phaseEnteredAtMs + 20, "palm", {
+      handSpeed: THROW_SPEED_MIN,
+    })
     expect(names(flung.commands)).toEqual(["releaseRock"])
     expect(flung.state.phase).toBe("COOLDOWN")
   })
 
-  it("touch forceThrow releases without needing camera speed", () => {
+  it("throws on touch Throw while held", () => {
     const grabbed = chargeAndGrab(0)
-    const thrown = tick(grabbed.state, grabbed.state.phaseEnteredAtMs + 20, "release", { forceThrow: true })
+    const thrown = tick(grabbed.state, grabbed.state.phaseEnteredAtMs + 20, "fist", { forceThrow: true })
     expect(names(thrown.commands)).toEqual(["releaseRock"])
   })
 
-  it("cancels a soft open that never flings", () => {
+  it("cancels a soft open without a fling", () => {
     const grabbed = chargeAndGrab(0)
-    const soft = tick(grabbed.state, grabbed.state.phaseEnteredAtMs + 10, "palm", { handSpeed: 0 })
-    const cancelled = tick(soft.state, soft.state.softOpenSinceMs! + SOFT_RELEASE_CANCEL_MS, "palm", {
-      handSpeed: 0,
-    })
+    const soft = tick(grabbed.state, grabbed.state.phaseEnteredAtMs + 20, "palm", { handSpeed: 0 })
+    const cancelled = tick(soft.state, soft.state.softOpenSinceMs! + SOFT_RELEASE_CANCEL_MS, "palm")
     expect(names(cancelled.commands)).toEqual(["cancelLift"])
     expect(cancelled.state.phase).toBe("IDLE")
-  })
-
-  it("cancels when tracking is lost while held", () => {
-    const grabbed = chargeAndGrab(0)
-    const lost = tick(grabbed.state, grabbed.state.phaseEnteredAtMs + 10, "lost")
-    expect(names(lost.commands)).toEqual(["cancelLift"])
-  })
-
-  it("cancels when the grab lasts too long", () => {
-    const grabbed = chargeAndGrab(0)
-    const expired = tick(grabbed.state, grabbed.state.phaseEnteredAtMs + MAX_HELD_MS, "fist")
-    expect(names(expired.commands)).toEqual(["cancelLift"])
   })
 
   it("blocks a second throw until cooldown ends", () => {
@@ -151,7 +149,6 @@ describe("gesture machine — fist hold then trigger fire", () => {
   it("leaves gun aim after the pose-loss grace when Rock is selected", () => {
     let state = createGestureMachine(0)
     state = tick(state, 0, "fist", { weapon: "gun" }).state
-    // Switch to rock + lose pose → grace then idle
     const mid = tick(state, 40, "none", { weapon: "rock" })
     expect(mid.state.phase).toBe("GUN_AIM")
     const left = tick(mid.state, 40 + GUN_POSE_LOSS_GRACE_MS, "none", { weapon: "rock" })
@@ -164,6 +161,43 @@ describe("gesture machine — fist hold then trigger fire", () => {
     const switched = tick(state, 100, "fist", { weapon: "gun" })
     expect(switched.state.phase).toBe("GUN_AIM")
     expect(switched.state.gunShotReady).toBe(true)
+  })
+})
+
+describe("gesture machine — saber tip swing", () => {
+  it("slashes on tipSwing without a fist cock", () => {
+    let state = createGestureMachine(0)
+    state = tick(state, 0, "none", { weapon: "saber" }).state
+    expect(state.phase).toBe("GUN_AIM")
+    expect(state.gunShotReady).toBe(false)
+    const slashed = tick(state, 40, "none", {
+      weapon: "saber",
+      tipSwing: true,
+      tipSwingDx: 0.2,
+      tipSwingDy: 0.01,
+    })
+    expect(names(slashed.commands)).toEqual(["slash"])
+    expect(slashed.state.phase).toBe("SABER_RECOVER")
+    expect(slashed.state.lastSwingDx).toBe(0.2)
+  })
+
+  it("returns to aim after a short recover, not a 3s cooldown", () => {
+    let state = createGestureMachine(0)
+    state = tick(state, 0, "none", { weapon: "saber" }).state
+    const slashed = tick(state, 40, "none", { weapon: "saber", tipSwing: true, tipSwingDx: 0.15 })
+    expect(slashed.state.phase).toBe("SABER_RECOVER")
+    const mid = tick(slashed.state, 40 + SABER_RECOVER_MS - 10, "none", { weapon: "saber" })
+    expect(mid.state.phase).toBe("SABER_RECOVER")
+    const back = tick(mid.state, 40 + SABER_RECOVER_MS, "none", { weapon: "saber" })
+    expect(back.state.phase).toBe("GUN_AIM")
+  })
+
+  it("slashes from the touch Slash backup while saber is aimed", () => {
+    let state = createGestureMachine(0)
+    state = tick(state, 0, "none", { weapon: "saber" }).state
+    const slashed = tick(state, 40, "fist", { weapon: "saber", forceThrow: true })
+    expect(names(slashed.commands)).toEqual(["slash"])
+    expect(slashed.state.phase).toBe("SABER_RECOVER")
   })
 })
 

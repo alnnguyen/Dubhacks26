@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { Server, type Socket } from "socket.io";
-import type { Config } from "./config.js";
+import { isAllowedOrigin, type Config } from "./config.js";
 import type { ClientToServerEvents, ServerToClientEvents } from "./contracts.js";
 import { Lobby, type LobbyOptions } from "./sessions/index.js";
 
@@ -22,7 +22,11 @@ export async function startServer(config: Config, options: LobbyOptions = {}): P
   });
 
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
-    cors: { origin: config.allowedOrigins },
+    cors: {
+      origin(origin, callback) {
+        callback(null, isAllowedOrigin(origin, config.allowedOrigins));
+      },
+    },
   });
 
   // Latest socket per player, so a second tab or a reconnect replaces the old one.

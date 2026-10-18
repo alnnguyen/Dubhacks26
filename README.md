@@ -49,7 +49,7 @@ docs/                      Team, interface, QA, deployment and evidence notes
 cd server && npm install && npm test
 ```
 
-**Web:** default `/` is onboarding → cockpit (`BridgeApp`; next glue is FlightApp’s real lobby). Other routes: `/?camera=1` / `/?debug=camera` (Alan harness), `/?dev=mars` (camera + Mars, no match), `/?arena=mars` (scene only), `/?pvp=1` (LiveDuel rehearsal). Real challenge → briefing → duel lives in `FlightApp`.
+**Web:** default `/` is onboarding → cockpit (`BridgeApp`; next glue is FlightApp’s real lobby). Other routes: `/?explore=1` (free-flight solar system + hyperspace + challenge→duel handoff), `/?camera=1` / `/?debug=camera` (Alan harness), `/?dev=mars` (camera + Mars, no match), `/?arena=mars` (scene only), `/?pvp=1` (LiveDuel rehearsal). Real challenge → briefing → duel lives in `FlightApp`.
 
 ```bash
 # Web

@@ -10,34 +10,41 @@ const marsPreview = search.get('arena') === 'mars';
 const devMars = search.get('dev') === 'mars';
 // Older same-link duel rehearsal (Alex): /?pvp=1
 const live = search.has('pvp');
+// Free-flight solar system + hyperspace: /?explore=1
+const explore = search.has('explore');
 
-const Screen = devMars
+const Screen = explore
   ? lazy(async () => {
-      const m = await import('./arena/DevMars');
-      return { default: m.DevMars };
+      const m = await import('./ui/screens/ExploreApp');
+      return { default: m.ExploreApp };
     })
-  : marsPreview
+  : devMars
     ? lazy(async () => {
-        const m = await import('./arena/MarsPreview');
-        return { default: m.MarsPreview };
+        const m = await import('./arena/DevMars');
+        return { default: m.DevMars };
       })
-    : cameraDebug
+    : marsPreview
       ? lazy(async () => {
-          // Keep camera-debug styling separate from the cockpit's global stylesheet.
-          await import('./styles.css');
-          const m = await import('./camera/CameraDebugPage');
-          return { default: m.CameraDebugPage };
+          const m = await import('./arena/MarsPreview');
+          return { default: m.MarsPreview };
         })
-      : live
+      : cameraDebug
         ? lazy(async () => {
-            const m = await import('./app/LiveDuel');
-            return { default: m.LiveDuel };
+            // Keep camera-debug styling separate from the cockpit's global stylesheet.
+            await import('./styles.css');
+            const m = await import('./camera/CameraDebugPage');
+            return { default: m.CameraDebugPage };
           })
-        : lazy(async () => {
-            // Onboarding → cockpit; FlightApp (real lobby + Mars duel) is next wiring step.
-            const m = await import('./ui/screens/BridgeApp');
-            return { default: m.BridgeApp };
-          });
+        : live
+          ? lazy(async () => {
+              const m = await import('./app/LiveDuel');
+              return { default: m.LiveDuel };
+            })
+          : lazy(async () => {
+              // Onboarding → cockpit; FlightApp (real lobby + Mars duel) is next wiring step.
+              const m = await import('./ui/screens/BridgeApp');
+              return { default: m.BridgeApp };
+            });
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root');

@@ -9,8 +9,14 @@ import { HoloButton } from '../components/hud/primitives';
 import { useMockLobby } from '../state/useMockLobby';
 import type { LobbyView, LobbyViewModel, NearbyPilot, SceneSettings } from '../state/lobbyTypes';
 import '../styles/spaceship.css';
+import '../styles/explore.css';
+import '../../onboarding/onboarding.css';
 
 const SpaceshipScene = lazy(() => import('../components/spaceship/SpaceshipScene').then((m) => ({ default: m.SpaceshipScene })));
+const ExploreApp = lazy(() => import('./ExploreApp').then((m) => ({ default: m.ExploreApp })));
+const HyperspaceTunnel = lazy(() =>
+  import('../../onboarding/HyperspaceTunnel').then((m) => ({ default: m.HyperspaceTunnel })),
+);
 
 export interface SpaceshipHomeProps {
   /** Real lobby adapter from the multiplayer module. Uses local mocks when omitted. */
@@ -26,6 +32,11 @@ export interface SpaceshipHomeProps {
 }
 
 const LAUNCH_MS = 1700;
+/** Time for CameraController to ease into the seat before the drive warp. */
+const SEAT_EASE_MS = 1600;
+const SEAT_WARP_MS = 2000;
+
+type BridgePhase = 'bridge' | 'boarding' | 'warping' | 'drive';
 
 function initialSettings(): SceneSettings {
   const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -45,6 +56,7 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
 
   const anchors = useMemo(() => new AnchorRegistry(), []);
   const [view, setView] = useState<LobbyView>('lobby');
+  const [phase, setPhase] = useState<BridgePhase>('bridge');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settings, setSettings] = useState<SceneSettings>(initialSettings);
   const [autoDowngraded, setAutoDowngraded] = useState(false);
@@ -72,38 +84,96 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
 
   // Close side panels when a challenge takes over the bridge.
   useEffect(() => {
-    if (challenge.kind === 'outgoing' || challenge.kind === 'incoming' || challenge.kind === 'accepted') setView('lobby');
-  }, [challenge.kind]);
+    if (challenge.kind === 'outgoing' || challenge.kind === 'incoming' || challenge.kind === 'accepted') {
+      setView('lobby');
+      if (phase === 'boarding' || phase === 'warping') setPhase('bridge');
+    }
+  }, [challenge.kind, phase]);
 
   // Drop the selection if that pilot leaves range.
   useEffect(() => {
     if (selectedId && !lobby.nearby.some((p) => p.id === selectedId)) setSelectedId(null);
   }, [lobby.nearby, selectedId]);
 
-  const navigate = useCallback((v: LobbyView) => setView(v), []);
-  const closePanel = useCallback(() => setView('lobby'), []);
-
-  // Panels close on Escape themselves; the console close-up has no panel, so handle it here.
+  // Sit → ease camera into seat → hyperspace transport → open-universe drive.
   useEffect(() => {
-    if (view !== 'console') return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setView('lobby');
+    if (view !== 'pilot' || phase !== 'boarding') return;
+    const easeMs = settings.reducedMotion ? 280 : SEAT_EASE_MS;
+    const id = window.setTimeout(() => setPhase('warping'), easeMs);
+    return () => clearTimeout(id);
+  }, [view, phase, settings.reducedMotion]);
+
+  const sitInPilot = useCallback(() => {
+    setView('pilot');
+    setPhase('boarding');
+  }, []);
+
+  const leaveSeatOrBridge = useCallback(() => {
+    if (phase === 'boarding' || phase === 'warping') {
+      setPhase('bridge');
+      setView('lobby');
+      return;
+    }
+    setView('lobby');
+  }, [phase]);
+
+  const navigate = useCallback((v: LobbyView) => {
+    if (v === 'pilot') {
+      setView('pilot');
+      setPhase('boarding');
+      return;
+    }
+    setView(v);
+  }, []);
+  const closePanel = useCallback(() => leaveSeatOrBridge(), [leaveSeatOrBridge]);
+
+  useEffect(() => {
+    if (view !== 'console' && view !== 'pilot') return;
+    if (phase === 'warping') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      leaveSeatOrBridge();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [view]);
+  }, [view, phase, leaveSeatOrBridge]);
+
   const select = useCallback((id: string) => {
     setSelectedId(id);
     setView('radar');
   }, []);
 
-  const mood = challenge.kind === 'launching' ? 'launch' : challenge.kind === 'incoming' ? 'alert' : challenge.kind === 'ready' || challenge.kind === 'accepted' ? 'ready' : 'calm';
+  const mood =
+    phase === 'warping' || challenge.kind === 'launching'
+      ? 'launch'
+      : challenge.kind === 'incoming'
+        ? 'alert'
+        : challenge.kind === 'ready' || challenge.kind === 'accepted'
+          ? 'ready'
+          : 'calm';
   const busy = challenge.kind !== 'idle' && challenge.kind !== 'declined';
-  const lobbyView = view === 'lobby' && !busy;
+  const lobbyView = view === 'lobby' && !busy && phase === 'bridge';
 
   const returnToBridge = () => {
     setHandoff(null);
     actions.dismiss();
     setView('lobby');
+    setPhase('bridge');
   };
+
+  const exitDrive = () => {
+    setPhase('bridge');
+    setView('lobby');
+    setSceneReady(false);
+  };
+
+  if (phase === 'drive') {
+    return (
+      <Suspense fallback={<p className="sd-boot__line">Engaging drive…</p>}>
+        <ExploreApp lobby={lobby} settings={settings} onSettingsChange={setSettings} onExit={exitDrive} />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="sd-root" data-quality={settings.quality} data-reduced-motion={settings.reducedMotion} data-mood={mood} data-ready={sceneReady}>
@@ -132,11 +202,13 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
         <header className="sd-topbar">
           <p className="sd-brand">
             <span>Jedi Space Duels</span>
-            <span className="sd-brand__sub">Bridge // Lobby</span>
+            <span className="sd-brand__sub">
+              {phase === 'boarding' || view === 'pilot' ? 'Pilot seat // Boarding' : 'Bridge // Lobby'}
+            </span>
           </p>
           {view !== 'lobby' ? (
             <HoloButton size="sm" onClick={closePanel} aria-label="Back to bridge">
-              ‹ Bridge
+              {view === 'pilot' ? '‹ Leave seat' : '‹ Bridge'}
             </HoloButton>
           ) : (
             <button type="button" className="sd-icon-btn sd-icon-btn--lg" onClick={() => setView('settings')} aria-label="Open systems settings">
@@ -154,8 +226,14 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
           hidden={!lobbyView}
           onRadar={() => setView('radar')}
           onConsole={() => setView('console')}
+          onPilot={sitInPilot}
         />
         <CommandConsole hidden={view !== 'console'} onNavigate={navigate} />
+        {view === 'pilot' && phase === 'boarding' && (
+          <p className="sd-pilot-hint" aria-live="polite">
+            Seated · engaging flight systems…
+          </p>
+        )}
         {view === 'radar' && <BlipLabels anchors={anchors} pilots={lobby.nearby} selectedId={selectedId} onSelect={setSelectedId} />}
 
         <NearbyPlayersPanel
@@ -202,9 +280,20 @@ export function SpaceshipHome({ lobby: external, onEnterBattle, cockpitModelUrl 
         />
       </div>
 
-      <div className="sd-launch" data-active={challenge.kind === 'launching'} aria-hidden={challenge.kind !== 'launching'}>
-        <p>Expanding domain…</p>
+      <div className="sd-launch" data-active={challenge.kind === 'launching' || phase === 'warping'} aria-hidden={challenge.kind !== 'launching' && phase !== 'warping'}>
+        <p>{phase === 'warping' ? 'Opening the void…' : 'Expanding domain…'}</p>
       </div>
+
+      {phase === 'warping' && (
+        <Suspense fallback={<div className="ob-warp" />}>
+          <HyperspaceTunnel
+            active
+            caption="Launching free flight…"
+            durationMs={settings.reducedMotion ? 400 : SEAT_WARP_MS}
+            onFinished={() => setPhase('drive')}
+          />
+        </Suspense>
+      )}
 
       {handoff && (
         <div className="sd-handoff" role="dialog" aria-modal="true" aria-labelledby="sd-handoff-title">

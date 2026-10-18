@@ -14,7 +14,7 @@ export interface BlockState {
   cooldownEndsInMs: number | null;
 }
 
-export type Weapon = "rock" | "gun";
+export type Weapon = "rock" | "gun" | "saber";
 
 export interface ProjectileInFlight {
   weapon: Weapon;
@@ -124,8 +124,10 @@ export type MatchCommandType =
   | "leaveMatch"
   | "rockActive"
   | "gunActive"
+  | "saberActive"
   | "throwRock"
   | "fireGun"
+  | "slash"
   | "startBlock"
   | "endBlock";
 

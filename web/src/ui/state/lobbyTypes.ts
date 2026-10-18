@@ -69,7 +69,7 @@ export interface LobbyViewModel {
 }
 
 /** Which console/panel the camera is focused on. Pure UI state. */
-export type LobbyView = 'lobby' | 'console' | 'radar' | 'profile' | 'settings';
+export type LobbyView = 'lobby' | 'console' | 'radar' | 'profile' | 'settings' | 'pilot';
 
 export type GraphicsQuality = 'high' | 'low';
 

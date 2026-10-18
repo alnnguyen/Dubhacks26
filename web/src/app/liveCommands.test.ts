@@ -15,6 +15,8 @@ function client(overrides: Partial<CombatClient> = {}): CombatClient {
     throwRock: vi.fn(async () => accepted("throw")),
     gunActive: vi.fn(async () => accepted("gun")),
     fireGun: vi.fn(async () => accepted("fire")),
+    saberActive: vi.fn(async () => accepted("saber")),
+    slash: vi.fn(async () => accepted("slash")),
     startBlock: vi.fn(async () => accepted("up")),
     endBlock: vi.fn(async () => accepted("down")),
     ...overrides,
@@ -42,6 +44,14 @@ it("arms then fires the gun", async () => {
   expect(await dispatchBattleCommand(combat, command("fireGun"))).toEqual(accepted("fire"))
   expect(combat.gunActive).toHaveBeenCalledTimes(2)
   expect(combat.fireGun).toHaveBeenCalledOnce()
+})
+
+it("arms then slashes the saber", async () => {
+  const combat = client()
+  expect(await dispatchBattleCommand(combat, command("saberActive"))).toEqual(accepted("saber"))
+  expect(await dispatchBattleCommand(combat, command("slash"))).toEqual(accepted("slash"))
+  expect(combat.saberActive).toHaveBeenCalledTimes(2)
+  expect(combat.slash).toHaveBeenCalledOnce()
 })
 
 it("maps a block hold to start then end", async () => {

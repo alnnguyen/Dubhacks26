@@ -53,8 +53,10 @@ export const IN_MATCH_COMMAND_TYPES: readonly InMatchCommandType[] = [
   "ready",
   "rockActive",
   "gunActive",
+  "saberActive",
   "throwRock",
   "fireGun",
+  "slash",
   "startBlock",
   "endBlock",
 ];
@@ -92,7 +94,7 @@ export class Match {
       health: RULES.startingHealth,
       weapon: RULES.startingWeapon,
       windupEndsAt: null,
-      cooldownEndsAt: { rock: null, gun: null },
+      cooldownEndsAt: { rock: null, gun: null, saber: null },
       blockEndsAt: null,
       blockCooldownEndsAt: null,
       projectile: null,
@@ -165,7 +167,11 @@ export class Match {
         health: p.health,
         action: p.blockEndsAt !== null ? "blocking" : p.windupEndsAt !== null ? "attacking" : "idle",
         weapon: p.weapon,
-        cooldowns: { rock: remaining(p.cooldownEndsAt.rock), gun: remaining(p.cooldownEndsAt.gun) },
+        cooldowns: {
+          rock: remaining(p.cooldownEndsAt.rock),
+          gun: remaining(p.cooldownEndsAt.gun),
+          saber: remaining(p.cooldownEndsAt.saber),
+        },
         block: {
           active: p.blockEndsAt !== null,
           endsInMs: remaining(p.blockEndsAt),
@@ -211,14 +217,21 @@ export class Match {
     switch (type) {
       // Switching is instant and allowed even mid-block.
       case "rockActive":
+        player.weapon = "rock";
+        return null;
       case "gunActive":
-        player.weapon = type === "rockActive" ? "rock" : "gun";
+        player.weapon = "gun";
+        return null;
+      case "saberActive":
+        player.weapon = "saber";
         return null;
 
       case "throwRock":
         return this.fire(player, "rock", now);
       case "fireGun":
         return this.fire(player, "gun", now);
+      case "slash":
+        return this.fire(player, "saber", now);
 
       case "startBlock": {
         if (player.windupEndsAt !== null || player.blockEndsAt !== null) return "busy";

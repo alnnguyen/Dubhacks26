@@ -88,10 +88,12 @@ export function HyperspaceTunnel({
   active,
   onFinished,
   durationMs = 2400,
+  caption = 'Jumping to bridge…',
 }: {
   active: boolean;
   onFinished: () => void;
   durationMs?: number;
+  caption?: string;
 }) {
   const finishedRef = useRef(onFinished);
   finishedRef.current = onFinished;
@@ -123,7 +125,7 @@ export function HyperspaceTunnel({
         </EffectComposer>
       </Canvas>
       <div className="ob-warp__flash" />
-      <p className="ob-warp__caption">Jumping to bridge…</p>
+      <p className="ob-warp__caption">{caption}</p>
     </div>
   );
 }

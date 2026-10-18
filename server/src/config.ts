@@ -16,3 +16,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   return { port, allowedOrigins };
 }
+
+/** True for listed origins, plus HTTPS tunnels used for phone camera QA. */
+export function isAllowedOrigin(origin: string | undefined, allowedOrigins: string[]): boolean {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin) || allowedOrigins.includes("*")) return true;
+  try {
+    const host = new URL(origin).hostname;
+    return (
+      host.endsWith(".ngrok-free.dev") ||
+      host.endsWith(".ngrok-free.app") ||
+      host.endsWith(".ngrok.io") ||
+      host.endsWith(".trycloudflare.com")
+    );
+  } catch {
+    return false;
+  }
+}

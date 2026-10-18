@@ -14,7 +14,7 @@ export type TouchInput = {
   cancel: boolean
 }
 
-export type Phase = "IDLE" | "CHARGING" | "HELD" | "GUN_AIM" | "LAUNCHED" | "COOLDOWN"
+export type Phase = "IDLE" | "CHARGING" | "HELD" | "GUN_AIM" | "SABER_RECOVER" | "LAUNCHED" | "COOLDOWN"
 
 export type BattleCommandName =
   | "startLift"
@@ -24,6 +24,10 @@ export type BattleCommandName =
   | "endBlock"
   | "gunActive"
   | "fireGun"
+  | "saberActive"
+  | "slash"
+
+export type WeaponChoice = "rock" | "gun" | "saber"
 
 /** Same command path buttons and gestures must share. */
 export type BattleCommand = {

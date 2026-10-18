@@ -7,13 +7,16 @@ export type CombatClient = {
   throwRock(): Promise<ClientReply>
   gunActive(): Promise<ClientReply>
   fireGun(): Promise<ClientReply>
+  saberActive(): Promise<ClientReply>
+  slash(): Promise<ClientReply>
   startBlock(): Promise<ClientReply>
   endBlock(): Promise<ClientReply>
 }
 
 /**
  * Palm lift and tracking-loss cancel stay on the phone.
- * Fist grab is local (`startLift`). Fling-open throws. Gun: fist cocks, index+middle fires.
+ * Fist grab is local (`startLift`). Fling-open throws.
+ * Gun: fist cocks, index+middle fires. Saber: fist holds, lateral slash.
  */
 export async function dispatchBattleCommand(
   client: CombatClient,
@@ -29,6 +32,12 @@ export async function dispatchBattleCommand(
     const switched = await client.gunActive()
     if (switched.status !== "accepted") return switched
     return client.fireGun()
+  }
+  if (command.name === "saberActive") return client.saberActive()
+  if (command.name === "slash") {
+    const switched = await client.saberActive()
+    if (switched.status !== "accepted") return switched
+    return client.slash()
   }
   if (command.name === "block") return client.startBlock()
   if (command.name === "endBlock") return client.endBlock()

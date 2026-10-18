@@ -68,3 +68,29 @@ Merged origin/cockpit-scene at 20124de into alex-dev. Combined React/Three/Media
 ## Connected local flow
 
 Default cockpit launch now continues into Voice briefing and camera training instead of a handoff placeholder. See docs/flight-integration.md from the repository root for startup, limits and test steps. Start the local Voice server on port 8787 before using the briefing. Real multiplayer/Photon challenge wiring remains B’s integration gate.
+
+### Real catalog exploration
+
+Open `/?explore=1`. Destinations / N searches 24,835 HYG stars, 5,301 NASA Exoplanet Archive planets and 1,034 galaxies from the NASA/IPAC-hosted GALEX Atlas. Try **Sirius**, **TRAPPIST-1 e**, or **Andromeda**. Visit, fly locally, click the object or navigation focus to learn, and use Return to Earth to recover. Star and galaxy frames use separate linear units; system sizes/spacing/appearances are illustrative, not live orbital solutions.
+
+Snapshots and credits: `src/ui/components/explore/data/ATTRIBUTION.md` and `manifest.json`. Runtime travel needs no external API calls or new keys. To validate source integrity from the repository root, run `python3 web/scripts/validate-universe.py`. Regeneration takes downloaded source files via `web/scripts/import-universe.py`; exact URLs and the NASA TAP query are in the manifest. Catalog regression tests run with the normal `npm test` command.
+
+### Continuous local zoom
+
+From Earth, scroll over the flight view or use +/− and the Zoom buttons to move out through the solar system to the nearby-star field. System view and Nearby stars view are smooth shortcuts. Choose Sirius in Destinations to approach it, then Return to Earth to fly back without reloading the renderer. The continuous layer uses 3,081 HYG stars within 25 pc; other catalog destinations retain jump navigation. Its bridge between the authored solar layout and stellar positions is visually compressed, not true AU scaling. See `docs/local-zoom-handoff.md` at the repository root for acceptance checks and limitations.
+
+Flight automatically slows near planets and accelerates across open space. Scroll gently for precise zoom; repeated faster outward scrolling builds acceleration. Reverse the scroll to regain close control, or press Space / Stop to cancel movement. Shift remains a manual flight boost.
+
+Nearby solar bodies now show small navigation rings and clickable names; large close planets keep the name beside their silhouette. Names fade out when leaving the system and hide behind nearer bodies or overlapping labels. Click a name for its science card, then Visit to approach. Solar lighting and a subdued star background improve visibility.
+
+### Solar objects and spacecraft
+
+All eight major planets are included, plus the Moon, ISS/Hubble, an 18-record Starlink sample, 42 asteroids and 18 comets. Try **Saturn**, **ISS**, **Starlink**, **Halley**, **Ceres** or **Bennu** in Destinations. New Satellites / Asteroids / Comets tabs filter the catalog. Learn cards include source links, record epochs, orbital elements and available physical facts. Visit displays a schematic object and its orbit; return to Earth remains available.
+
+These are frozen orbital-element illustrations at each record's epoch, **not live tracking**. Satellite altitude ×5, object sizes and comet tails are exaggerated; planetary layout and rings are illustrative. Starlink is a bounded community-mirror sample, not the complete operational fleet. No new runtime keys/network requests or dependencies. Regenerate via `python3 web/scripts/import-local-objects.py` from the repo root (downloads cached for two hours); details/limits in `docs/local-solar-catalog-handoff.md`.
+
+### Animated planet inspection
+
+In the continuous local view, click a planet's name or its navigation-focus card. The ship approaches a framed view and opens an animated archive sheet. Switch between Overview / Dissection / Facts / vs Earth / Duel, or between planets using the small header buttons. Dissection clips the actual textured globe and shows approximate sourced layers; click a layer row to highlight it. Earth/Mars layers and giant interior models carry confidence labels. Close, Escape, background click or Resume flight returns to the original view; Visit keeps normal destination navigation. Sun retains its existing card and Moon has no dissection. Nonlocal scene cards remain supported.
+
+Uses the installed Motion package and one existing R3F canvas. No added dependencies/keys. Source facts and the supplied showcase integration, tests and limitations: `docs/planet-inspector-handoff.md`. Phone performance is not yet verified.
