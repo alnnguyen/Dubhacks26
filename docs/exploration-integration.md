@@ -43,3 +43,12 @@ Production build/typecheck passed. Vite reports a 6.45 MB exploration chunk (abo
 This port intentionally does not mark all of `origin/alan` merged in Git ancestry. Later Alan updates should be compared against `b637186` and applied to the exploration feature, preserving the newer combat path. The imported historical handoff documents describe Alan's source branch; this document describes the combined branch.
 
 No new dependencies, environment variables, server contracts, or provider access.
+
+
+## Alan exploration update integrated — October 18
+
+Source: origin/alan-team-merge at f7e5700. Its two new feature commits dde44fe and f7e5700 were applied onto alex-dev's existing b637186 exploration port, rather than reintroducing the retired camera/rock/gun paths from the older branch history. Adds branded exploration HUD, categorized destination search, SpaceX fleet snapshots and schematic craft, object side views, cosmic zoom, orbit time controls, rival ships/coarse reported locations, peaceful Explore mode and the exploration LYRA guide.
+
+The cockpit still owns accepted-match launch, travel persistence and direct saber setup. ExploreApp retains onBattleLaunch and receives the existing copilotClient; new location commands use the normal authenticated/deduplicated server command path. Current phone saber UI, shared countdown, rematches, early avatar/saber feedback and committed sound changes remain intact. New setLocation and optional Pilot.location are documented above; host must run the updated server for those location reports. No new dependencies or environment variables.
+
+Validation: 100/100 server tests and 177 frontend tests passed (one opt-in live test skipped); frontend typecheck/production build passed with the existing large exploration chunk warning. Browser smoke test verified Universe ready, branded HUD, destination categories, SpaceX fleet records and a state-aware local LYRA answer, with no captured warning/error logs. Grok Voice/provider calls, actual two-player camera/phone launch and sustained mobile performance were not tested during this integration. No deployment or external messages. Sound/LYRA changes were pushed separately as 39500ba; this exploration integration is local pending a later push request.
