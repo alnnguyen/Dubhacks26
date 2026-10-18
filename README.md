@@ -41,13 +41,17 @@ docs/                      Team, interface, QA, deployment and evidence notes
 
 ## Current status
 
-Planning scaffold for lobby/server remains. Role C added a temporary camera debug harness under `web/`:
+Integrated on `alex-dev`: Ally cockpit + Grok briefing + Alan camera duel HUD (local rehearsal). Justin’s Socket.IO demo match lives under `server/` (two players join, rock/block, snapshots). D Photon/Voice fixtures are separate until B exposes `createGamePort`.
 
 ```bash
+# Web (cockpit / camera)
 cd web && npm install && npm test && npm run dev
+
+# Authoritative demo match (B)
+cd server && npm install && npm test && npm run dev
 ```
 
-Open the HTTPS URL Vite prints (accept the self-signed cert). For phones, tunnel that HTTPS origin (see `web/README.md`). Full lobby/server tooling is still A/B-owned and not initialized at the repo root.
+Open the HTTPS URL Vite prints (accept the self-signed cert). For phones, tunnel that HTTPS origin (see `web/README.md`). Server defaults to port `3001` — see [server/README.md](server/README.md).
 
 Target: mobile HTTPS website, two selected demo phones, rear-camera overlays and server-authoritative combat. Native Swift/ARKit, campus GPS, planet ownership and offline armies are outside this MVP.
 

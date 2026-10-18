@@ -29,9 +29,14 @@ Use the absolute deadline and times in PLAN.md. If a checkpoint has passed, reco
 
 ## Blockers and decisions
 
+### B — node-server merged into alex-dev (2026-10-17 ~17:05 Pacific)
+
+**Landed from `origin/node-server`:** Socket.IO demo match (`join` / `command` with `throwRock|startBlock|endBlock`), Mars flight timing, snapshots, reconnect grace. Run `cd server && npm test`.  
+**Still missing for D:** `createGamePort()` / challenge accept-decline path / world wheel — Photon ACCEPT and Voice still use fixtures until B exposes the HANDOFF adapter on top of this match service.
+
 ### B — createGamePort (Alex ping, 2026-10-17 ~17:00 Pacific)
 
-**Owner:** B · **Blocker:** D Photon/Voice and real multiplayer cannot leave fixtures until this lands.  
+**Owner:** B (Justin) · **Blocker:** D Photon/Voice and cockpit flow cannot leave fixtures until this lands.  
 **Next action for B:** ship a server-only module exporting `createGamePort()` that returns:
 
 - `getChallenge({ actorId, challengeId })` → participant-visible challenge; reject unrelated players
