@@ -348,6 +348,11 @@
   color: #8dffc2;
 }
 
+/* Outranks flight.css's busy cursor for disabled buttons: a requested rematch isn't loading. */
+.arena-duel .arena-result button:disabled {
+  cursor: default;
+}
+
 /* Round countdown (first round and rematches): 3, 2, 1, FIGHT. */
 .arena-countdown {
   position: absolute;
