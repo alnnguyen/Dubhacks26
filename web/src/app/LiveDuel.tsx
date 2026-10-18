@@ -67,6 +67,10 @@ export function LiveDuel() {
       viewRef.current = next;
       setView(next);
       setReceivedAt(performance.now());
+      if (!next) {
+        setNote('Left the match. Challenge again from the cockpit, or reopen /?pvp=1.');
+        return;
+      }
       if (previous === 'waiting' && next.phase === 'active') {
         setNote('Both pilots joined. Switch weapon, throw, or raise your shield.');
       } else if (next.phase === 'waiting') {
