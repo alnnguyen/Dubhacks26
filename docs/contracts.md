@@ -107,3 +107,7 @@ Supersedes the lane-grid movement decision above. Existing `step` commands and a
 ## Damage knockback — October 18, user-authorized server update
 
 Every positive-damage saber or projectile hit forces the defender away from the attacker's current root by up to `SABER.knockbackMeters` (0.65 m), capped at the existing 3.9 m separation. Uses current gliding roots, interrupts the defender's glide, cancels their buffered step, and restarts the normal 110 ms glide plus 60 ms movement cooldown. Blocked hits cause no displacement. Existing `stepped` and arena frames carry the authoritative destination; no wire changes. A/C handoff: the existing avatar glide renders this forced movement automatically. No external messages or deployment performed.
+
+## Exploration feature port — Alex, October 18
+
+Source `origin/alan` at `b637186`, feature-scoped into the current alex-dev UI. Frontend `LobbyView` adds `pilot`; `HyperspaceTunnel` accepts optional `caption`; `ExploreApp` accepts optional `onBattleLaunch` so accepted challenges reuse the cockpit launch/audio path and return to the existing planetary travel + saber arena. Existing lobby actions and game-client connection remain owned by BridgeApp/FlightApp. No server wire, phone step, combat, or knockback contract changed. See `docs/exploration-integration.md`. No external message or deployment sent.

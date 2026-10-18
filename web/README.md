@@ -82,3 +82,9 @@ The interactive roulette takes 3.6 seconds before the flight video. It uses the 
 ## Shared Live backend (Alex integration, October 18)
 
 The default root now uses BridgeApp for onboarding and the compact Demo/Live switch. To connect this UI to a teammate’s working shared game, copy `.env.example` to `.env.local`, set `VITE_GAME_SERVER_URL` to the shared HTTPS Socket.IO site, and `VITE_SABER_CONTROLLER_URL` to the public frontend serving the paired phone page. Restart Vite. The game and phone clients share the configured backend; Demo stays local. See `../docs/shared-live-server.md` for current setup and verified limitations. The earlier rock-only instructions above describe the older camera harness; the current Live FlightApp uses the laptop + paired-phone lightsaber arena.
+
+## Integrated exploration
+
+From the normal cockpit, choose **Seat / Explore** in the bottom dock. A short seat/hyperspace transition opens free flight; **Bridge** returns to the cockpit. The same lobby/session stays connected. Accepted challenges return through the current planetary travel and saber arena. For isolated exploration without a live roster, open `/?explore=1` (optional `&dest=visit-mars`).
+
+Use destination search, W/S or Cruise, drag/arrows to steer, Space or Stop to brake, and the planet inspector for facts/cutaways. SOUND / MIX uses the shared game audio. Catalog snapshots have source/epoch information in the Data UI; they are not live satellite tracking. Integration and verification: `../docs/exploration-integration.md`.

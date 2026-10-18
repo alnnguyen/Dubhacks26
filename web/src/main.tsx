@@ -16,6 +16,7 @@ const saberCode = search.get('saber');
 // The saber arena with synthetic fighters, no camera/phone/server: /?dev=arena
 const devArena = search.get('dev') === 'arena';
 
+const explore = search.has('explore');
 const soundCheck = search.get('audio') === 'check';
 const Screen = soundCheck
   ? lazy(async () => { const m = await import('./audio/SoundCheck'); return { default: m.SoundCheck }; })
@@ -29,6 +30,8 @@ const Screen = soundCheck
       const m = await import('./saber/SaberPhone');
       return { default: () => <m.SaberPhone code={saberCode} /> };
     })
+  : explore
+  ? lazy(async () => { const m = await import('./ui/screens/ExploreApp'); return { default: m.ExploreApp }; })
   : devMars
   ? lazy(async () => {
       const m = await import('./arena/DevMars');
