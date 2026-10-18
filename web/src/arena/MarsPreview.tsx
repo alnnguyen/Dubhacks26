@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import { MarsEnvironment } from './mars/MarsEnvironment'
 import { ArenaCamera } from './mars/ArenaCamera'
+import { useDeviceAim } from './mars/useDeviceAim'
 import { DEFAULT_LAYOUT } from './mars/obstacles'
 import { formatMeasured, gameplay, MARS_FACT_SHEET_URL, science, site } from './mars/marsConfig'
 import type { GraphicsQuality } from '../ui/state/lobbyTypes'
@@ -10,6 +11,7 @@ import './arena.css'
 
 /** Standalone Mars arena preview: /?arena=mars. No camera, vision or networking. */
 export function MarsPreview() {
+  const tilt = useDeviceAim()
   const [quality, setQuality] = useState<GraphicsQuality>(() => (new URLSearchParams(location.search).get('q') === 'low' ? 'low' : 'high'))
   return (
     <div className="arena-root">
@@ -25,9 +27,20 @@ export function MarsPreview() {
       >
         <Suspense fallback={null}>
           <MarsEnvironment quality={quality} obstacles={DEFAULT_LAYOUT} />
-          <ArenaCamera initialYawDeg={Number(new URLSearchParams(location.search).get('yaw') ?? 0)} />
+          <ArenaCamera deviceQuat={tilt.quat} initialYawDeg={Number(new URLSearchParams(location.search).get('yaw') ?? 0)} />
         </Suspense>
       </Canvas>
+      {tilt.status === 'needs-permission' && (
+        <button className="arena-tilt" onClick={tilt.request}>
+          Enable tilt to look around
+        </button>
+      )}
+      {tilt.status === 'active' && (
+        <button className="arena-recenter" onClick={tilt.recenter} aria-label="Recenter view">
+          Recenter
+        </button>
+      )}
+      {tilt.status === 'denied' && <p className="arena-tilt-note">Motion access denied — swipe to look around.</p>}
       <aside className="arena-facts" aria-label="Mars data">
         <p className="arena-eyebrow">Arena · {site.name}</p>
         <h1>Mars</h1>

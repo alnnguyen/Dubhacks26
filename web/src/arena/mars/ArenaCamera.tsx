@@ -11,12 +11,27 @@ export interface Aim {
   pitch: number
 }
 
+const UP = new THREE.Vector3(0, 1, 0)
+
 /**
  * First-person camera standing on the terrain. `aim` is read every frame so a
  * device-orientation source can drive it without React re-renders. Drag adds
  * a manual offset (useful on desktop and when motion access is unavailable).
  */
-export function ArenaCamera({ aim, fov = 62, drag = true, initialYawDeg = 0 }: { aim?: React.RefObject<Aim>; fov?: number; drag?: boolean; initialYawDeg?: number }) {
+export function ArenaCamera({
+  aim,
+  deviceQuat,
+  fov = 62,
+  drag = true,
+  initialYawDeg = 0,
+}: {
+  aim?: React.RefObject<Aim>
+  /** Phone orientation (see useDeviceAim); overrides `aim` while available. */
+  deviceQuat?: React.RefObject<THREE.Quaternion | null>
+  fov?: number
+  drag?: boolean
+  initialYawDeg?: number
+}) {
   const sampler = use(loadTerrainSampler())
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const gl = useThree((s) => s.gl)
@@ -54,13 +69,23 @@ export function ArenaCamera({ aim, fov = 62, drag = true, initialYawDeg = 0 }: {
   }, [gl, drag])
 
   const groundY = sampler.heightAt(0, 0)
+  const target = useRef(new THREE.Quaternion())
+  const dragQ = useRef(new THREE.Quaternion())
   useFrame((_, dt) => {
+    camera.position.set(0, groundY + EYE_HEIGHT, 0)
+    const dq = deviceQuat?.current
+    if (dq) {
+      // Phone orientation drives the view; drag still adds a yaw offset.
+      dragQ.current.setFromAxisAngle(UP, -offset.current.yaw)
+      target.current.copy(dragQ.current).multiply(dq)
+      camera.quaternion.slerp(target.current, 1 - Math.exp(-dt * 22))
+      return
+    }
     const yaw = (aim?.current?.yaw ?? 0) + offset.current.yaw
     const pitch = (aim?.current?.pitch ?? 0) + offset.current.pitch
     const k = 1 - Math.exp(-dt * 12)
     smooth.current.yaw += (yaw - smooth.current.yaw) * k
     smooth.current.pitch += (pitch - smooth.current.pitch) * k
-    camera.position.set(0, groundY + EYE_HEIGHT, 0)
     camera.rotation.set(smooth.current.pitch, -smooth.current.yaw, 0, 'YXZ')
   })
   return null
