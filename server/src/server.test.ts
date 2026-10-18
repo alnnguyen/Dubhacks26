@@ -103,6 +103,16 @@ test("a challenge reaches the defender, and accepting puts both in the same matc
   assert.deepEqual([view.phase, view.world.id, view.rival.callsign], ["waiting", "earth", "BOB"]);
 });
 
+test("appearance updates reach only the joined player's side of both match views", async () => {
+  const avatar = { suit: "purple", accent: "gold", saber: "green", accessories: ["cape"], face: null } as const;
+  const bobView = next(bob, "view", (v: PlayerView | null) => v?.rival.avatar?.suit === "purple");
+  const aliceView = next(alice, "view", (v: PlayerView | null) => v?.you.avatar?.suit === "purple");
+  assert.equal((await send(alice, { commandId: "look-alice", type: "setAvatar", avatar: { ...avatar, accessories: [...avatar.accessories] } })).status, "accepted");
+  assert.deepEqual((await bobView)!.rival.avatar, avatar);
+  assert.deepEqual((await aliceView)!.you.avatar, avatar);
+  assert.equal((await send(open(), { commandId: "look-unjoined", type: "setAvatar", avatar: { ...avatar, accessories: [] } })).status, "rejected");
+});
+
 test("the match starts when both are ready, and a retried command isn't applied twice", async () => {
   const active = next(alice, "view", (v: PlayerView | null) => v?.phase === "active");
   await send(alice, { commandId: "ready-1", type: "ready" });

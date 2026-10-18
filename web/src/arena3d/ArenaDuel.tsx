@@ -21,6 +21,7 @@ import { createStabilizer, stabilize } from "./bodyStabilizer";
 import { withLocalFighter, withSetupBody } from "./localFighter";
 import { glideRoot, onOwnStep, reconcile, type OwnGlide } from "./ownGlide";
 import { ArenaScene, type ImpactFlash } from "./ArenaScene";
+import { useAvatarSync } from "../features/avatars/hooks/useAvatarSync";
 import {
   applyCameraFix,
   calibrationOf,
@@ -128,6 +129,7 @@ export function ArenaDuel({
   onReplayEnabled?: (enabled: boolean) => void;
   onReplaySource?: (video: HTMLVideoElement) => () => void;
 }) {
+  useAvatarSync(client);
   const [basicGraphics, setBasicGraphics] = useState(false);
   const [renderAttempt, setRenderAttempt] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -548,6 +550,7 @@ export function ArenaDuel({
         flashRef={flashRef}
         mySlot={you.slot}
         board={view.board}
+        appearances={{ [you.slot]: you.avatar, [rival.slot]: rival.avatar }}
       />
       </ArenaRenderBoundary>
       </div>

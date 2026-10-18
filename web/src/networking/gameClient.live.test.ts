@@ -38,6 +38,11 @@ describe.runIf(url)("live game server", () => {
       c.status() === "online" ? Promise.resolve() : until<string>(c.onStatus, (s) => s === "online")
     await Promise.all([online(alice), online(bob)])
 
+    const aliceAvatar = { suit: "purple", accent: "gold", saber: "green", accessories: ["cape"], face: null } as const;
+    const bobAvatar = { suit: "orange", accent: "cyan", saber: "red", accessories: ["jetpack"], face: null } as const;
+    expect(await alice.setAvatar({ ...aliceAvatar, accessories: [...aliceAvatar.accessories] })).toMatchObject({ status: "accepted" });
+    expect(await bob.setAvatar({ ...bobAvatar, accessories: [...bobAvatar.accessories] })).toMatchObject({ status: "accepted" });
+
     const bobId = bob.lobby()!.you.id
     const seen = alice.lobby()!.pilots.some((p) => p.id === bobId)
       ? Promise.resolve()
@@ -52,6 +57,8 @@ describe.runIf(url)("live game server", () => {
     await Promise.all([alice.ready(), bob.ready()])
     await Promise.all([active(alice), active(bob)])
     expect(alice.view()!.world.id).toBe(bob.view()!.world.id)
+    expect(alice.view()!.rival.avatar).toEqual(bobAvatar)
+    expect(bob.view()!.rival.avatar).toEqual(aliceAvatar)
 
     const bobSlot = bob.view()!.you.slot
     const bobWins = until<PlayerView | null>(bob.onView, (v) => v?.result?.winner === bobSlot)

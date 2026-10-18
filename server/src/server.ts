@@ -142,7 +142,9 @@ export async function startServer(config: Config, options: LobbyOptions & { copi
       if (typeof reply !== 'function') return;
       if (playerId === null || socketsByPlayerId.get(playerId) !== socket) return reply({ ok: false, reason: 'not_joined' });
       if (!request || typeof request !== 'object' || Array.isArray(request) || Object.keys(request).length) return reply({ ok: false, reason: 'invalid_request' });
-      reply({ ok: true, context: { source: 'live', lobby: lobby.lobbyView(playerId), match: lobby.matchView(playerId) } });
+      const match = lobby.matchView(playerId);
+      if (match) { delete match.you.avatar; delete match.rival.avatar; }
+      reply({ ok: true, context: { source: 'live', lobby: lobby.lobbyView(playerId), match } });
     });
     socket.on('lyra:narrate', async (request, reply) => {
       if (typeof reply !== 'function') return;

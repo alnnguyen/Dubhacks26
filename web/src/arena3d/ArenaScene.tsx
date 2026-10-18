@@ -5,9 +5,17 @@ import { Suspense, use, useMemo, useRef, type RefObject } from "react"
 import * as THREE from "three"
 import { Canvas, useFrame } from "@react-three/fiber"
 import { Bloom, EffectComposer } from "@react-three/postprocessing"
-import type { ArenaFrame, PlayerSlot, Vec3 } from "../../../server/src/contracts"
+import type { ArenaFrame, AvatarAppearance, PlayerSlot, Vec3 } from "../../../server/src/contracts"
 import { MarsEnvironment, loadTerrainSampler } from "../arena/mars/MarsEnvironment"
 import { cellToWorld, type Board } from "./gridBoard"
+import { ArenaAstronaut } from "./ArenaAstronaut"
+import { DEFAULT_AVATAR } from "../features/avatars/types/avatar"
+import { SABER_PALETTES } from "../features/avatars/utils/palette"
+import { useRemoteFace } from "../features/avatars/hooks/useRemoteFace"
+import { useSavedAvatar } from "../features/avatars/hooks/useSavedAvatar"
+
+// Light ghosting keeps your own suit from hiding the opponent from the shoulder camera.
+const OWN_OPACITY = 0.22
 
 /**
  * The shared saber arena as this laptop sees it: both players as glowing
@@ -358,6 +366,7 @@ type FightersProps = {
   board: Board
   initiation?: boolean
   replay?: ArenaReplayPresentation
+  appearances?: Partial<Record<PlayerSlot, AvatarAppearance>>
 }
 
 /** Stands the arena on the Mars terrain at its center. */
@@ -420,15 +429,32 @@ function DirectedCamera({ frameRef, groundY, replay }: { frameRef: RefObject<Are
   return null
 }
 
-function Fighters({ frameRef, flashRef, mySlot, board, groundY, initiation, replay }: FightersProps & { groundY: number }) {
+/** A fighter wearing a player's saved astronaut suit, drawn over their streamed skeleton. */
+function SuitedFighter({ frameRef, flashRef, slot, appearance, local = false, clock }: {
+  frameRef: RefObject<ArenaFrame | null>
+  flashRef: RefObject<ImpactFlash | null>
+  slot: PlayerSlot
+  appearance?: AvatarAppearance
+  local?: boolean
+  clock?: () => number
+}) {
+  const saved = useSavedAvatar()
+  const remoteFace = useRemoteFace(appearance?.face)
+  const look = appearance ?? (local ? saved.look : DEFAULT_AVATAR)
+  const face = appearance ? remoteFace : local ? saved.faceTexture : null
+  return <>
+    <ArenaAstronaut frameRef={frameRef} flashRef={flashRef} slot={slot} look={look} faceTexture={face} opacity={local ? OWN_OPACITY : 1} />
+    <Blade frameRef={frameRef} slot={slot} color={SABER_PALETTES[look.saber].glow} clock={clock} />
+  </>
+}
+
+function Fighters({ frameRef, flashRef, mySlot, board, groundY, initiation, replay, appearances }: FightersProps & { groundY: number }) {
   const rivalSlot: PlayerSlot = mySlot === 1 ? 2 : 1
   return (
     <group position={[0, groundY, 0]}>
       {replay ? <DirectedCamera frameRef={frameRef} groundY={groundY} replay={replay} /> : <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} initiation={initiation} />}
-      <Avatar frameRef={frameRef} slot={mySlot} color={COLORS.you} flashRef={flashRef} clock={replay?.timeMs} />
-      {!initiation && <Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} clock={replay?.timeMs} />}
-      <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} clock={replay?.timeMs} />
-      {!initiation && <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} clock={replay?.timeMs} />}
+      <SuitedFighter frameRef={frameRef} flashRef={flashRef} slot={mySlot} appearance={appearances?.[mySlot]} local clock={replay?.timeMs} />
+      {!initiation && <SuitedFighter frameRef={frameRef} flashRef={flashRef} slot={rivalSlot} appearance={appearances?.[rivalSlot]} clock={replay?.timeMs} />}
       {!initiation && <Impact flashRef={flashRef} clock={replay?.timeMs} cinematic={Boolean(replay)} reducedMotion={replay?.reducedMotion} />}
       {!initiation && <DuelMarkers frameRef={frameRef} mySlot={mySlot} board={board} />}
     </group>
@@ -443,7 +469,7 @@ function FrameSampler({ getFrame, frameRef }: { getFrame: () => ArenaFrame | nul
   return null
 }
 
-export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false, initiation = false, replay, destination = 'mars' }: {
+export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false, initiation = false, replay, destination = 'mars', appearances }: {
   /** Which world's environment to draw; the server's view decides it. */
   destination?: DestinationId
   basicGraphics?: boolean
@@ -454,6 +480,8 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
   mySlot: PlayerSlot
   board: Board
   replay?: ArenaReplayPresentation
+  /** Each player's saved suit; your own falls back to this device's saved avatar. */
+  appearances?: Partial<Record<PlayerSlot, AvatarAppearance>>
 }) {
   const frameRef = useRef<ArenaFrame | null>(null)
   return (
@@ -471,7 +499,7 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
         <hemisphereLight args={["#c5efff", "#174d80", 2.2]} />
         <directionalLight position={[2, 5, 4]} intensity={2} color="#9de4ff" />
         <gridHelper args={[12, 24, "#225884", "#102b46"]} />
-        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation />
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} appearances={appearances} initiation />
       </> : destination === 'neptune' ? <>
         {basicGraphics ? <>
           <color attach="background" args={["#4f97d8"]} />
@@ -481,12 +509,12 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
           <NeptuneEnvironment/>
           <NeptuneDust/>
         </>}
-        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} replay={replay} />
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} appearances={appearances} replay={replay} />
       </> : basicGraphics ? <>
         <color attach="background" args={["#1b0f0b"]} />
         <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
         <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>
-        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation={initiation} replay={replay} />
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} appearances={appearances} initiation={initiation} replay={replay} />
       </> : <Suspense
         fallback={
           // Plain floor while the Mars terrain loads, so the duel is playable immediately.
@@ -494,12 +522,12 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
             <color attach="background" args={["#1b0f0b"]} />
             <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
             <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>
-            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation={initiation} replay={replay} />
+            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} appearances={appearances} initiation={initiation} replay={replay} />
           </>
         }
       >
         <MarsEnvironment quality="low" obstacles={[]} />
-        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} initiation={initiation} replay={replay} />
+        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} appearances={appearances} initiation={initiation} replay={replay} />
       </Suspense>}
       {!basicGraphics && <EffectComposer multisampling={0} enableNormalPass={false}>
         <Bloom mipmapBlur intensity={0.9} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.55} />

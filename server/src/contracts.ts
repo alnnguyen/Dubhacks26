@@ -5,6 +5,16 @@
 
 export type PlayerSlot = 1 | 2;
 
+// Appearance is sent on join/update and in match views, never at pose frequency.
+export interface AvatarAppearance {
+  suit: "white" | "orange" | "blue" | "red" | "purple" | "black";
+  accent: "cyan" | "orange" | "green" | "magenta" | "gold" | "white";
+  saber: "blue" | "red" | "green" | "purple" | "yellow";
+  accessories: ("antenna" | "cape" | "patch" | "jetpack")[];
+  // Processed 128 × 160 PNG, not the source photo or a device-local storage ID.
+  face: string | null;
+}
+
 // Saber duel in a shared 3D arena, in meters. World frame: x to slot 1's
 // right, y up, z from slot 1 toward slot 2. A game space: each player is in
 // front of their own laptop, wherever that is.
@@ -164,6 +174,7 @@ export interface World {
 }
 
 export interface PlayerState {
+  avatar?: AvatarAppearance;
   slot: PlayerSlot;
   // The public pilot ID from the lobby, not the phone's private playerId.
   pilotId: string;
@@ -265,6 +276,7 @@ export type Command =
   | { commandId: string; type: MatchCommandType }
   | { commandId: string; type: "challenge"; pilotId: string; destination?: "mars" | "neptune" }
   | { commandId: string; type: "acceptChallenge" | "declineChallenge" | "cancelChallenge"; challengeId: string }
+  | { commandId: string; type: "setAvatar"; avatar: AvatarAppearance }
   | { commandId: string; type: "setCallsign"; callsign: string }
   // null clears it, e.g. when the pilot leaves exploration.
   | { commandId: string; type: "setLocation"; location: PilotLocation | null }

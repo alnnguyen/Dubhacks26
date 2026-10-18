@@ -2,6 +2,7 @@ import { gameServerUrl } from "./gameEndpoint"
 import { io } from "socket.io-client"
 // Temporary cross-folder import until server/src/contracts.ts moves to packages/contracts.
 import type {
+  AvatarAppearance,
   ChallengeView,
   ReplayTicketReply,
   ReplayReply,
@@ -120,6 +121,7 @@ export interface GameClient {
   setLocation(location: PilotLocation | null): Promise<ClientReply>
   /** Without a destination the server rolls the world itself; the override exists for tests and tools. */
   challenge(pilotId: string, destination?: "mars" | "neptune"): Promise<ClientReply>
+  setAvatar(avatar: AvatarAppearance): Promise<ClientReply>
   acceptChallenge(challengeId: string): Promise<ClientReply>
   declineChallenge(challengeId: string): Promise<ClientReply>
   cancelChallenge(challengeId: string): Promise<ClientReply>
@@ -267,6 +269,7 @@ export function createGameClient(options: GameClientOptions = {}): GameClient {
       if (status !== "online" || !socket.connected) return
       socket.volatile.emit("bodyPose", { ...pose, seq: nextPose++ })
     },
+    setAvatar: (avatar) => send({ type: "setAvatar", avatar }),
     setCallsign: (callsign) => {
       writeStorage(storage, CALLSIGN_KEY, callsign)
       return send({ type: "setCallsign", callsign })

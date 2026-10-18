@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type {
+  AvatarAppearance,
   ChallengeStatus,
   ChallengeView,
   CommandReply,
@@ -46,6 +47,7 @@ interface PilotRecord {
   pairCode: string;
   saberPaired: boolean;
   location: PilotLocation | null;
+  avatar?: AvatarAppearance;
 }
 
 interface ChallengeRecord {
@@ -240,7 +242,13 @@ export class Lobby {
 
   matchView(playerId: string): PlayerView | null {
     const seat = this.pilots.get(playerId)?.match;
-    return seat ? seat.match.toView(seat.slot) : null;
+    if (!seat) return null;
+    const view = seat.match.toView(seat.slot);
+    for (const player of [view.you, view.rival]) {
+      const pilot = [...this.pilots.values()].find((p) => p.id === player.pilotId);
+      if (pilot?.avatar) player.avatar = structuredClone(pilot.avatar);
+    }
+    return view;
   }
 
   // Stops every pending timer, e.g. when the server shuts down.
@@ -259,6 +267,12 @@ export class Lobby {
       case "step": {
         if (!pilot.match) return "not_in_match";
         return pilot.match.match.step(pilot.match.slot, command.direction);
+      }
+      case "setAvatar": {
+        const avatar = validateAvatar(command.avatar);
+        if (!avatar) return "invalid_command";
+        pilot.avatar = avatar;
+        return null;
       }
       case "setCallsign": {
         const callsign = normalizeCallsign(command.callsign);
@@ -418,4 +432,23 @@ function challengeView(challenge: ChallengeRecord, pilot: PilotRecord): Challeng
     status: challenge.status,
     expiresInMs: challenge.status === "pending" ? Math.max(0, challenge.expiresAt - Date.now()) : null,
   };
+}
+
+// Only allow the small processed image and known appearance values. Never load remote URLs.
+function validateAvatar(raw: unknown): AvatarAppearance | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const a = raw as Record<string, unknown>;
+  if (typeof a.suit !== "string" || typeof a.accent !== "string" || typeof a.saber !== "string" ||
+      !["white", "orange", "blue", "red", "purple", "black"].includes(a.suit) ||
+      !["cyan", "orange", "green", "magenta", "gold", "white"].includes(a.accent) ||
+      !["blue", "red", "green", "purple", "yellow"].includes(a.saber) ||
+      !Array.isArray(a.accessories) || a.accessories.length > 4 ||
+      !a.accessories.every((v) => typeof v === "string" && ["antenna", "cape", "patch", "jetpack"].includes(v))) return null;
+  if (a.face !== null) {
+    if (typeof a.face !== "string" || a.face.length > 96_000 || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(a.face)) return null;
+    const png = Buffer.from(a.face.slice(22), "base64");
+    if (png.length < 24 || png.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" ||
+        png.subarray(12, 16).toString("ascii") !== "IHDR" || png.readUInt32BE(16) !== 128 || png.readUInt32BE(20) !== 160) return null;
+  }
+  return { suit: a.suit, accent: a.accent, saber: a.saber, accessories: [...new Set(a.accessories)], face: a.face } as AvatarAppearance;
 }

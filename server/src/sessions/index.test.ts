@@ -1,3 +1,4 @@
+import * as zlib from "node:zlib";
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, mock, test } from "node:test";
 import { RULES } from "../game/rules.js";
@@ -259,5 +260,49 @@ describe('arena world roll', () => {
     assert.equal(pickArenaWorld(() => 0.49), 'mars');
     assert.equal(pickArenaWorld(() => 0.5), 'neptune');
     assert.equal(pickArenaWorld(() => 0.99), 'neptune');
+  });
+});
+
+describe('opponent appearance', () => {
+  const avatar = { suit: 'purple', accent: 'gold', saber: 'green', accessories: ['cape', 'patch'], face: null };
+  test('each participant sees the actual opposing profile, including after reconnect', () => {
+    assert.equal(send(ALICE, { type: 'setAvatar', avatar }).status, 'accepted');
+    const bobAvatar = { ...avatar, suit: 'orange', accessories: ['antenna'] };
+    assert.equal(send(BOB, { type: 'setAvatar', avatar: bobAvatar }).status, 'accepted');
+    startMatch();
+    assert.deepEqual(lobby.matchView(BOB)!.rival.avatar, avatar);
+    assert.deepEqual(lobby.matchView(ALICE)!.rival.avatar, bobAvatar);
+    lobby.disconnect(ALICE);
+    lobby.join(ALICE);
+    assert.deepEqual(lobby.matchView(BOB)!.rival.avatar, avatar);
+    assert.equal(JSON.stringify(lobby.lobbyView(BOB)).includes('avatar'), false);
+  });
+  test('duplicate updates repeat the original acceptance without changing appearance', () => {
+    send(ALICE, { type: 'setAvatar', avatar }, 'appearance-1');
+    const n = changes;
+    send(ALICE, { type: 'setAvatar', avatar: { ...avatar, suit: 'blue' } }, 'appearance-1');
+    assert.equal(changes, n);
+    startMatch();
+    assert.deepEqual(lobby.matchView(BOB)!.rival.avatar, avatar);
+  });
+  test('rejects malformed appearance and remote/oversized/invalid image data', () => {
+    for (const patch of [{ suit: [] }, { suit: 'unknown' }, { accessories: ['bad'] }, { face: 'https://example.org/photo.png' }, { face: 'data:image/png;base64,' + 'A'.repeat(96_001) }, { face: 'data:image/png;base64,AAAA' }]) {
+      assert.equal(send(ALICE, { type: 'setAvatar', avatar: { ...avatar, ...patch } }).status, 'rejected');
+    }
+  });
+  test('accepts a processed PNG face and carries it to the opposing player', () => {
+    // Full 128 x 160 transparent PNG generated without an external image fixture.
+    const { deflateSync } = zlib;
+    const header = Buffer.alloc(13);
+    header.writeUInt32BE(128, 0); header.writeUInt32BE(160, 4); header[8] = 8; header[9] = 6;
+    const crc = (bytes: Buffer) => { let c = 0xffffffff; for (const b of bytes) { c ^= b; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ ((c & 1) ? 0xedb88320 : 0); } return (c ^ 0xffffffff) >>> 0; };
+    const chunk = (type: string, data: Buffer) => { const n = Buffer.alloc(4); n.writeUInt32BE(data.length); const body = Buffer.concat([Buffer.from(type), data]); const check = Buffer.alloc(4); check.writeUInt32BE(crc(body)); return Buffer.concat([n, body, check]); };
+    const png = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), chunk('IHDR', header), chunk('IDAT', deflateSync(Buffer.alloc((128 * 4 + 1) * 160))), chunk('IEND', Buffer.alloc(0))]);
+    const withFace = { ...avatar, face: `data:image/png;base64,${png.toString('base64')}` };
+    assert.equal(send(ALICE, { type: 'setAvatar', avatar: withFace }).status, 'accepted');
+    startMatch();
+    assert.deepEqual(lobby.matchView(BOB)!.rival.avatar, withFace);
+    send(ALICE, { type: 'setAvatar', avatar });
+    assert.equal(lobby.matchView(BOB)!.rival.avatar!.face, null);
   });
 });
