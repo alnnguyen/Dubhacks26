@@ -88,3 +88,7 @@ The default root now uses BridgeApp for onboarding and the compact Demo/Live swi
 From the normal cockpit, choose **Seat / Explore** in the bottom dock. A short seat/hyperspace transition opens free flight; **Bridge** returns to the cockpit. The same lobby/session stays connected. Accepted challenges return through the current planetary travel and saber arena. For isolated exploration without a live roster, open `/?explore=1` (optional `&dest=visit-mars`).
 
 Use destination search, W/S or Cruise, drag/arrows to steer, Space or Stop to brake, and the planet inspector for facts/cutaways. SOUND / MIX uses the shared game audio. Catalog snapshots have source/epoch information in the Data UI; they are not live satellite tracking. Integration and verification: `../docs/exploration-integration.md`.
+
+### Mars saber initiation
+
+The real arena now guides one measured setup task at a time over the live Mars scene. Keep watching your avatar on the right and self-camera at bottom-right. The matched server enforces the shared three-second countdown once both pilots finish; run the updated backend too. `/?dev=initiation` is a labelled visual review using synthetic telemetry, no real camera/phone/server. Details and device checks: `docs/saber-initiation-overlay.md`.

@@ -251,10 +251,11 @@ const AIM_HEIGHT = 0.3
 const SHOULDER_OFFSET = 0.45
 
 /** Over your own shoulder, looking down at the duel. Follows your hips as you walk. */
-function ShoulderCamera({ frameRef, mySlot, groundY }: {
+function ShoulderCamera({ frameRef, mySlot, groundY, initiation = false }: {
   frameRef: RefObject<ArenaFrame | null>
   mySlot: PlayerSlot
   groundY: number
+  initiation?: boolean
 }) {
   const target = useRef(new THREE.Vector3())
   useFrame(({ camera }, delta) => {
@@ -268,11 +269,14 @@ function ShoulderCamera({ frameRef, mySlot, groundY }: {
     // The camera isn't inside the arena's ground group, so it adds the ground height itself.
     hips.y += groundY
     const aim = hips.clone().addScaledVector(forward, AIM_AHEAD).add(new THREE.Vector3(0, AIM_HEIGHT, 0))
+    if (initiation) aim.addScaledVector(right, -1.15);
+    const distance = initiation ? 4.8 : CAMERA_DISTANCE;
+    const pitch = initiation ? Math.PI / 7 : CAMERA_PITCH;
     const desired = aim
       .clone()
-      .addScaledVector(forward, -CAMERA_DISTANCE * Math.cos(CAMERA_PITCH))
+      .addScaledVector(forward, -distance * Math.cos(pitch))
       .addScaledVector(right, SHOULDER_OFFSET)
-      .add(new THREE.Vector3(0, CAMERA_DISTANCE * Math.sin(CAMERA_PITCH), 0))
+      .add(new THREE.Vector3(0, distance * Math.sin(pitch), 0))
     // Follow with the same feel at any frame rate (~130 ms to catch up most of the way).
     const follow = 1 - Math.exp(-delta / 0.13)
     camera.position.lerp(desired, follow)
@@ -287,6 +291,7 @@ type FightersProps = {
   flashRef: RefObject<ImpactFlash | null>
   mySlot: PlayerSlot
   board: Board
+  initiation?: boolean
 }
 
 /** Stands the arena on the Mars terrain at its center. */
@@ -337,11 +342,11 @@ function DuelMarkers({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFra
   </group>
 }
 
-function Fighters({ frameRef, flashRef, mySlot, board, groundY }: FightersProps & { groundY: number }) {
+function Fighters({ frameRef, flashRef, mySlot, board, groundY, initiation }: FightersProps & { groundY: number }) {
   const rivalSlot: PlayerSlot = mySlot === 1 ? 2 : 1
   return (
     <group position={[0, groundY, 0]}>
-      <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} />
+      <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} initiation={initiation} />
       <Avatar frameRef={frameRef} slot={mySlot} color={COLORS.you} flashRef={flashRef} />
       <Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} />
       <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} />
@@ -360,8 +365,9 @@ function FrameSampler({ getFrame, frameRef }: { getFrame: () => ArenaFrame | nul
   return null
 }
 
-export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false }: {
+export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false, initiation = false }: {
   basicGraphics?: boolean
+  initiation?: boolean
   /** The arena to draw right now: blended server frames, with your own fighter drawn locally. */
   getFrame: () => ArenaFrame | null
   flashRef: RefObject<ImpactFlash | null>
@@ -382,7 +388,7 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
         <color attach="background" args={["#1b0f0b"]} />
         <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
         <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>
-        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} />
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation={initiation} />
       </> : <Suspense
         fallback={
           // Plain floor while the Mars terrain loads, so the duel is playable immediately.
@@ -390,12 +396,12 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
             <color attach="background" args={["#1b0f0b"]} />
             <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
             <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>
-            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} />
+            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation={initiation} />
           </>
         }
       >
         <MarsEnvironment quality="low" obstacles={[]} />
-        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} />
+        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} initiation={initiation} />
       </Suspense>}
       {!basicGraphics && <EffectComposer multisampling={0} enableNormalPass={false}>
         <Bloom mipmapBlur intensity={0.9} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.55} />

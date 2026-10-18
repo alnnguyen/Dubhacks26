@@ -118,11 +118,19 @@ export interface ArenaPlayer {
   swinging: boolean;
 }
 
+/** Shared pre-combat countdown. A deadline alone never authorizes a hit. */
+export interface SaberStart {
+  startsAtMs: number | null;
+  unlocked: boolean;
+}
+
 // Both players in world coordinates, sent to both laptops on every server tick.
 export interface ArenaFrame {
   // Server time of the tick (ms), so laptops can blend between frames smoothly
   // despite network jitter. Only differences matter; clocks aren't synced.
   serverMs: number;
+  // Optional for compatibility with older scene recordings/clients.
+  saberStart?: SaberStart;
   players: ArenaPlayer[];
   // Both players at the front line within a column of each other: only then do swings count.
   engaged: boolean;
@@ -144,6 +152,8 @@ export interface SaberStatus {
     health: number;
     rivalHealth: number;
     armed: boolean;
+    // Remaining time on the same server countdown shown on the laptop.
+    startsInMs?: number | null;
     // The laptop's current setup step, so the phone can show it too.
     setup: SetupProgress | null;
   } | null;

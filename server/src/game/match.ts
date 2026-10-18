@@ -16,6 +16,7 @@ import type {
   SaberAim,
   SaberCalibration,
   SaberResolved,
+  SaberStart,
   SetupProgress,
   SetupStep,
   StepDirection,
@@ -40,6 +41,8 @@ import {
   type Facing,
 } from "./saber3d.js";
 import { CELL_SIZE, cellToWorld, inReach, orbitStep, interpolateStep, ROWS_PER_SIDE, type Cell } from "./grid.js";
+
+import { advanceSaberStart } from "./saberStart.js";
 
 type Timer = ReturnType<typeof setTimeout>;
 
@@ -129,6 +132,13 @@ export class Match {
   private players = new Map<PlayerSlot, Player>();
   private phase: MatchPhase = "waiting";
   private result: MatchResult | null = null;
+  private saberStart: SaberStart = { startsAtMs: null, unlocked: false };
+
+  get saberCombatReady(): boolean { return this.saberStart.unlocked; }
+  get saberStartsInMs(): number | null {
+    return this.saberStart.startsAtMs === null || this.saberStart.unlocked
+      ? null : Math.max(0, this.saberStart.startsAtMs - Date.now());
+  }
   private weapons: Record<Weapon, WeaponRules>;
   // Reply already sent for each "slot:commandId", so retries repeat it.
   private replies = new Map<string, CommandReply>();
@@ -262,6 +272,7 @@ export class Match {
   // Opponent-relative movement: forward/back change distance, left/right orbit.
   // Allowed from the briefing on so players can practise during setup.
   step(slot: PlayerSlot, direction: unknown): RejectReason | null {
+    if (!this.saberStart.unlocked && this.saberStart.startsAtMs !== null) return "match_not_active";
     if (this.phase === "finished") return "match_not_active";
     if (!STEP_DIRECTIONS.includes(direction as StepDirection)) return "invalid_command";
     const player = this.players.get(slot)!;
@@ -407,6 +418,7 @@ export class Match {
     }
     if (this.phase !== "active") return "match_not_active";
     const now = Date.now();
+    if (!this.saberStart.unlocked && this.saberStart.startsAtMs !== null && (type === "throwRock" || type === "fireGun")) return "match_not_active";
 
     switch (type) {
       // Switching is instant and allowed even mid-block.
@@ -485,8 +497,11 @@ export class Match {
     const elapsedMs = this.lastTickAt === null ? SABER.tickMs : Math.max(1, now - this.lastTickAt);
     this.lastTickAt = now;
     const players = [...this.players.values()].sort((a, b) => a.slot - b.slot);
-    // Swings count only between fully set-up players within reach on the board.
-    const fighting = this.phase === "active" && this.engaged && players.every((p) => this.armed(p, now));
+    // Every laptop receives one deadline. Tracking loss before GO cancels it.
+    const start = advanceSaberStart(this.saberStart, this.phase === "active" && players.every((p) => p.connected && this.armed(p, now)), now);
+    if (start !== this.saberStart) { this.saberStart = start; this.events.changed(); }
+    // Setup motions and the full countdown are visible but cannot resolve damage.
+    const fighting = this.phase === "active" && this.saberStart.unlocked && this.engaged && players.every((p) => this.armed(p, now));
     const blades = new Map(players.map((p) => [p.slot, this.blade(p, now)]));
     const previous = new Map(players.map((p) => [p.slot, p.saber.lastBlade]));
 
@@ -543,6 +558,7 @@ export class Match {
     this.announceReadiness();
     this.events.arenaFrame({
       serverMs: now,
+      saberStart: { ...this.saberStart },
       engaged: this.engaged,
       players: players.map((p) => ({
         slot: p.slot,
@@ -637,7 +653,9 @@ export class Match {
     for (const p of this.players.values()) {
       const live = this.freshAim(p, now) !== null;
       const step = p.saber.body.pose?.setup?.step ?? "";
-      const state = `${p.saber.paired}:${live}:${this.bodyReady(p, now)}:${this.saberReady(p, now)}:${p.saber.swinging}:${step}`;
+      const countdown = this.saberStartsInMs;
+      const beat = countdown === null ? "" : Math.ceil(countdown / 1000);
+      const state = `${p.saber.paired}:${live}:${this.bodyReady(p, now)}:${this.saberReady(p, now)}:${p.saber.swinging}:${step}:${beat}`;
       if (state !== p.saber.announced) {
         p.saber.announced = state;
         changed = true;

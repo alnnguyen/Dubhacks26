@@ -142,3 +142,7 @@ Applied the supplied button handoff visual treatment globally: hover grow/glow/i
 ## Result preview VS alignment
 
 Adjusted only the standalone `web/duel-result-preview.html`: removed VS rotation, reduced skew to -6 degrees, and centered it on both pilot name plates. Browser verified shared vertical center and Victory/Defeat toggles; diff whitespace check passed. Production result wiring is still pending. No audio/server changes.
+
+## Live Mars initiation overlay + shared countdown
+
+Implemented on alex-dev: translucent one-task slides follow the existing real setup wizard, live hold/sensor feedback, wider right-side avatar framing, existing bottom-right self-camera, per-step confirmations, waiting/readiness and recovery states. Server publishes and enforces shared 3–2–1; phone status follows the same gate. Backend 95 passed, frontend targeted 32 passed, production build passed. Labelled synthetic UI review verified over Mars; physical two-player camera/phone QA pending (Alex will test). Host must run the updated backend as well as frontend. No deployment/push. Handoff: `docs/saber-initiation-overlay.md`.

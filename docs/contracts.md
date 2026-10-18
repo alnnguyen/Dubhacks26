@@ -111,3 +111,7 @@ Every positive-damage saber or projectile hit forces the defender away from the 
 ## Exploration feature port — Alex, October 18
 
 Source `origin/alan` at `b637186`, feature-scoped into the current alex-dev UI. Frontend `LobbyView` adds `pilot`; `HyperspaceTunnel` accepts optional `caption`; `ExploreApp` accepts optional `onBattleLaunch` so accepted challenges reuse the cockpit launch/audio path and return to the existing planetary travel + saber arena. Existing lobby actions and game-client connection remain owned by BridgeApp/FlightApp. No server wire, phone step, combat, or knockback contract changed. See `docs/exploration-integration.md`. No external message or deployment sent.
+
+## Live saber initiation + shared countdown — Alex, October 18
+
+User-authorized setup presentation and startup gate. Optional `ArenaFrame.saberStart { startsAtMs, unlocked }` carries one server deadline and explicit combat unlock; interpolation preserves it. Optional `SaberStatus.match.startsInMs` and shared `armed` status align the phone. Six existing measured setup steps remain; no command/phase changes. Swings cannot resolve during the initial 3-second gate, tracking loss before GO cancels it, and deadline expiry alone never opens combat on the laptop. New laptop setup requires the matching updated backend. B/C handoff: see `docs/saber-initiation-overlay.md` for ownership, compatibility, checks and device QA. No deployment or external messages sent.

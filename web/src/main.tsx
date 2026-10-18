@@ -17,6 +17,7 @@ const saberCode = search.get('saber');
 // The saber arena with synthetic fighters, no camera/phone/server: /?dev=arena
 const devArena = search.get('dev') === 'arena';
 
+const initiationPreview = search.get("dev") === "initiation";
 const explore = search.has('explore');
 const soundCheck = search.get('audio') === 'check';
 const Screen = soundCheck
@@ -31,6 +32,8 @@ const Screen = soundCheck
       const m = await import('./saber/SaberPhone');
       return { default: () => <m.SaberPhone code={saberCode} /> };
     })
+  : initiationPreview
+  ? lazy(async () => { const m = await import('./arena3d/SaberInitiationPreview'); return { default: m.SaberInitiationPreview }; })
   : explore
   ? lazy(async () => { const m = await import('./ui/screens/ExploreApp'); return { default: m.ExploreApp }; })
   : devMars

@@ -104,6 +104,8 @@ describe("saber duel in the arena", () => {
     assert.equal(match.step(1, "forward"), null);
     assert.equal(match.step(2, "forward"), null);
     mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    for (let t = 0; t < 3100; t += SABER.tickMs) step();
+    resolved.length = 0;
   });
 
   afterEach(() => {
@@ -233,8 +235,10 @@ describe("saber duel in the arena", () => {
   });
 
   test("malformed input is dropped", () => {
-    match.handleBodyPose(1, { seq: 1, tracked: true, joints: [[0, 0, 0]], calibrated: true, setup: null });
-    match.handleSaberAim(1, { seq: 1, tracked: true, top: [0, 0, 0], rate: 0 });
+    // Let the valid startup streams expire; malformed newer input must not restore them.
+    mock.timers.tick(SABER.staleMs + 1);
+    match.handleBodyPose(1, { seq: ++seq, tracked: true, joints: [[0, 0, 0]], calibrated: true, setup: null });
+    match.handleSaberAim(1, { seq: ++seq, tracked: true, top: [0, 0, 0], rate: 0 });
     assert.equal(match.setSaberCalibration(1, { forward: [0, 1], hand: "middle", mirror: false, done: true }), "invalid_command");
     mock.timers.tick(SABER.tickMs);
     assert.equal(frames.at(-1)!.players[0].joints, null);

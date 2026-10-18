@@ -184,7 +184,7 @@ export function SaberPhone({ code }: { code: string }) {
         <section className="saber-health">
           <span>You {match.health}</span>
           <span>Rival {match.rivalHealth}</span>
-          <p>{match.phase === "finished" ? "Duel over" : match.armed ? "Armed — swing!" : "Setting up"}</p>
+          <p>{match.phase === "finished" ? "Duel over" : match.armed ? "Armed — swing!" : match.startsInMs != null ? `Get ready · ${Math.max(1, Math.ceil(match.startsInMs / 1000))}` : setup?.step === "done" ? "Waiting for both pilots…" : "Setting up"}</p>
         </section>
       ) : connection === "paired" ? (
         <p className="saber-note">Linked. Challenge someone from your laptop.</p>
