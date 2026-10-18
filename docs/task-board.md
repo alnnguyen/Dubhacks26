@@ -139,8 +139,15 @@ Shared music/effects mixer and supplied audio pack integrated into alex-dev work
 - Status: Integration; staged on saber-duel for Justin to commit. No new environment variables, external messages or deployment.
 ## Neptune destination — `feature/neptune-arena` (not merged)
 
-- Goal: Neptune as a second selectable destination beside Mars. Cockpit destination picker → roulette locks the chosen planet → Neptune cinematic (`web/public/assets/neptune/spacetosaturn.mp4`) → live 3D floating station is compiled behind the video, crossfades in over the last 0.6 s, camera eases toward the platform → server-backed briefing/arena. Mars flow unchanged.
-- Interface: `challenge` command gains optional `destination` (see `docs/contracts.md`); `WorldId` gains `neptune`. Affects B (server/contracts) and A (cockpit/cinematics).
-- Checks run: web `tsc --noEmit`, `vitest run` (100 passed / 1 skipped), `vite build`; server `npm test` (76 passed). Not yet exercised in a browser on real devices or in a live two-client match.
-- Review routes: `/?arena=neptune` (orbit the station), `/?journey=neptune` (cinematic → live handoff), `/?dev=arena&destination=neptune` (synthetic fighters).
+- Goal: Neptune as a second selectable destination beside Mars.
+- Flow: cockpit destination picker → roulette locks the chosen planet → Neptune cinematic (`web/public/assets/neptune/neptune-arrival.mp4`, which ends in blue cloud with no arena) → the live 3D scene, already compiled behind the video and parked in matching fog → the video fades to a cutout of its own final cockpit frame plus a matched blue veil → the camera flies out of the cloud, the fog clears, and the camera settles at the slot-1 shoulder pose → server-backed briefing and arena.
+- Mars flow is unchanged.
+- Data and sources: `docs/neptune-sources.md`. The platform is fictional; the clouds are procedural and Voyager-informed.
+- Interface: the `challenge` command gains an optional `destination` (see `docs/contracts.md`), and `WorldId` gains `neptune`. Affects B (server/contracts) and A (cockpit/cinematics).
+- Review routes:
+  - `/?arena=neptune`: orbit the station.
+  - `/?journey=neptune`: cinematic → live handoff.
+  - `/?journey=neptune&skip`: reveal only.
+  - `/?dev=arena&destination=neptune`: synthetic fighters.
+- Not yet checked in a real browser playing the video, on phones, or in a live two-client match.
 - Deploy server and client together before using Neptune in real matches. Not deployed or pushed.
