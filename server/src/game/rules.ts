@@ -22,7 +22,9 @@ export const SABER = {
   // outstretched arm plus blade reaches the other torso without stepping.
   separation: 1.3,
   hipHeight: 1.0,
-  // How far stepping can move you from your spot, and the closest the two hips may get.
+  // Walking speed at a full pinch-and-nudge (m/s).
+  walkSpeed: 1.1,
+  // How far walking can move you from your spot, and the closest the two hips may get.
   maxStepX: 1.2,
   maxStepBack: 1.0,
   minHipGap: 0.6,

@@ -220,3 +220,44 @@
 .arena-self.hidden {
   visibility: hidden;
 }
+
+/* Pinch-and-nudge joystick: where the pinched hand is relative to where the pinch began. */
+.arena-stick {
+  position: absolute;
+  left: 50%;
+  bottom: 56px;
+  width: 96px;
+  height: 96px;
+  margin-left: -48px;
+  border-radius: 50%;
+  border: 2px solid rgba(76, 195, 255, 0.6);
+  background: rgba(6, 12, 24, 0.45);
+  pointer-events: none;
+}
+
+.arena-stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 50%;
+  background: #4cc3ff;
+  box-shadow: 0 0 16px rgba(76, 195, 255, 0.9);
+}
+
+.arena-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(6, 12, 24, 0.7);
+  font-size: 13px;
+  color: #c9d7ef;
+  pointer-events: none;
+}
+

@@ -1,12 +1,15 @@
 import type { Hand, SaberCalibration, SetupStep, Vec3 } from "../../../server/src/contracts"
+import type { HandTrack, Point } from "../vision/types"
 import type { BodyPlacement } from "./bodyFrame"
+import { DEFAULT_MOVE_CALIBRATION, handSize, pinchRatio, pinchThresholds, type MoveCalibration } from "./pinchJoystick"
 
 /**
  * Guided setup that ties a laptop camera to a phone saber. Each step asks for
  * a pose and advances once both devices agree for a moment, measuring along
  * the way: the step spot, which way "toward the screen" is for the phone, the
- * saber hand, and whether the camera or the phone reads left/right (or the
- * camera forward/back) backwards. Pure: the duel screen feeds it every frame.
+ * saber hand, whether the camera or the phone reads left/right (or the camera
+ * forward/back) backwards, and the free hand's open, pinch and nudge sizes for
+ * pinch-and-nudge walking. Pure: the duel screen feeds it every frame.
  */
 
 export type CameraFix = {
@@ -25,6 +28,10 @@ export type WizardInput = {
   placement: BodyPlacement | null
   /** The phone's latest fresh, tracked reading. */
   phone: PhoneReading | null
+  /** The free (non-saber) hand from the hand tracker, once setup knows the saber hand. */
+  freeHand: HandTrack | null
+  /** Image width / height. */
+  aspect: number
 }
 
 export type WizardState = {
@@ -41,11 +48,17 @@ export type WizardState = {
   hand: Hand | null
   mirrorAim: boolean
   cameraFix: CameraFix
+  /** The free hand's open and pinch ratios and nudge size; null until measured. */
+  move: MoveCalibration | null
+  /** Partial movement measurements while the steps run. */
+  openRatio: number | null
+  pinchRatio: number | null
+  nudge: { anchor: Point | null; pinchedMs: number; lastMs: number | null; max: number }
   /** Something setup had to assume, shown to the player. */
   notes: string[]
 }
 
-export const STEP_ORDER: SetupStep[] = ["stand", "phone", "forward", "up", "right", "reach", "done"]
+export const STEP_ORDER: SetupStep[] = ["stand", "phone", "forward", "up", "right", "reach", "open", "pinch", "nudge", "done"]
 
 /** How long each pose must be held. */
 export const HOLD_MS: Record<SetupStep, number> = {
@@ -55,11 +68,19 @@ export const HOLD_MS: Record<SetupStep, number> = {
   up: 700,
   right: 700,
   reach: 500,
+  open: 700,
+  pinch: 700,
+  // Pinched time spent nudging.
+  nudge: 1500,
   done: 0,
 }
 
 /** After this long with the phone right but the camera unsure, accept and note what was assumed. */
 export const CAMERA_GIVE_UP_MS = 4000
+/** Movement steps fall back to defaults after this long without the free hand: walking is optional. */
+export const HAND_GIVE_UP_MS = 8000
+/** A nudge this big (hand sizes) during the nudge step counts as having nudged. */
+const MIN_NUDGE = 0.3
 
 const NOSE = 0
 const LEFT_SHOULDER = 11
@@ -80,6 +101,10 @@ export function createWizard(nowMs: number): WizardState {
     hand: null,
     mirrorAim: false,
     cameraFix: { mirrorX: false, flipZ: false },
+    move: null,
+    openRatio: null,
+    pinchRatio: null,
+    nudge: { anchor: null, pinchedMs: 0, lastMs: null, max: 0 },
     notes: [],
   }
 }
@@ -102,6 +127,13 @@ const PAIRS: [number, number][] = [
   [1, 4], [2, 5], [3, 6], [7, 8], [9, 10], [11, 12], [13, 14], [15, 16], [17, 18],
   [19, 20], [21, 22], [23, 24], [25, 26], [27, 28], [29, 30], [31, 32],
 ]
+
+/** Which raw MediaPipe joint holds joint `i` once a mirror fix swaps left and right. */
+export function mirrorIndex(i: number, mirrorX: boolean): number {
+  if (!mirrorX) return i
+  const pair = PAIRS.find(([a, b]) => a === i || b === i)
+  return pair ? (pair[0] === i ? pair[1] : pair[0]) : i
+}
 
 export function applyCameraFix(joints: Vec3[], fix: CameraFix): Vec3[] {
   let out = joints.map((j) => [fix.mirrorX ? -j[0] : j[0], j[1], fix.flipZ ? -j[2] : j[2]] as Vec3)
@@ -133,7 +165,7 @@ function hold(state: WizardState, nowMs: number, holding: boolean, extra: Partia
 }
 
 export function tickWizard(state: WizardState, input: WizardInput): WizardState {
-  const { nowMs, body, placement, phone } = input
+  const { nowMs, body, placement, phone, freeHand, aspect } = input
   const waited = nowMs - state.stepStartedMs
 
   switch (state.step) {
@@ -218,8 +250,70 @@ export function tickWizard(state: WizardState, input: WizardInput): WizardState 
       return advance(held, nowMs, {})
     }
 
+    case "open": {
+      // Free hand open and steady: its thumb-index gap with the hand open.
+      const ratio = freeHand ? pinchRatio(freeHand, aspect) : null
+      if (ratio === null && waited > HAND_GIVE_UP_MS) return skipMovement(state, nowMs)
+      const start = state.openRatio ?? ratio
+      const steady = ratio !== null && start !== null && ratio > 0.5 && Math.abs(ratio - start) < 0.15
+      const [held, done] = hold(state, nowMs, steady, { openRatio: start })
+      return done ? advance(held, nowMs, { openRatio: ratio }) : { ...held, openRatio: steady ? start : null }
+    }
+
+    case "pinch": {
+      // Thumb touching index: the gap pinched.
+      const ratio = freeHand ? pinchRatio(freeHand, aspect) : null
+      if (ratio === null && waited > HAND_GIVE_UP_MS) return skipMovement(state, nowMs)
+      const open = state.openRatio ?? DEFAULT_MOVE_CALIBRATION.open
+      const [held, done] = hold(state, nowMs, ratio !== null && ratio < open * 0.5)
+      return done ? advance(held, nowMs, { pinchRatio: Math.max(0.02, ratio!) }) : held
+    }
+
+    case "nudge": {
+      // Pinched, nudging the hand a little: how far this player nudges.
+      const open = state.openRatio ?? DEFAULT_MOVE_CALIBRATION.open
+      const pinch = state.pinchRatio ?? DEFAULT_MOVE_CALIBRATION.pinch
+      const ratio = freeHand ? pinchRatio(freeHand, aspect) : null
+      if (ratio === null && waited > HAND_GIVE_UP_MS) return skipMovement(state, nowMs)
+      const pinched = ratio !== null && ratio < pinchThresholds({ open, pinch, nudge: 1 }).release
+      const nudge = state.nudge
+      if (!pinched || !freeHand) {
+        return { ...state, nudge: { ...nudge, anchor: null, lastMs: null } }
+      }
+      const point = pinchPoint(freeHand, aspect)
+      const anchor = nudge.anchor ?? point
+      const size = Math.max(1e-6, handSize(freeHand, aspect))
+      const distance = Math.hypot(point.x - anchor.x, point.y - anchor.y) / size
+      const pinchedMs = nudge.pinchedMs + (nudge.lastMs === null ? 0 : nowMs - nudge.lastMs)
+      const max = Math.max(nudge.max, distance)
+      const progress = Math.min(1, pinchedMs / HOLD_MS.nudge, max / MIN_NUDGE)
+      const next = { ...state, progress, nudge: { anchor, pinchedMs, lastMs: nowMs, max } }
+      if (progress < 1) return next
+      // Full speed a bit short of the biggest nudge, so walking doesn't need the full stretch.
+      return advance(next, nowMs, { move: { open, pinch, nudge: Math.min(1.2, Math.max(MIN_NUDGE, max * 0.7)) } })
+    }
+
     case "done":
       return state
+  }
+}
+
+function pinchPoint(hand: HandTrack, aspect: number): Point {
+  const t = hand.landmarks[4]
+  const i = hand.landmarks[8]
+  return { x: ((t.x + i.x) / 2) * aspect, y: (t.y + i.y) / 2 }
+}
+
+/** No free hand in view for the movement steps: use defaults and finish; the keys still work. */
+function skipMovement(state: WizardState, nowMs: number): WizardState {
+  return {
+    ...state,
+    step: "done",
+    holdSinceMs: null,
+    progress: 0,
+    stepStartedMs: nowMs,
+    move: DEFAULT_MOVE_CALIBRATION,
+    notes: [...state.notes, "Couldn't see your free hand — pinch-and-nudge uses default settings. WASD / arrow keys also walk."],
   }
 }
 
@@ -252,5 +346,8 @@ export const INSTRUCTIONS: Record<SetupStep, string> = {
   up: "Raise your saber straight up above your head.",
   right: "Point your saber out to your right side, level.",
   reach: "Thrust your saber at the screen, arm out in front of you.",
-  done: "Setup complete. Waiting for your rival.",
+  open: "Hold your free hand up, open, facing the laptop.",
+  pinch: "Pinch your free hand: touch your thumb to your index finger, and hold.",
+  nudge: "Keep pinching and nudge your hand a little left, right, up and down.",
+  done: "Setup complete. To walk, pinch and nudge your free hand; let go to stop.",
 }

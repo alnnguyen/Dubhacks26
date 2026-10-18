@@ -36,15 +36,27 @@ export interface BodyPose {
   // The 33 MediaPipe pose joints, hip-centered, in the player's body frame:
   // x right, y up, z forward (toward their screen, i.e. toward the opponent).
   joints: Vec3[];
-  // How far the player has stepped from their calibrated spot: x right, z forward.
-  offset: { x: number; z: number };
-  // The player stood on their spot and set the step baseline.
+  // Which way the player wants to walk, in their own frame (x right, z toward
+  // the rival), each -1..1, from the free hand's pinch-and-nudge or keys.
+  // The server moves them at walking speed; it owns their position.
+  move: { x: number; z: number };
+  // The player stood still on their spot during setup.
   calibrated: boolean;
   // The laptop's guided setup, relayed to the player's phone so it can show the same step.
   setup: SetupProgress | null;
 }
 
-export type SetupStep = "stand" | "phone" | "forward" | "up" | "right" | "reach" | "done";
+export type SetupStep =
+  | "stand"
+  | "phone"
+  | "forward"
+  | "up"
+  | "right"
+  | "reach"
+  | "open"
+  | "pinch"
+  | "nudge"
+  | "done";
 
 export interface SetupProgress {
   step: SetupStep;

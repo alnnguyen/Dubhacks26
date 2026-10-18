@@ -85,6 +85,7 @@ describe("saber duel in the arena", () => {
     hand?: Hand;
     aimTracked?: boolean;
     setupDone?: boolean;
+    move?: { x: number; z: number };
   }
 
   // Players calibrated facing north: body right is east, forward is north, so
@@ -96,7 +97,7 @@ describe("saber duel in the arena", () => {
       seq: ++seq,
       tracked: input.tracked ?? true,
       joints: input.body ?? joints(),
-      offset: { x: 0, z: 0 },
+      move: input.move ?? { x: 0, z: 0 },
       calibrated: true,
       setup: null,
     });
@@ -113,7 +114,7 @@ describe("saber duel in the arena", () => {
   const slash = (angleDeg: number): Input => ({ dir: [Math.sin(deg(angleDeg)), 0, Math.cos(deg(angleDeg))] });
 
   // Both players send, then one server tick runs.
-  function step(attacker: Input, defender: Input = {}) {
+  function step(attacker: Input = {}, defender: Input = {}) {
     send(1, attacker);
     send(2, defender);
     mock.timers.tick(SABER.tickMs);
@@ -185,14 +186,14 @@ describe("saber duel in the arena", () => {
     match.handleSaberAim(1, { seq: 500, tracked: true, top: [1, 0, 0], rate: 0 });
     match.handleSaberAim(1, { seq: 400, tracked: true, top: [0, 0, 1], rate: 0 });
     send(2);
-    match.handleBodyPose(1, { seq: 501, tracked: true, joints: joints(), offset: { x: 0, z: 0 }, calibrated: true, setup: null });
+    match.handleBodyPose(1, { seq: 501, tracked: true, joints: joints(), move: { x: 0, z: 0 }, calibrated: true, setup: null });
     mock.timers.tick(SABER.tickMs);
     const blade = frames.at(-1)!.players[0].blade!;
     assert.ok(blade.tip[0] > blade.hilt[0], "still the seq-500 blade pointing right");
   });
 
   test("malformed input is dropped", () => {
-    match.handleBodyPose(1, { seq: 1, tracked: true, joints: [[0, 0, 0]], offset: { x: 0, z: 0 }, calibrated: true, setup: null });
+    match.handleBodyPose(1, { seq: 1, tracked: true, joints: [[0, 0, 0]], move: { x: 0, z: 0 }, calibrated: true, setup: null });
     match.handleSaberAim(1, { seq: 1, tracked: true, top: [0, 0, 0], rate: 0 });
     assert.equal(match.setSaberCalibration(1, { forward: [0, 1], hand: "middle", mirror: false, done: true }), "invalid_command");
     mock.timers.tick(SABER.tickMs);
@@ -208,13 +209,52 @@ describe("saber duel in the arena", () => {
     assert.ok(two.blade!.hilt[2] < SABER.separation, "slot 2's hands are in front of them, toward slot 1");
   });
 
-  test("stepping is clamped so the two players never overlap", () => {
-    match.handleBodyPose(1, { seq: 900, tracked: true, joints: joints(), offset: { x: 4, z: 4 }, calibrated: true, setup: null });
+  const hips = (slot: PlayerSlot) => frames.at(-1)!.players[slot - 1].joints![24];
+
+  test("holding a walk intent moves the hips at walking speed in the player's own direction", () => {
+    for (let i = 0; i < 10; i++) step({ move: { x: 1, z: 0 } });
+    const walked = hips(1)[0] - 0.12;
+    const expected = (SABER.walkSpeed * 10 * SABER.tickMs) / 1000;
+    assert.ok(Math.abs(walked - expected) < 0.05, `walked ${walked}, expected about ${expected}`);
+    // Letting go stops.
+    for (let i = 0; i < 5; i++) step();
+    assert.ok(Math.abs(hips(1)[0] - 0.12 - walked) < 1e-9);
+    // Slot 2 faces the other way: walking back is world +z.
+    for (let i = 0; i < 10; i++) step({}, { move: { x: 0, z: -1 } });
+    assert.ok(hips(2)[2] > SABER.separation + 0.25);
+  });
+
+  test("walking stays inside the arena and apart from the rival", () => {
+    for (let i = 0; i < 120; i++) step({ move: { x: 1, z: 1 } });
+    assert.ok(Math.abs(hips(1)[2] - (SABER.separation - SABER.minHipGap) / 2) < 1e-9, "never closer than the minimum gap");
+    assert.ok(Math.abs(hips(1)[0] - (0.12 + SABER.maxStepX)) < 1e-9);
+  });
+
+  test("a diagonal isn't faster, and an out-of-range intent is rejected", () => {
+    for (let i = 0; i < 10; i++) step({ move: { x: 1, z: -1 } });
+    const [x, , z] = hips(1);
+    const walked = Math.hypot(x - 0.12, z);
+    assert.ok(walked <= (SABER.walkSpeed * 10 * SABER.tickMs) / 1000 + 0.05);
+    match.handleBodyPose(1, { seq: 99_999, tracked: true, joints: joints(), move: { x: 3, z: 0 }, calibrated: true, setup: null });
+    assert.equal(match.toView(1).you.saber.bodyReady, true, "the bad pose was dropped, the last good one stands");
+  });
+
+  test("a stale body stops walking", () => {
+    step({ move: { x: 1, z: 0 } });
+    const at = hips(1)[0];
     send(2);
+    mock.timers.tick(SABER.staleMs + SABER.tickMs * 3);
+    send(1, { move: { x: 0, z: 0 } });
     mock.timers.tick(SABER.tickMs);
-    const hip = frames.at(-1)!.players[0].joints![24];
-    assert.equal(hip[0], 0.12 + SABER.maxStepX);
-    assert.equal(hip[2], (SABER.separation - SABER.minHipGap) / 2);
+    assert.ok(hips(1)[0] - at < 0.05);
+  });
+
+  test("walking with the blade held still isn't a swing, but a swing while walking still hits", () => {
+    for (let i = 0; i < 8; i++) step({ ...slash(-15), move: { x: 0, z: -1 } });
+    assert.equal(resolved.length, 0);
+    for (let i = 0; i < 8; i++) step({ ...slash(60), move: { x: 0, z: 1 } });
+    for (const angle of [60, 35, 10, -15]) step({ ...slash(angle), move: { x: 0, z: 1 } });
+    assert.deepEqual(resolved.map((r) => r.outcome), ["hit"]);
   });
 
   test("no blade before the laptop sends a calibration", () => {
@@ -226,7 +266,7 @@ describe("saber duel in the arena", () => {
       finished: () => {},
     });
     fresh.setSaberPaired(1, true);
-    fresh.handleBodyPose(1, { seq: 1, tracked: true, joints: joints(), offset: { x: 0, z: 0 }, calibrated: true, setup: null });
+    fresh.handleBodyPose(1, { seq: 1, tracked: true, joints: joints(), move: { x: 0, z: 0 }, calibrated: true, setup: null });
     fresh.handleSaberAim(1, { seq: 2, tracked: true, top: [0, 0, 1], rate: 0 });
     mock.timers.tick(SABER.tickMs);
     assert.equal(frames.at(-1)!.players[0].blade, null);

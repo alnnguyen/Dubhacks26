@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { placement, stepOffset, worldToBody } from "./bodyFrame"
+import { placement, worldToBody } from "./bodyFrame"
 
 describe("worldToBody", () => {
   it("turns camera-frame meters into the player's frame", () => {
@@ -17,23 +17,11 @@ function landmarks(hipX: number, torso: number) {
   return lm
 }
 
-describe("stepOffset", () => {
-  const base = placement(landmarks(0.5, 0.25), 1)!
-
-  it("is zero on the calibrated spot", () => {
-    expect(stepOffset(base, base, 1)).toEqual({ x: -0, z: 0 })
-  })
-
-  it("moving to the image's left is stepping to the player's right", () => {
-    const moved = stepOffset(base, placement(landmarks(0.4, 0.25), 1)!, 1)
-    // 0.1 image heights at 0.5 m per 0.25 image heights.
-    expect(moved.x).toBeCloseTo(0.2)
-  })
-
-  it("looking bigger is stepping toward the screen", () => {
-    // Twice as big: half the distance, so a 1 m step from 2 m.
-    expect(stepOffset(base, placement(landmarks(0.5, 0.5), 1)!, 1).z).toBeCloseTo(1)
-    expect(stepOffset(base, placement(landmarks(0.5, 0.2), 1)!, 1).z).toBeLessThan(0)
+describe("placement", () => {
+  it("finds the hip center and torso length", () => {
+    const p = placement(landmarks(0.4, 0.25), 1)!
+    expect(p.hipX).toBeCloseTo(0.4)
+    expect(p.torso).toBeCloseTo(0.25)
   })
 
   it("needs shoulders and hips", () => {

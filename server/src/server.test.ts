@@ -143,7 +143,7 @@ test("a phone pairs as a pilot's saber, and the arena shows the blade to both la
     calibration: { forward: [0, 1], hand: "right", mirror: false, done: true },
   });
   assert.equal(calibrated.status, "accepted");
-  alice.emit("bodyPose", { seq: 1, tracked: true, joints, offset: { x: 0, z: 0 }, calibrated: true, setup: null } as never);
+  alice.emit("bodyPose", { seq: 1, tracked: true, joints, move: { x: 0, z: 0 }, calibrated: true, setup: null } as never);
   phone.emit("saberAim", { seq: 1, tracked: true, top: [0, 0, 1], rate: 0 });
   // Alice's laptop gets her own phone's readings for its setup checks.
   assert.deepEqual(await aliceSeesPhone, { seq: 1, tracked: true, top: [0, 0, 1], rate: 0 });

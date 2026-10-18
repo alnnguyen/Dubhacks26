@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from "react"
-import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision"
+import { FilesetResolver, HandLandmarker, PoseLandmarker } from "@mediapipe/tasks-vision"
 import QRCode from "qrcode"
 import type { ArenaFrame, PlayerView, SaberAim, SetupStep, Vec3 } from "../../../server/src/contracts"
 import type { GameClient } from "../networking"
-import { WASM_ROOT } from "../camera/mediapipeVision"
-import { placement, stepOffset, worldToBody, type BodyPlacement } from "./bodyFrame"
+import { HAND_MODEL_URL, handsFromLandmarker, WASM_ROOT } from "../camera/mediapipeVision"
+import { placement, worldToBody } from "./bodyFrame"
+import { createStabilizer, stabilize } from "./bodyStabilizer"
+import { createJoystick, pickFreeHand, tickJoystick } from "./pinchJoystick"
 import { ArenaScene, type ImpactFlash } from "./ArenaScene"
 import {
   applyCameraFix,
   calibrationOf,
   createWizard,
   INSTRUCTIONS,
+  mirrorIndex,
   STEP_ORDER,
   tickWizard,
   type WizardState,
@@ -21,27 +24,51 @@ import "./arena3d.css"
 const POSE_MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task"
 const BODY_SEND_MS = 50
-// Smooths the step offset so the avatar doesn't jitter with the pose estimate.
-const OFFSET_SMOOTHING = 0.25
+const LEFT_WRIST = 15
+const RIGHT_WRIST = 16
 // A phone reading older than this doesn't count for setup checks.
 const PHONE_FRESH_MS = 300
 
-async function createPoseLandmarker(): Promise<PoseLandmarker> {
+/** Body (pose) and fingers (hands, for pinch-and-nudge walking), GPU first. */
+async function createTrackers(): Promise<{ pose: PoseLandmarker; hands: HandLandmarker }> {
   const fileset = await FilesetResolver.forVisionTasks(WASM_ROOT)
-  const options = (delegate: "GPU" | "CPU") => ({
-    baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate },
-    runningMode: "VIDEO" as const,
-    numPoses: 1,
-    minPoseDetectionConfidence: 0.5,
-    minPosePresenceConfidence: 0.5,
-    minTrackingConfidence: 0.5,
-  })
+  const create = (delegate: "GPU" | "CPU") =>
+    Promise.all([
+      PoseLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: POSE_MODEL_URL, delegate },
+        runningMode: "VIDEO",
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.5,
+        minPosePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      }),
+      HandLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: HAND_MODEL_URL, delegate },
+        runningMode: "VIDEO",
+        numHands: 2,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+      }),
+    ])
   try {
-    return await PoseLandmarker.createFromOptions(fileset, options("GPU"))
+    const [pose, hands] = await create("GPU")
+    return { pose, hands }
   } catch {
-    return await PoseLandmarker.createFromOptions(fileset, options("CPU"))
+    const [pose, hands] = await create("CPU")
+    return { pose, hands }
   }
 }
+
+/** Held movement keys to a walking intent in the player's frame. */
+function keysToMove(keys: Set<string>): { x: number; z: number } {
+  const has = (...k: string[]) => k.some((key) => keys.has(key))
+  return {
+    x: (has("d", "arrowright") ? 1 : 0) - (has("a", "arrowleft") ? 1 : 0),
+    z: (has("w", "arrowup") ? 1 : 0) - (has("s", "arrowdown") ? 1 : 0),
+  }
+}
+const MOVE_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"])
 
 // Setup steps shown as a checklist (the final "done" isn't a step to do).
 const CHECKLIST: SetupStep[] = STEP_ORDER.filter((step) => step !== "done")
@@ -73,6 +100,30 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
   const [error, setError] = useState<string | null>(null)
   const [bodySeen, setBodySeen] = useState(false)
   const [qr, setQr] = useState<string | null>(null)
+  // The pinched hand's nudge, for the on-screen joystick; null while not pinched.
+  const [stick, setStick] = useState<{ x: number; y: number } | null>(null)
+  // Keyboard fallback: hold WASD or arrow keys to walk.
+  const keysRef = useRef(new Set<string>())
+
+  useEffect(() => {
+    const onDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase()
+      if (!MOVE_KEYS.has(key) || event.target instanceof HTMLInputElement) return
+      event.preventDefault()
+      keysRef.current.add(key)
+    }
+    const onUp = (event: KeyboardEvent) => keysRef.current.delete(event.key.toLowerCase())
+    // Switching windows mid-press would otherwise leave you walking.
+    const onBlur = () => keysRef.current.clear()
+    window.addEventListener("keydown", onDown)
+    window.addEventListener("keyup", onUp)
+    window.addEventListener("blur", onBlur)
+    return () => {
+      window.removeEventListener("keydown", onDown)
+      window.removeEventListener("keyup", onUp)
+      window.removeEventListener("blur", onBlur)
+    }
+  }, [])
   const { you, rival } = view
   const saberUrl = `${location.origin}/?saber=${pairCode}`
 
@@ -118,30 +169,51 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
     if (!running) return
     let cancelled = false
     let raf = 0
-    let landmarker: PoseLandmarker | null = null
+    let trackers: { pose: PoseLandmarker; hands: HandLandmarker } | null = null
     let stream: MediaStream | null = null
     let lastVideoTime = -1
     let lastSent = 0
-    let offset = { x: 0, z: 0 }
+    let stabilizer = createStabilizer()
+    let joystick = createJoystick()
+    let shownStick: { x: number; y: number } | null = null
 
     function loop() {
       const video = videoRef.current
-      if (cancelled || !video || !landmarker) return
+      if (cancelled || !video || !trackers) return
       if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
         lastVideoTime = video.currentTime
         const now = performance.now()
-        const result = landmarker.detectForVideo(video, now)
+        const result = trackers.pose.detectForVideo(video, now)
+        const hands = handsFromLandmarker(trackers.hands.detectForVideo(video, now + 0.001))
         const world = result.worldLandmarks[0]
+        const image = result.landmarks[0]
         const aspect = video.videoWidth / video.videoHeight || 16 / 9
-        const place = placement(result.landmarks[0], aspect)
+        const place = placement(image, aspect)
         setBodySeen(Boolean(world))
 
-        // Setup's camera fix corrects a mirrored or depth-reversed camera before anything uses the body.
+        // Setup's camera fix corrects a mirrored or depth-reversed camera before anything uses the body;
+        // the stabilizer then keeps only head, torso and arms, smoothed.
         const before = wizardRef.current
-        const body = world ? applyCameraFix(world.map(worldToBody), before.cameraFix) : null
+        const { mirrorX } = before.cameraFix
+        let body: Vec3[] | null = null
+        if (world && image) {
+          const fixed = applyCameraFix(world.map(worldToBody), before.cameraFix)
+          const visibility = fixed.map((_, i) => image[mirrorIndex(i, mirrorX)]?.visibility ?? 0)
+          const stable = stabilize(stabilizer, fixed, visibility, now)
+          stabilizer = stable.state
+          body = stable.joints
+        } else {
+          stabilizer = createStabilizer()
+        }
+
+        // The free hand, matched to where the body tracker sees the free wrist.
+        const freeIndex = before.hand ? mirrorIndex(before.hand === "right" ? LEFT_WRIST : RIGHT_WRIST, mirrorX) : null
+        const freeWrist = freeIndex !== null && image ? image[freeIndex] : null
+        const freeHand = pickFreeHand(hands, freeWrist ? { x: freeWrist.x, y: freeWrist.y } : null)
+
         const phone = phoneRef.current
         const freshPhone = phone && phone.aim.tracked && now - phone.atMs <= PHONE_FRESH_MS ? phone.aim : null
-        const wizard = tickWizard(before, { nowMs: now, body, placement: place, phone: freshPhone })
+        const wizard = tickWizard(before, { nowMs: now, body, placement: place, phone: freshPhone, freeHand, aspect })
         wizardRef.current = wizard
         if (wizard.step !== before.step || Math.abs(wizard.progress - before.progress) > 0.05) setWizard(wizard)
 
@@ -155,23 +227,27 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
           })
         }
 
-        const baseline: BodyPlacement | null = wizard.baseline
-        if (baseline && place) {
-          const target = stepOffset(baseline, place, aspect)
-          // A mirrored camera also mirrors sideways steps.
-          if (wizard.cameraFix.mirrorX) target.x = -target.x
-          offset = {
-            x: offset.x + (target.x - offset.x) * OFFSET_SMOOTHING,
-            z: offset.z + (target.z - offset.z) * OFFSET_SMOOTHING,
+        // Pinch-and-nudge walks once setup has measured the free hand; held keys work any time.
+        let move = keysToMove(keysRef.current)
+        if (wizard.move) {
+          const stepped = tickJoystick(joystick, freeHand, aspect, wizard.move, mirrorX, now)
+          joystick = stepped.state
+          if (joystick.pinched) move = stepped.move
+          const offset = stepped.offset
+          const changed = !offset !== !shownStick || (offset && shownStick && Math.hypot(offset.x - shownStick.x, offset.y - shownStick.y) > 0.04)
+          if (changed) {
+            shownStick = offset
+            setStick(offset ? { x: offset.x / wizard.move.nudge, y: offset.y / wizard.move.nudge } : null)
           }
         }
+
         if (now - lastSent >= BODY_SEND_MS) {
           lastSent = now
           client.sendBodyPose({
             tracked: body !== null,
             joints: body ?? [],
-            offset,
-            calibrated: baseline !== null,
+            move,
+            calibrated: wizard.baseline !== null,
             setup: { step: wizard.step, progress: wizard.progress },
           })
         }
@@ -190,7 +266,7 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
         const video = videoRef.current!
         video.srcObject = stream
         await video.play()
-        landmarker = await createPoseLandmarker()
+        trackers = await createTrackers()
         if (cancelled) return
         setLoading(false)
         loop()
@@ -206,7 +282,8 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
     return () => {
       cancelled = true
       cancelAnimationFrame(raf)
-      landmarker?.close()
+      trackers?.pose.close()
+      trackers?.hands.close()
       stream?.getTracks().forEach((track) => track.stop())
     }
   }, [running, client])
@@ -296,10 +373,23 @@ export function ArenaDuel({ client, view, pairCode, note, onLeave }: {
         </section>
       ) : null}
 
+      {stick ? (
+        <div className="arena-stick" aria-hidden>
+          <div
+            className="arena-stick-knob"
+            style={{ transform: `translate(${clampUnit(stick.x) * 34}px, ${-clampUnit(stick.y) * 34}px)` }}
+          />
+        </div>
+      ) : null}
+      {wizard.step === "done" ? (
+        <p className="arena-controls">Walk: pinch your free hand and nudge it · let go to stop · or hold WASD / arrow keys</p>
+      ) : null}
       <video ref={videoRef} className={`arena-self ${running ? "" : "hidden"}`} playsInline muted autoPlay />
     </main>
   )
 }
+
+const clampUnit = (v: number) => Math.max(-1, Math.min(1, v))
 
 function midpoint(a: Vec3, b: Vec3): Vec3 {
   return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]

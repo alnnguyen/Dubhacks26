@@ -168,7 +168,7 @@ describe("game state", () => {
 })
 
 describe("arena stream", () => {
-  const pose = { tracked: true, joints: [], offset: { x: 0, z: 0 }, calibrated: true, setup: null }
+  const pose = { tracked: true, joints: [], move: { x: 0, z: 0 }, calibrated: true, setup: null }
 
   it("streams body poses with increasing seq from page-load time", () => {
     setup()
