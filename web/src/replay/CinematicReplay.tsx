@@ -116,7 +116,6 @@ export function CinematicReplay({ recording, moments = EMPTY, board, mySlot, des
       <ReplayGraphicsBoundary key={`graphics-${attempt}`} onBasic={() => { setSimple(true); setAttempt(n => n + 1); }}>
         <ArenaScene {...presentation} flashRef={flashRef} mySlot={mySlot} board={board} destination={destination} basicGraphics={simple} />
       </ReplayGraphicsBoundary>
-      <div className="cinematic-letterbox cinematic-letterbox--top" /><div className="cinematic-letterbox cinematic-letterbox--bottom" />
       <div className="cinematic-shot-label">{angle ?? selected?.angle} / {cursor?.hold ? 'IMPACT HOLD' : cursor && cursor.rate < .8 ? 'SLOW MOTION' : 'REPLAY'}</div>
       {cursor && <div className="cinematic-transition" key={`wipe-${cursor.index}-${angle ?? 'auto'}`} aria-hidden="true" />}
       <div className={`cinematic-title ${finaleLanded ? 'cinematic-title--finish' : ''}`} key={`title-${cursor?.index}`}>

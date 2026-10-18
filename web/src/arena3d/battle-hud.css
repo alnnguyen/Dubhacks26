@@ -255,14 +255,11 @@
 .bh-lyra p { margin: 0; font-size: 14px; color: #d7e7ff; animation: bh-type 0.35s ease-out; }
 @keyframes bh-type { from { opacity: 0; transform: translateY(4px); } }
 
-/* Finish: opaque scrollable result card so the live arena does not peek through as a frozen half-frame. */
-.bh-finish { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; pointer-events: auto; background: rgba(6, 8, 14, 0.5); animation: bh-dim 0.4s ease-out; padding: 0 16px calc(28px + env(safe-area-inset-bottom, 0px)); }
-.bh-finish::before, .bh-finish::after { content: ""; flex: none; width: 100%; height: min(8vh, 56px); background: #000; animation: bh-letterbox 0.45s cubic-bezier(.18, .92, .24, 1); pointer-events: none; }
-.bh-finish::before { position: sticky; top: 0; z-index: 2; transform-origin: top; }
-.bh-finish::after { display: none; }
-.bh-finish[data-stage="winner"] { background: rgba(4, 8, 16, 0.96); }
+/* Finish: opaque scrollable result so the live arena does not show through. No letterbox bars — they covered the replay. */
+.bh-finish { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; pointer-events: auto; background: rgba(2, 7, 17, 0.55); animation: bh-dim 0.4s ease-out; padding: clamp(28px, 6vh, 64px) 16px calc(28px + env(safe-area-inset-bottom, 0px)); }
+.bh-finish::before, .bh-finish::after { content: none; }
+.bh-finish[data-stage="winner"] { background: rgba(2, 7, 17, 0.94); }
 @keyframes bh-dim { from { background: transparent; } }
-@keyframes bh-letterbox { from { transform: scaleY(0); } }
 .bh-ko { position: relative; }
 .bh-ko strong {
   display: block;
@@ -300,6 +297,18 @@
 .bh-result-actions { margin-top: 18px; display: flex; flex-direction: column; align-items: stretch; gap: 10px; font-size: 13px; color: var(--bh-label); width: 100%; max-width: 920px; }
 .bh-result-actions p { margin: 0; }
 .bh-result-actions .replay-panel { text-align: left; }
+.bh-result-actions .arena-setup-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.bh-result-actions .arena-setup-actions button {
+  font: 600 12px/1 var(--bh-display); letter-spacing: 0.1em; text-transform: uppercase;
+  min-height: 44px; padding: 0 18px; border: 0; border-radius: 0; cursor: pointer;
+  color: #06162d; background: #e2f2ff; transform: skewX(-12deg);
+}
+.bh-result-actions .arena-setup-actions button.secondary {
+  color: var(--bh-ink); background: #0a192b; border: 1px solid var(--bh-line); font-weight: 600;
+}
+.bh-result-actions .arena-setup-actions button:hover:not(:disabled) { background: #a1e5ff; }
+.bh-result-actions .arena-setup-actions button.secondary:hover:not(:disabled) { background: #10263f; border-color: #4f7aa3; }
+.bh-result-actions .arena-setup-actions button:disabled { opacity: 0.45; background: #0a192b; color: var(--bh-label); cursor: not-allowed; transform: none; }
 
 @media (max-width: 760px) {
   .battle-hud { --bh-bar-w: 34vw; }
