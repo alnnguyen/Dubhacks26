@@ -73,6 +73,8 @@ interface Saber {
   stepReadyAt: number;
   // One step asked for mid-glide, taken the moment the current one lands.
   queuedStep: StepDirection | null;
+  // Stamina as of `at`; it refills from regenFrom on (see stamina()).
+  stamina: { value: number; at: number; regenFrom: number; winded: boolean };
   swinging: boolean;
   cooldownEndsAt: number | null;
   // Readiness last announced, so a change re-sends the views.
@@ -81,6 +83,8 @@ interface Saber {
 
 const HANDS: readonly Hand[] = ["left", "right"];
 const STEP_DIRECTIONS: readonly StepDirection[] = ["forward", "back", "left", "right"];
+// Below this you can't afford any step.
+const CHEAPEST_STEP = Math.min(...Object.values(SABER.stepStamina));
 // Start in the middle row of each side, straight across from each other: one step each to engage.
 const START_CELLS: Record<PlayerSlot, Cell> = { 1: { q: 0, r: -2 }, 2: { q: 0, r: 2 } };
 // Each player faces down the lane toward the other side, whatever column either is in.
@@ -238,6 +242,8 @@ export class Match {
     if (!STEP_DIRECTIONS.includes(direction as StepDirection)) return "invalid_command";
     const player = this.players.get(slot)!;
     const now = Date.now();
+    // Refused up front, so a step you can't afford isn't buffered either.
+    if (!this.canAfford(player, direction as StepDirection, now)) return "exhausted";
     // Mid-glide: remember one step and take it the moment this one lands, so quick swipes aren't lost.
     if (now < player.saber.stepReadyAt) {
       if (player.saber.queuedStep) return "busy";
@@ -259,6 +265,8 @@ export class Match {
     const rival = this.players.get(player.slot === 1 ? 2 : 1)!;
     const target = orbitStep(player.saber.cell, rival.saber.cell, direction);
     if (!target) return "blocked";
+    if (!this.canAfford(player, direction, now)) return "exhausted";
+    this.spendStamina(player, SABER.stepStamina[direction], now);
 
     const orbitCenter = direction === "left" || direction === "right" ? cellToWorld(rival.saber.cell) : undefined;
     player.saber.glide = { from: this.rootXZ(player, now), startedAt: now, orbitCenter };
@@ -267,6 +275,29 @@ export class Match {
     // Laptops start your glide on this instead of waiting for the next tick and smooth playback.
     this.events.stepped({ slot: player.slot, cell: target, ...(orbitCenter ? { orbitCenter } : {}) });
     return null;
+  }
+
+  // Stamina now: the last value plus what refilled since the later of then and the end of the pause after a step.
+  private stamina(p: Player, now: number): number {
+    const { value, at, regenFrom } = p.saber.stamina;
+    const refillMs = Math.max(0, now - Math.max(at, regenFrom));
+    return Math.min(SABER.staminaMax, value + (SABER.staminaRegenPerSec * refillMs) / 1000);
+  }
+
+  private winded(p: Player, now: number): boolean {
+    const state = p.saber.stamina;
+    if (state.winded && this.stamina(p, now) >= SABER.windedRecoverAt) state.winded = false;
+    return state.winded;
+  }
+
+  private canAfford(p: Player, direction: StepDirection, now: number): boolean {
+    return !this.winded(p, now) && this.stamina(p, now) >= SABER.stepStamina[direction];
+  }
+
+  // Spending restarts the pause before refilling; too little left for any step leaves you winded.
+  private spendStamina(p: Player, cost: number, now: number): void {
+    const value = this.stamina(p, now) - cost;
+    p.saber.stamina = { value, at: now, regenFrom: now + SABER.staminaRegenDelayMs, winded: value < CHEAPEST_STEP };
   }
 
   // Damage interrupts voluntary movement; both laptops receive the normal glide event.
@@ -439,6 +470,8 @@ export class Match {
         joints: this.worldJoints(p, now),
         blade: blades.get(p.slot) ?? null,
         swinging: p.saber.swinging,
+        stamina: Math.round((100 * this.stamina(p, now)) / SABER.staminaMax),
+        winded: this.winded(p, now),
       })),
     });
   }
@@ -583,6 +616,7 @@ function newSaber(cell: Cell): Saber {
     glide: { from: cellToWorld(cell), startedAt: 0 },
     stepReadyAt: 0,
     queuedStep: null,
+    stamina: { value: SABER.staminaMax, at: 0, regenFrom: 0, winded: false },
     swinging: false,
     cooldownEndsAt: null,
     announced: "",

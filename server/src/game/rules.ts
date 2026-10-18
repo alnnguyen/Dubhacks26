@@ -21,6 +21,18 @@ export const SABER = {
   // A step glides to the next cell over stepMs; the next step can start stepCooldownMs after it lands.
   stepMs: 110,
   stepCooldownMs: 60,
+  // Every voluntary step spends stamina, so nobody can run or dodge nonstop.
+  // A sidestep (orbit) is the dodge and costs more than closing in or backing off:
+  // a full bar is 7 steps in/out or 4 dodges. Knockback is free.
+  staminaMax: 100,
+  stepStamina: { forward: 14, back: 14, left: 24, right: 24 },
+  // Refills from staminaRegenDelayMs after the last step: about one in/out step
+  // per 1.2 s, or one dodge per 1.6 s, can be kept up indefinitely.
+  staminaRegenPerSec: 28,
+  staminaRegenDelayMs: 700,
+  // A step that leaves too little for another leaves you winded: no steps
+  // until stamina is back to this (about 2 s standing still).
+  windedRecoverAt: 40,
   // Tip speed that starts a swing, and the lower speed that ends it.
   swingStartSpeed: 2.5,
   swingEndSpeed: 1.2,

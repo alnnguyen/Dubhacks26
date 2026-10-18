@@ -109,7 +109,7 @@ export function SaberPhone({ code }: { code: string }) {
         audio.whoosh()
         setSwipeFlash({ direction, blocked: false, key })
         void client.step(direction).then((reply) => {
-          if (reply.status !== "rejected" || reply.reason !== "blocked") return
+          if (reply.status !== "rejected" || (reply.reason !== "blocked" && reply.reason !== "exhausted")) return
           audio.thud()
           setSwipeFlash((current) => (current?.key === key ? { ...current, blocked: true } : current))
         })

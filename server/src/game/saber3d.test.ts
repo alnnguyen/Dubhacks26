@@ -252,7 +252,69 @@ describe("saber duel in the arena", () => {
 
   const hips = (slot: PlayerSlot) => frames.at(-1)!.players[slot - 1].joints![24];
 
-  const settle = () => mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+  // Long enough to land a step and refill the stamina it cost, so movement tests never run dry.
+  const settle = () =>
+    mock.timers.tick(SABER.staminaRegenDelayMs + (1000 * SABER.stepStamina.left) / SABER.staminaRegenPerSec);
+  const stamina = (slot: PlayerSlot) => frames.at(-1)!.players[slot - 1];
+
+  test("dodging spends stamina until winded; a winded player can't step until it recovers", () => {
+    settle();
+    step();
+    assert.equal(stamina(1).stamina, 100);
+    const dodges = Math.floor(SABER.staminaMax / SABER.stepStamina.right);
+    for (let i = 0; i < dodges; i++) {
+      assert.equal(match.step(1, i % 2 ? "left" : "right"), null, `dodge ${i + 1}`);
+      mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    }
+    assert.equal(stamina(1).winded, true);
+    assert.equal(match.step(1, "back"), "exhausted", "winded: not even a cheap step");
+    // The refill pause has passed but stamina is still under the recovery mark.
+    mock.timers.tick(SABER.staminaRegenDelayMs);
+    assert.ok(stamina(1).stamina < SABER.windedRecoverAt);
+    assert.equal(match.step(1, "back"), "exhausted");
+    mock.timers.tick((1000 * SABER.windedRecoverAt) / SABER.staminaRegenPerSec);
+    assert.equal(stamina(1).winded, false);
+    assert.equal(match.step(1, "back"), null);
+    assert.equal(stamina(2).stamina, 100, "the rival's stamina is untouched");
+  });
+
+  test("a refused step costs nothing and doesn't delay the refill", () => {
+    settle();
+    assert.equal(match.step(1, "forward"), "blocked");
+    step();
+    assert.equal(stamina(1).stamina, 100);
+    assert.equal(match.step(1, "back"), null);
+    step();
+    assert.equal(stamina(1).stamina, 100 - SABER.stepStamina.back);
+  });
+
+  test("stamina refills only after a pause, and an unaffordable step isn't buffered", () => {
+    settle();
+    for (let i = 0; i < 3; i++) {
+      assert.equal(match.step(1, "right"), null);
+      mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    }
+    const left = SABER.staminaMax - 3 * SABER.stepStamina.right;
+    assert.equal(stamina(1).stamina, left, "no refill between quick steps");
+    assert.equal(match.step(1, "back"), null);
+    // Now below a dodge's cost: refused at once, not queued behind the glide.
+    assert.equal(match.step(1, "right"), "exhausted");
+    mock.timers.tick(SABER.stepMs + SABER.stepCooldownMs);
+    assert.equal(stepped.at(-1)!.slot, 1);
+    mock.timers.tick(SABER.staminaRegenDelayMs + (1000 * SABER.staminaMax) / SABER.staminaRegenPerSec);
+    assert.equal(stamina(1).stamina, 100);
+  });
+
+  test("knockback is free", () => {
+    settle();
+    stepped = [];
+    step();
+    const before = stamina(2).stamina;
+    swingAcross();
+    assert.equal(resolved.at(-1)?.outcome, "hit");
+    assert.ok(stepped.some((e) => e.slot === 2), "the defender was pushed back");
+    assert.equal(stamina(2).stamina, before);
+  });
 
   test("players start a row back from the front line, not engaged, and swings there don't count", () => {
     const fresh = new Match("start", "mars", PILOTS, {

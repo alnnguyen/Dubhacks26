@@ -100,6 +100,10 @@ export interface ArenaPlayer {
   joints: Vec3[] | null;
   blade: ArenaBlade | null;
   swinging: boolean;
+  // Movement stamina, 0..100. Steps cost some; it refills after a short pause.
+  stamina: number;
+  // Ran dry: no steps until stamina recovers.
+  winded: boolean;
 }
 
 // Both players in world coordinates, sent to both laptops on every server tick.
@@ -244,6 +248,8 @@ export type RejectReason =
   | "pilot_unavailable"
   // A step past the center line or the back of your side.
   | "blocked"
+  // Not enough stamina for that step, or winded.
+  | "exhausted"
   | "challenge_unavailable";
 
 export type CommandReply =

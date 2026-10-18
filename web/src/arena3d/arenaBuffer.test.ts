@@ -16,6 +16,8 @@ function frame(serverMs: number, x: number, angleDeg = 0): ArenaFrame {
         joints: Array.from({ length: 33 }, () => [x, 1, 0] as Vec3),
         blade: { hilt, tip: [x + Math.cos(a) * 0.9, 1 + Math.sin(a) * 0.9, 0] },
         swinging: false,
+        stamina: 100,
+        winded: false,
       },
     ],
   }

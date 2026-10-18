@@ -143,15 +143,22 @@ export function ArenaDuel({
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const [engaged, setEngaged] = useState(false);
+  // Stamina changes every tick, so its bar is sized directly rather than re-rendering the arena.
+  const staminaFillRef = useRef<HTMLDivElement>(null);
+  const [winded, setWinded] = useState(false);
+  const [rivalWinded, setRivalWinded] = useState(false);
 
   // Flicks and keys both go through the server's validated step command.
   const step = useCallback(
     (direction: StepDirection) => {
       void client.step(direction).then((reply) => {
-        if (reply.status !== "rejected" || reply.reason !== "blocked") return;
-        setToast(
-          direction === "forward" ? "Your rival is there" : "Edge of the arena",
-        );
+        if (reply.status !== "rejected") return;
+        if (reply.reason === "exhausted") setToast("Out of stamina");
+        else if (reply.reason === "blocked")
+          setToast(
+            direction === "forward" ? "Your rival is there" : "Edge of the arena",
+          );
+        else return;
         window.clearTimeout(toastTimer.current);
         toastTimer.current = window.setTimeout(
           () => setToast(null),
@@ -200,6 +207,15 @@ export function ArenaDuel({
     const offArena = client.onArena((frame) => {
       frameRef.current = frame;
       setEngaged(frame.engaged);
+      for (const p of frame.players) {
+        if (p.slot !== slotRef.current) {
+          setRivalWinded(p.winded);
+          continue;
+        }
+        setWinded(p.winded);
+        if (staminaFillRef.current)
+          staminaFillRef.current.style.width = `${p.stamina}%`;
+      }
       bufferRef.current = pushFrame(
         bufferRef.current,
         frame,
@@ -449,6 +465,15 @@ export function ArenaDuel({
         <div className="arena-bars">
           <Bar label="You" value={you.health} side="you" />
           <Bar label={rival.callsign} value={rival.health} side="rival" />
+          <div className={`arena-stamina ${winded ? "winded" : ""}`}>
+            <span>{winded ? "Winded" : "Stamina"}</span>
+            <div className="arena-stamina-track">
+              <div ref={staminaFillRef} className="arena-stamina-fill" />
+            </div>
+          </div>
+          {rivalWinded ? (
+            <span className="arena-rival-winded">{rival.callsign} is winded</span>
+          ) : null}
         </div>
         <button type="button" className="arena-leave" onClick={onLeave}>
           Forfeit & return
