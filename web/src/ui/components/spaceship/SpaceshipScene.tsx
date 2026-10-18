@@ -9,6 +9,7 @@ import { SpaceEnvironment } from './SpaceEnvironment';
 import { HolographicConsole } from './HolographicConsole';
 import { CommanderDisplay } from './CommanderDisplay';
 import { ConsoleHotspot } from './ConsoleHotspot';
+import { SeatHotspot } from './SeatHotspot';
 import { CameraController } from './CameraController';
 import { AnchorProjector, type AnchorRegistry } from './anchors';
 import { CAMERA_POSES } from './cockpitLayout';
@@ -182,8 +183,8 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
         pose={pose}
         reducedMotion={settings.reducedMotion}
         parallax={cinematic.phase === 'idle' && settings.parallax}
-        panelOpen={view !== 'lobby' && view !== 'console' && mood !== 'launch'}
-        lookAround={view === 'lobby' && mood !== 'launch'}
+        panelOpen={view !== 'lobby' && view !== 'console' && view !== 'pilot' && mood !== 'launch'}
+        lookAround={(view === 'lobby' || view === 'pilot') && mood !== 'launch'}
         cinematicPhase={cinematic.phase}
         marsTarget={marsTarget}
       />
@@ -229,6 +230,7 @@ export function SpaceshipScene(props: SpaceshipSceneProps) {
         />
       )}
       <ConsoleHotspot interactive={view === 'lobby' && mood !== 'launch'} onActivate={() => props.onNavigate('console')} />
+      <SeatHotspot interactive={view === 'lobby' && mood !== 'launch'} onActivate={() => props.onNavigate('pilot')} />
       <AnchorProjector registry={anchors} />
       <PerfGuard onLow={high && !cinematicActive ? props.onLowPerformance : undefined} />
       <FirstFrame onReady={props.onReady} />

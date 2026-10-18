@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { clearArenaJourney, journeyFor, matchesJourney, readArenaJourney, saveArenaJourney } from '../app/arenaJourney';
 import {
   getGameClient,
   useGameLobby,
@@ -30,7 +31,8 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
   const connection = useGameStatus(client);
   const lobby = useGameLobby(client);
   const view = useGameView(client);
-  const [launchingMatch, setLaunchingMatch] = useState<string | null>(null);
+  const [launchingJourney, setLaunchingJourney] = useState(readArenaJourney);
+  const launchingMatch = view && launchingJourney?.stage === "travel" && matchesJourney(view, launchingJourney) ? view.matchId : null;
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
 
   const nearby = useMemo(() => (lobby && connection === 'online' ? lobby.pilots.map(toNearby) : []), [lobby, connection]);
@@ -44,12 +46,20 @@ export function useServerLobby(client: GameClient = getGameClient()): LobbyViewM
       accept: () => challengeId && void client.acceptChallenge(challengeId),
       decline: () => challengeId && void client.declineChallenge(challengeId),
       dismiss: () => {
+        clearArenaJourney();
+        setLaunchingJourney(null);
         // Dismissing a ready match backs out of it on the server too.
         if (client.view()) void client.leaveMatch();
         if (challengeId) setDismissed((d) => new Set(d).add(challengeId));
       },
-      launch: () => setLaunchingMatch(client.view()?.matchId ?? null),
-      // Saved locally too, so the next reload joins with it instead of the onboarding callsign.
+      launch: () => {
+        const current = client.view();
+        if (!current || current.phase === 'finished') return;
+        const journey = journeyFor(current, 'travel');
+        saveArenaJourney(journey);
+        setLaunchingJourney(journey);
+      },
+      setLocation: (location) => void client.setLocation(location),
       setCallsign: (callsign) => {
         const saved = savePilotCallsign(callsign);
         if (saved) void client.setCallsign(saved);
@@ -107,5 +117,6 @@ function toNearby(pilot: Pilot, index: number): NearbyPilot {
     distanceM: 4 + index * 5,
     bearingDeg: hash % 360,
     signal: 1,
+    ...(pilot.location ? { location: pilot.location } : {}),
   };
 }

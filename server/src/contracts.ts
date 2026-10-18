@@ -107,11 +107,19 @@ export interface ArenaPlayer {
   stunned: boolean;
 }
 
+/** Shared pre-combat countdown. A deadline alone never authorizes a hit. */
+export interface SaberStart {
+  startsAtMs: number | null;
+  unlocked: boolean;
+}
+
 // Both players in world coordinates, sent to both laptops on every server tick.
 export interface ArenaFrame {
   // Server time of the tick (ms), so laptops can blend between frames smoothly
   // despite network jitter. Only differences matter; clocks aren't synced.
   serverMs: number;
+  // Optional for compatibility with older scene recordings/clients.
+  saberStart?: SaberStart;
   players: ArenaPlayer[];
   // Both players at the front line within a column of each other: only then do swings count.
   engaged: boolean;
@@ -180,6 +188,7 @@ export interface MatchResult {
 
 export interface MatchSnapshot {
   matchId: string;
+  round?: number; // Starts at 1; increments when both pilots rematch.
   phase: MatchPhase;
   // Counts down once both players are set up, before each round (the first and each rematch);
   // swings and steps don't count until it ends. null before both are set up, and after.
@@ -192,6 +201,7 @@ export interface MatchSnapshot {
 // What one phone receives: its own player as "you", the opponent as "rival".
 export interface PlayerView {
   matchId: string;
+  round?: number;
   phase: MatchPhase;
   startsInMs: number | null;
   world: World;
@@ -211,6 +221,15 @@ export interface Pilot {
   status: PilotStatus;
   wins: number;
   losses: number;
+  // Where the pilot is flying in exploration, as they reported it. Display only:
+  // never used for matchmaking, combat or hit checks. Absent until reported.
+  location?: PilotLocation;
+}
+
+// A coarse exploration place (a destination or body ID plus its display name), not coordinates.
+export interface PilotLocation {
+  bodyId: string;
+  label: string;
 }
 
 export type ChallengeStatus = "pending" | "accepted" | "declined" | "cancelled" | "expired";
@@ -245,6 +264,8 @@ export type Command =
   | { commandId: string; type: "challenge"; pilotId: string; destination?: "mars" | "neptune" }
   | { commandId: string; type: "acceptChallenge" | "declineChallenge" | "cancelChallenge"; challengeId: string }
   | { commandId: string; type: "setCallsign"; callsign: string }
+  // null clears it, e.g. when the pilot leaves exploration.
+  | { commandId: string; type: "setLocation"; location: PilotLocation | null }
   | { commandId: string; type: "calibrateSaber"; calibration: SaberCalibration }
   | { commandId: string; type: "step"; direction: StepDirection };
 
@@ -297,6 +318,7 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
+  'replay:ticket': (request: { matchId: string }, reply: (result: ReplayTicketReply) => void) => void;
   'copilot:session': (request: Record<string, never>, reply: (result: CopilotSessionReply) => void) => void;
   'copilot:context': (request: Record<string, never>, reply: (result: CopilotContextReply) => void) => void;
   join: (request: JoinRequest, reply: (result: JoinReply) => void) => void;
@@ -313,3 +335,13 @@ export interface ClientToServerEvents {
 export type CopilotFailure = { ok: false; reason: 'not_joined' | 'invalid_request' | 'offline' | 'no_response' | 'unavailable' | 'rate_limited' | 'provider_error' };
 export type CopilotSessionReply = CopilotFailure | { ok: true; clientSecret: string; expiresAt?: number; session: Record<string, unknown> };
 export type CopilotContextReply = CopilotFailure | { ok: true; context: { source: 'live'; lobby: LobbyView; match: PlayerView | null } };
+
+export type ReplayFailure = { ok: false; reason: 'not_joined' | 'invalid_request' | 'unavailable' | 'not_finished' | 'unauthorized' | 'too_large' | 'unsupported_media' | 'rate_limited' | 'provider_error' | 'no_moments' | 'offline' | 'no_response' };
+export type ReplayTicketReply = ReplayFailure | { ok: true; ticket: string };
+export interface ReplayMoment { start: number; end: number; caption: string }
+/** Coordinates are normalized to [0,1], in the original, unmirrored video. */
+export interface ReplayBox { at: number; x1: number; y1: number; x2: number; y2: number }
+export type ReplayReply = ReplayFailure | {
+  ok: true; source: 'perceptron'; model: string; moments: ReplayMoment[]; boxes: ReplayBox[];
+  requestIds: string[]; framing: 'perceptron' | 'unavailable';
+};

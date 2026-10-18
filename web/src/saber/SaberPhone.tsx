@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { SetupStep, StepDirection, Vec3 } from "../../../server/src/contracts"
-import { INSTRUCTIONS } from "../arena3d/setupWizard"
-import { useCountdown } from "../arena3d/useCountdown"
 import { angularSpeed, smoothDirection, topEdgeDirection, type DirectionFilter } from "./aimMath"
 import { createSaberAudio } from "./saberAudio"
 import { createSaberClient, type SaberClient } from "./saberClient"
@@ -11,6 +9,7 @@ import { gameServerUrl } from "../networking/gameEndpoint"
 
 // About 60 a second, as fast as the phone's sensors report and the server accepts.
 const AIM_SEND_MS = 16
+const HOLD_MS = 450
 
 type PermissionResult = "granted" | "denied"
 type WithPermission = { requestPermission?: () => Promise<PermissionResult> }
@@ -18,11 +17,10 @@ type WakeLock = { release(): Promise<void> }
 
 /**
  * The phone in the player's hand is their lightsaber: hold it like a hilt, the
- * blade comes out of the top edge. Opened from the laptop's QR code as
+ * blade comes out of the top edge. Opened from the laptop's pair code as
  * /?saber=CODE. It streams only which way its top edge points; the laptop's
- * guided setup works out how that maps onto the player, the laptop camera
- * supplies where the hand is, and the server judges every swing. The phone
- * shows the same setup step as the laptop so the player needn't look away.
+ * guided setup works out how that maps onto the player. Phone UI is a HUD for
+ * ignite + thumb swipes — setup cues stay on the laptop.
  */
 export function SaberPhone({ code }: { code: string }) {
   // Created in the effect, not during render: StrictMode mounts twice in
@@ -34,11 +32,16 @@ export function SaberPhone({ code }: { code: string }) {
   const [enabled, setEnabled] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sensing, setSensing] = useState(false)
+  const [holdProgress, setHoldProgress] = useState(0)
   const topRef = useRef<Vec3 | null>(null)
   const filterRef = useRef<DirectionFilter | null>(null)
   const rateRef = useRef(0)
   const lastStepRef = useRef<SetupStep | null>(null)
   const padRef = useRef<HTMLDivElement>(null)
+  const holdTimerRef = useRef<number | null>(null)
+  const holdStartRef = useRef(0)
+  const holdRafRef = useRef(0)
+  const ignitingRef = useRef(false)
   // The last swipe, for a quick arrow flash: refused swipes flash red.
   const [swipeFlash, setSwipeFlash] = useState<{ direction: StepDirection; blocked: boolean; key: number } | null>(null)
   const wakeLockRef = useRef<WakeLock | null>(null)
@@ -62,7 +65,7 @@ export function SaberPhone({ code }: { code: string }) {
       rerender((n) => n + 1)
     })
     const offResolved = client.onResolved((event) => {
-      if (event.outcome !== "hit") audio.clash()
+      if (event.outcome === "blocked") audio.clash()
       else if (event.attackerSlot === client.status()?.match?.slot) audio.hit()
       else audio.hurt()
     })
@@ -120,7 +123,7 @@ export function SaberPhone({ code }: { code: string }) {
         audio.whoosh()
         setSwipeFlash({ direction, blocked: false, key })
         void client.step(direction).then((reply) => {
-          if (reply.status !== "rejected" || (reply.reason !== "blocked" && reply.reason !== "exhausted")) return
+          if (reply.status !== "rejected" || reply.reason !== "blocked") return
           audio.thud()
           setSwipeFlash((current) => (current?.key === key ? { ...current, blocked: true } : current))
         })
@@ -141,10 +144,17 @@ export function SaberPhone({ code }: { code: string }) {
     }
   }, [enabled, client, audio])
 
+  useEffect(() => () => {
+    if (holdTimerRef.current != null) window.clearTimeout(holdTimerRef.current)
+    if (holdRafRef.current) cancelAnimationFrame(holdRafRef.current)
+  }, [])
+
   async function enable() {
+    if (ignitingRef.current || enabled) return
+    ignitingRef.current = true
     setError(null)
     try {
-      // iOS asks for motion permission only from a tap. Ask for both before any other await.
+      // iOS asks for motion permission only from a user gesture. Ask for both before any other await.
       const orientation = (DeviceOrientationEvent as unknown as WithPermission).requestPermission
       const motion = (DeviceMotionEvent as unknown as WithPermission).requestPermission
       const [orientationResult] = await Promise.all([
@@ -158,8 +168,12 @@ export function SaberPhone({ code }: { code: string }) {
           (await (navigator as Navigator & { wakeLock?: { request(type: "screen"): Promise<WakeLock> } }).wakeLock?.request("screen")) ?? null
       } catch { /* the screen may dim; the saber still works */ }
       setEnabled(true)
+      setHoldProgress(0)
     } catch (err) {
+      setHoldProgress(0)
       setError(err instanceof Error ? err.message : "Couldn't start the saber.")
+    } finally {
+      ignitingRef.current = false
     }
   }
 
@@ -176,23 +190,55 @@ export function SaberPhone({ code }: { code: string }) {
     window.close()
   }, [ended, client, audio])
 
+  function clearHold() {
+    if (holdTimerRef.current != null) {
+      window.clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
+    }
+    if (holdRafRef.current) {
+      cancelAnimationFrame(holdRafRef.current)
+      holdRafRef.current = 0
+    }
+    setHoldProgress(0)
+  }
+
+  function beginHold() {
+    if (enabled || ignitingRef.current) return
+    clearHold()
+    holdStartRef.current = performance.now()
+    const tick = () => {
+      const p = Math.min(1, (performance.now() - holdStartRef.current) / HOLD_MS)
+      setHoldProgress(p)
+      if (p < 1) holdRafRef.current = requestAnimationFrame(tick)
+    }
+    holdRafRef.current = requestAnimationFrame(tick)
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null
+      setHoldProgress(1)
+      void enable()
+    }, HOLD_MS)
+  }
+
   const connection = client?.connection() ?? "connecting"
   const status = client?.status() ?? null
   const connectionError = client?.error() ?? null
   const match = status?.match ?? null
-  const setup = match?.setup ?? null
-  const countdown = useCountdown(match?.startsInMs ?? null)
-  const countdownLabel =
-    countdown === null || match?.phase !== "active" ? null : countdown > 0 ? String(Math.ceil(countdown / 1000)) : "FIGHT"
   // Quiet on the result screen; a rematch brings the sound back.
   const finished = match?.phase === "finished"
   useEffect(() => audio.setMuted(finished), [finished, audio])
-  // A chime on each number and on FIGHT, so the player can keep their eyes on the arena.
-  const lastLabelRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (countdownLabel && countdownLabel !== lastLabelRef.current) audio.chime()
-    lastLabelRef.current = countdownLabel
-  }, [countdownLabel, audio])
+
+  const linkLabel =
+    connection === "paired" ? "LINKED"
+      : connection === "invalid_code" ? "NO LINK"
+        : connection === "offline" ? "OFFLINE"
+          : "CONNECTING"
+
+  const phaseHint = !match ? null
+    : match.phase === "finished" ? "Duel over"
+      : match.armed ? "Armed — swing!"
+        : match.startsInMs != null ? `Get ready · ${Math.max(1, Math.ceil(match.startsInMs / 1000))}`
+          : enabled && !sensing ? "Waiting for motion…"
+            : null
 
   if (ended) {
     return (
@@ -207,87 +253,81 @@ export function SaberPhone({ code }: { code: string }) {
   }
 
   return (
-    <main className="saber-phone">
-      <header>
+    <main className="saber-phone" data-lit={enabled || undefined}>
+      <header className="saber-top">
         <p className="saber-eyebrow">LIGHTSABER · {code.toUpperCase()}</p>
-        <h1>
-          {connection === "paired"
-            ? `Linked to ${status?.callsign ?? "your laptop"}`
-            : connection === "invalid_code"
-              ? "Unknown pair code"
-              : connection === "offline"
-                ? "Offline"
-                : "Connecting…"}
-        </h1>
-        {connection === "invalid_code" ? <p>Scan the QR code on your laptop's duel screen again.</p> : null}
-        {connection === "offline" ? (
-          <p className="saber-error">
-            Can't reach the game server at {new URL(gameServerUrl() || location.origin).host}
-            {connectionError ? ` (${connectionError})` : ""}. Retrying… Check the game server is running and this is the
-            same address your laptop uses.
-          </p>
-        ) : null}
+        <p className={`saber-link saber-link--${connection === "paired" ? "ok" : connection === "offline" || connection === "invalid_code" ? "bad" : "wait"}`}>
+          <i aria-hidden />
+          {linkLabel}
+        </p>
       </header>
 
-      {match ? (
-        <section className="saber-health">
-          <span>You {match.health}</span>
-          <span>Rival {match.rivalHealth}</span>
-          <p>
-            {match.phase === "finished"
-              ? "Duel over"
-              : countdown !== null && countdown > 0
-                ? "Get ready…"
-                : match.armed
-                  ? "Armed — swing!"
-                  : "Setting up"}
-          </p>
-          {countdownLabel ? (
-            <p className="saber-countdown" aria-live="assertive">
-              {countdownLabel}
-            </p>
-          ) : null}
-        </section>
-      ) : connection === "paired" ? (
-        <p className="saber-note">Linked. Challenge someone from your laptop.</p>
+      {connection === "invalid_code" ? (
+        <p className="saber-panel">Scan the QR code on your laptop&apos;s duel screen again.</p>
       ) : null}
+      {connection === "offline" ? (
+        <p className="saber-panel saber-panel--warn">
+          Can&apos;t reach {new URL(gameServerUrl() || location.origin).host}
+          {connectionError ? ` (${connectionError})` : ""}. Retrying…
+        </p>
+      ) : null}
+      {connection === "paired" && !match ? (
+        <p className="saber-panel">Linked. Challenge someone from your laptop.</p>
+      ) : null}
+      {phaseHint ? <p className="saber-phase" role="status">{phaseHint}</p> : null}
+
+      <div className="saber-stage" aria-hidden={!enabled}>
+        <div className={`saber-blade ${enabled ? "saber-blade--lit" : ""}`}>
+          <span className="saber-blade__beam" />
+          <span className="saber-blade__hilt">
+            <i /><i /><i /><b />
+          </span>
+        </div>
+        {!enabled ? (
+          <p className="saber-hold-cue">
+            <span className="saber-hold-cue__arrow" aria-hidden>↑</span>
+            HOLD TO IGNITE
+          </p>
+        ) : null}
+      </div>
 
       {!enabled ? (
-        <button type="button" className="saber-primary" onClick={() => void enable()}>
-          Ignite saber
-        </button>
+        <div className="saber-ignite">
+          <button
+            type="button"
+            className="saber-hold"
+            aria-label="Hold to ignite saber"
+            onPointerDown={(e) => {
+              if (e.button !== 0) return
+              e.currentTarget.setPointerCapture(e.pointerId)
+              beginHold()
+            }}
+            onPointerUp={() => clearHold()}
+            onPointerCancel={() => clearHold()}
+            onLostPointerCapture={() => clearHold()}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <span className="saber-hold__fill" style={{ transform: `scaleX(${holdProgress})` }} />
+            <span className="saber-hold__label">IGNITE SABER</span>
+            <span className="saber-hold__hint">HOLD ›</span>
+          </button>
+          <p className="saber-ignite-note">Also turns on motion for aiming.</p>
+        </div>
       ) : (
-        <section className="saber-step" aria-live="polite">
-          <p className="saber-eyebrow">{setup && setup.step !== "done" ? "SETUP — FOLLOW YOUR LAPTOP" : "SABER LIVE"}</p>
-          <p className="saber-instruction">
-            {!sensing
-              ? "No motion data yet — make sure motion access was allowed."
-              : setup
-                ? INSTRUCTIONS[setup.step]
-                : "Hold the phone like a hilt — the blade comes out of the top edge."}
-          </p>
-          {setup && setup.step !== "done" ? (
-            <div className="saber-progress">
-              <div style={{ width: `${Math.round(setup.progress * 100)}%` }} />
-            </div>
-          ) : null}
-        </section>
-      )}
-      {enabled ? (
-        // Thumb swipes move you: up toward your rival, down away, left/right to circle.
         <div ref={padRef} className="saber-pad" aria-label="Swipe to move">
-          <span className="up">↑</span>
-          <span className="down">↓</span>
-          <span className="left">←</span>
-          <span className="right">→</span>
+          <span className="dir up">FWD</span>
+          <span className="dir down">BACK</span>
+          <span className="dir left">L</span>
+          <span className="dir right">R</span>
+          <span className="saber-pad__ring" aria-hidden />
           {swipeFlash ? (
             <span key={swipeFlash.key} className={`flash ${swipeFlash.direction} ${swipeFlash.blocked ? "blocked" : ""}`}>
               {{ forward: "↑", back: "↓", left: "←", right: "→" }[swipeFlash.direction]}
             </span>
           ) : null}
-          <p>Swipe with your thumb to move</p>
+          <p>Swipe to move</p>
         </div>
-      ) : null}
+      )}
       {error ? <p className="saber-error">{error}</p> : null}
     </main>
   )

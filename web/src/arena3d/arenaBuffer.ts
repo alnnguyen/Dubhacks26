@@ -54,6 +54,7 @@ export function blendFrames(a: ArenaFrame, b: ArenaFrame, u: number): ArenaFrame
   return {
     serverMs: a.serverMs + (b.serverMs - a.serverMs) * u,
     engaged: b.engaged,
+    saberStart: b.saberStart,
     players: b.players.map((pb) => {
       const pa = a.players.find((p) => p.slot === pb.slot)
       return pa ? blendPlayer(pa, pb, u) : pb

@@ -14,7 +14,7 @@ export function ProfileChip({
   onOpen: () => void;
 }) {
   return (
-    <button type="button" className="sd-dock sd-dock--top sd-chip" data-hidden={hidden} onClick={onOpen} aria-label={`Pilot profile: ${self.callsign}, ${connection}`}>
+    <button type="button" className="sd-dock sd-dock--top sd-chip" data-ui-sound="commit" data-hidden={hidden} onClick={onOpen} aria-label={`Pilot profile: ${self.callsign}, ${connection}`}>
       <Emblem callsign={self.callsign} size={34} tone={self.accent === 'amber' ? 'amber' : self.accent === 'violet' ? 'violet' : 'cyan'} />
       <span className="sd-chip__text">
         <span className="sd-chip__name">{self.callsign}</span>

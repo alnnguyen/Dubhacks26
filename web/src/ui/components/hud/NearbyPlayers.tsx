@@ -60,7 +60,7 @@ export function NearbyPlayersPanel({
       side="right"
       onClose={onClose}
       footer={
-        <HoloButton variant="primary" size="lg" disabled={!canChallenge} onClick={() => selected && onChallenge(selected.id)} className="sd-btn--block">
+        <HoloButton variant="primary" size="lg" data-ui-sound="commit" disabled={!canChallenge} onClick={() => selected && onChallenge(selected.id)} className="sd-btn--block">
           {selected ? (selected.status === 'available' ? `Challenge ${selected.callsign}` : `${selected.callsign} is ${selected.status === 'in-duel' ? 'in a duel' : 'away'}`) : 'Select a pilot'}
         </HoloButton>
       }

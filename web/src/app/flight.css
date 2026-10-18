@@ -58,3 +58,7 @@
 .flight-flow .duel-hint {color:#a7bdce;font-size:14px;margin:8px 0 0}
 .flight-flow .duel-page .error {color:#ffaaaa}
 @media(max-width:600px){.flight-flow{padding:12px}.flight-panel,.flight-flow .page{padding:16px}.flight-voice{height:760px}}
+
+/* Exceptional arrival failures only; normal arrival opens saber setup directly. */
+.flight-entry-error {position:fixed;left:24px;bottom:24px;z-index:20;max-width:420px;padding:12px 16px;background:#091728f5;border:1px solid #e3aa6f;color:#f8ddbd;font:12px/1.6 'JetBrains Mono',monospace;}
+.flight-entry-error p {margin:0 0 8px;}.flight-entry-error button {font:inherit;color:#d7f3ff;background:#173148;border:1px solid #72b2d8;padding:7px 12px;cursor:pointer;}.flight-entry-error button:disabled {opacity:.5;cursor:wait;}

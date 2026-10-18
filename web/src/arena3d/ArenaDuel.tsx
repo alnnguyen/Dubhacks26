@@ -6,7 +6,7 @@ import type {
   ArenaFrame,
   PlayerView,
   SaberAim,
-  SetupStep,
+  SaberStart,
   StepDirection,
   Vec3,
 } from "../../../server/src/contracts";
@@ -16,21 +16,20 @@ import { WASM_ROOT } from "../camera/mediapipeVision";
 import { placement, worldToBody } from "./bodyFrame";
 import { createArenaBuffer, pushFrame, sampleFrame } from "./arenaBuffer";
 import { createStabilizer, stabilize } from "./bodyStabilizer";
-import { withLocalFighter } from "./localFighter";
+import { withLocalFighter, withSetupBody } from "./localFighter";
 import { glideRoot, onOwnStep, reconcile, type OwnGlide } from "./ownGlide";
 import { ArenaScene, type ImpactFlash } from "./ArenaScene";
 import {
   applyCameraFix,
   calibrationOf,
   createWizard,
-  INSTRUCTIONS,
   mirrorIndex,
-  STEP_ORDER,
+  phoneInBody,
   tickWizard,
   type WizardState,
 } from "./setupWizard";
-import { FIGHT_FLASH_MS, useCountdown } from "./useCountdown";
 import "./arena3d.css";
+import { SaberInitiation, SaberCountdown, saberCountdown } from "./SaberInitiation";
 
 /** Keep renderer failures from taking down the match controls. */
 class ArenaRenderBoundary extends Component<{ children: ReactNode; onLeave: () => void; onBasic: () => void }, { error: boolean }> {
@@ -90,9 +89,6 @@ const STEP_KEYS: Record<string, StepDirection> = {
 };
 const TOAST_MS = 900;
 
-// Setup steps shown as a checklist (the final "done" isn't a step to do).
-const CHECKLIST: SetupStep[] = STEP_ORDER.filter((step) => step !== "done");
-
 /**
  * The lightsaber duel on a laptop: the laptop camera tracks your body, your
  * paired phone is the saber, and the shared 3D arena shows both fighters from
@@ -108,6 +104,10 @@ export function ArenaDuel({
   onLeave,
   onForfeit,
   onRematch,
+  replayEnabled = false,
+  onReplayEnabled,
+  onReplaySource,
+  resultExtra,
 }: {
   client: GameClient;
   view: PlayerView;
@@ -119,6 +119,10 @@ export function ArenaDuel({
   onForfeit: () => void;
   /** On the result screen: play again, keeping the camera and saber setup. */
   onRematch: () => void;
+  resultExtra?: ReactNode;
+  replayEnabled?: boolean;
+  onReplayEnabled?: (enabled: boolean) => void;
+  onReplaySource?: (video: HTMLVideoElement) => () => void;
 }) {
   const [basicGraphics, setBasicGraphics] = useState(false);
   const [renderAttempt, setRenderAttempt] = useState(0);
@@ -129,9 +133,10 @@ export function ArenaDuel({
   // This laptop's own body and phone reading, to draw your fighter without the server round trip.
   const ownRef = useRef<{
     joints: Vec3[] | null;
+    bodyAtMs: number;
     top: Vec3 | null;
     topAtMs: number;
-  }>({ joints: null, top: null, topAtMs: 0 });
+  }>({ joints: null, bodyAtMs: 0, top: null, topAtMs: 0 });
   const slotRef = useRef(view.you.slot);
   slotRef.current = view.you.slot;
   const flashRef = useRef<ImpactFlash | null>(null);
@@ -139,6 +144,7 @@ export function ArenaDuel({
   const phoneRef = useRef<{ aim: SaberAim; atMs: number } | null>(null);
   const sentCalibrationRef = useRef("");
   const [wizard, setWizard] = useState<WizardState>(wizardRef.current);
+  const paintedWizardRef = useRef(wizardRef.current);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,11 +157,28 @@ export function ArenaDuel({
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const [engaged, setEngaged] = useState(false);
+  const [saberStart, setSaberStart] = useState<SaberStart | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [serverFresh, setServerFresh] = useState(false);
+  const arenaReceivedAt = useRef<number | null>(null);
+  const mayStep = useRef(false);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const received = arenaReceivedAt.current;
+      const frame = frameRef.current;
+      const now = performance.now();
+      const fresh = received !== null && now - received < 1500;
+      setServerFresh(fresh);
+      setCountdown(fresh && frame && received !== null
+        ? saberCountdown(frame.saberStart ?? null, frame.serverMs + now - received) : null);
+    }, 80);
+    return () => window.clearInterval(id);
+  }, []);
+
   // Stamina changes every tick, so its bar is sized directly rather than re-rendering the arena.
   const staminaFillRef = useRef<HTMLDivElement>(null);
   const [winded, setWinded] = useState(false);
   const [rivalWinded, setRivalWinded] = useState(false);
-  const countdown = useCountdown(view.startsInMs);
 
   const showToast = useCallback((text: string) => {
     setToast(text);
@@ -166,6 +189,7 @@ export function ArenaDuel({
   // Flicks and keys both go through the server's validated step command.
   const step = useCallback(
     (direction: StepDirection) => {
+      if (!mayStep.current) return;
       void client.step(direction).then((reply) => {
         if (reply.status !== "rejected") return;
         if (reply.reason === "exhausted") showToast("Out of stamina");
@@ -216,6 +240,9 @@ export function ArenaDuel({
   useEffect(() => {
     const offArena = client.onArena((frame) => {
       frameRef.current = frame;
+      arenaReceivedAt.current = performance.now();
+      const start = frame.saberStart ?? null;
+      setSaberStart(old => old?.startsAtMs === start?.startsAtMs && old?.unlocked === start?.unlocked ? old : start);
       setEngaged(frame.engaged);
       for (const p of frame.players) {
         if (p.slot !== slotRef.current) {
@@ -307,7 +334,6 @@ export function ArenaDuel({
         const image = result.landmarks[0];
         const aspect = video.videoWidth / video.videoHeight || 16 / 9;
         const place = placement(image, aspect);
-        setBodySeen(Boolean(world));
 
         // Setup's camera fix corrects a mirrored or depth-reversed camera before anything uses the body;
         // the stabilizer then keeps only head, torso and arms, smoothed.
@@ -325,11 +351,13 @@ export function ArenaDuel({
           const stable = stabilize(stabilizer, fixed, visibility, now);
           stabilizer = stable.state;
           body = stable.joints;
-          ownRef.current = { ...ownRef.current, joints: body };
+          ownRef.current = { ...ownRef.current, joints: body, bodyAtMs: performance.now() };
         } else {
-          ownRef.current = { ...ownRef.current, joints: null };
+          ownRef.current = { ...ownRef.current, joints: null, bodyAtMs: 0 };
           stabilizer = createStabilizer();
         }
+
+        setBodySeen(body !== null);
 
         // The free hand, matched to where the body tracker sees the free wrist.
 
@@ -346,10 +374,13 @@ export function ArenaDuel({
         });
         wizardRef.current = wizard;
         if (
-          wizard.step !== before.step ||
-          Math.abs(wizard.progress - before.progress) > 0.05
-        )
+          wizard.step !== paintedWizardRef.current.step ||
+          Math.abs(wizard.progress - paintedWizardRef.current.progress) >= 0.04 ||
+          (wizard.progress === 0 && paintedWizardRef.current.progress !== 0)
+        ) {
+          paintedWizardRef.current = wizard;
           setWizard(wizard);
+        }
 
         // Each time setup measures something new, store it on the server so the blade follows it.
         const calibration = calibrationOf(wizard);
@@ -408,6 +439,7 @@ export function ArenaDuel({
       cancelled = true;
       cancelAnimationFrame(raf);
       tracker?.close();
+      ownRef.current = { ...ownRef.current, joints: null, bodyAtMs: 0 };
       stream?.getTracks().forEach((track) => track.stop());
     };
   }, [running, client]);
@@ -416,9 +448,20 @@ export function ArenaDuel({
   const getFrame = useCallback(() => {
     const now = performance.now();
     const frame = sampleFrame(bufferRef.current, now);
-    if (!frame) return null;
     const own = ownRef.current;
+    // Setup feedback must not wait for a calibrated phone or a round trip.
+    // A missing/stale camera sample hides the body rather than freezing it.
+    const localBody = own.joints && now - own.bodyAtMs <= 300 ? own.joints : null;
+    const showSetup = !mayStep.current;
     const wizard = wizardRef.current;
+    const setupAim = {
+      hand: wizard.hand ?? "right",
+      direction: own.top && wizard.forward && now - own.topAtMs <= PHONE_FRESH_MS
+        ? phoneInBody(own.top, wizard.forward, wizard.mirrorAim) : [0, 1, 0] as Vec3,
+    };
+    if (!frame) return showSetup
+      ? withSetupBody(null, slotRef.current, localBody, boardRef.current.cellSize, now, setupAim)
+      : null;
     const fresh =
       own.joints &&
       own.top &&
@@ -437,7 +480,7 @@ export function ArenaDuel({
     const root = ownGlideRef.current
       ? glideRoot(ownGlideRef.current, cellSize, stepMs, now)
       : undefined;
-    return withLocalFighter(
+    const drawn = withLocalFighter(
       frame,
       slotRef.current,
       fresh
@@ -451,34 +494,45 @@ export function ArenaDuel({
         : null,
       root,
     );
+    return showSetup ? withSetupBody(drawn, slotRef.current, localBody, cellSize, now, setupAim) : drawn;
   }, []);
 
   function redoSetup() {
+    const calibration = calibrationOf(wizardRef.current);
+    if (calibration) void client.calibrateSaber({ ...calibration, done: false });
     const fresh = createWizard(performance.now());
     wizardRef.current = fresh;
+    paintedWizardRef.current = fresh;
     sentCalibrationRef.current = "";
     setWizard(fresh);
   }
 
   const youArmed = you.saber.bodyReady && you.saber.saberReady;
   const rivalArmed = rival.saber.bodyReady && rival.saber.saberReady;
-  const countingDown = countdown !== null && countdown > 0;
-  const fighting = view.phase === "active" && youArmed && rivalArmed && !countingDown;
+  const fighting = view.phase === "active" && wizard.step === "done" && youArmed && rivalArmed && Boolean(saberStart?.unlocked) && serverFresh;
+  mayStep.current = fighting;
   const finished = view.phase === "finished";
-  const currentIndex = CHECKLIST.indexOf(wizard.step);
+  // Rematches reuse this component, but must wait for the new round's server gate.
+  useEffect(() => { if (finished) setSaberStart(null); }, [finished]);
+  useEffect(() => {
+    if (fighting && running && !loading && replayEnabled && videoRef.current && onReplaySource) return onReplaySource(videoRef.current);
+  }, [fighting, running, loading, replayEnabled, onReplaySource]);
 
   return (
-    <main className="arena-duel">
+    <main className="arena-duel" data-initiating={!fighting && !finished}>
+      <div className="si-arena-viewport">
       <ArenaRenderBoundary key={renderAttempt} onLeave={onLeave} onBasic={() => { setBasicGraphics(true); setRenderAttempt((n) => n + 1); }}>
       <ArenaScene
         destination={destinationFromWorld(view.world.id)}
         basicGraphics={basicGraphics}
+        initiation={!fighting && !finished}
         getFrame={getFrame}
         flashRef={flashRef}
         mySlot={you.slot}
         board={view.board}
       />
       </ArenaRenderBoundary>
+      </div>
 
       <div className="arena-hud">
         <div className="arena-bars">
@@ -497,117 +551,29 @@ export function ArenaDuel({
         <button type="button" className="arena-leave" onClick={finished ? onLeave : onForfeit}>
           {finished ? "Back to bridge" : "Forfeit"}
         </button>
+        {fighting && replayEnabled && onReplayEnabled && <button type="button" className="arena-replay-stop" onClick={() => onReplayEnabled(false)}>Stop replay recording</button>}
         <p className="arena-note" role="status">
           {fighting
             ? note
-            : finished
-              ? "Duel over."
-              : countingDown
-                ? "Get ready…"
-                : view.phase === "waiting"
-              ? `Waiting for ${rival.callsign} to finish the briefing…`
+            : finished ? "Duel over."
+            : view.phase === "waiting"
+              ? `Waiting for ${rival.callsign} to arrive in the arena…`
               : wizard.step === "done"
                 ? `Waiting for ${rival.callsign} to finish setup…`
                 : "Finish setup to fight."}
         </p>
       </div>
 
-      {!fighting && !finished && !(countingDown && youArmed && rivalArmed) ? (
-        <section className="arena-setup" aria-label="Setup">
-          <h2>Link your saber</h2>
-          <div className="arena-checks">
-            <Check
-              ok={running && bodySeen}
-              label={
-                running
-                  ? bodySeen
-                    ? "Camera sees you"
-                    : "Camera can't see you"
-                  : "Camera off"
-              }
-            />
-            <Check
-              ok={you.saber.paired}
-              label={you.saber.paired ? "Phone linked" : "Phone not linked"}
-            />
-            <Check
-              ok={you.saber.phoneLive}
-              label={
-                you.saber.phoneLive
-                  ? "Phone motion live"
-                  : you.saber.paired
-                    ? "Tap Ignite saber on the phone"
-                    : "No phone motion"
-              }
-            />
-          </div>
-
-          {!running ? (
-            <div className="arena-setup-actions">
-              <button type="button" onClick={() => setRunning(true)}>
-                Start camera
-              </button>
-            </div>
-          ) : loading ? (
-            <p className="arena-instruction">Loading body tracking…</p>
-          ) : (
-            <>
-              <ol className="arena-steps">
-                {CHECKLIST.map((step, i) => (
-                  <li
-                    key={step}
-                    className={
-                      i < currentIndex || wizard.step === "done"
-                        ? "done"
-                        : i === currentIndex
-                          ? "now"
-                          : ""
-                    }
-                  >
-                    {INSTRUCTIONS[step]}
-                    {i === currentIndex ? (
-                      <div className="arena-progress">
-                        <div
-                          style={{
-                            width: `${Math.round(wizard.progress * 100)}%`,
-                          }}
-                        />
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ol>
-              {(wizard.step === "phone" || !you.saber.paired) && pairCode ? (
-                <div className="arena-pair">
-                  {qr ? (
-                    <img
-                      src={qr}
-                      alt={`QR code for ${saberUrl}`}
-                      width={150}
-                      height={150}
-                    />
-                  ) : null}
-                  <p>
-                    Scan with your iPhone camera, or open{" "}
-                    <strong>{saberUrl}</strong>
-                  </p>
-                </div>
-              ) : null}
-              {wizard.notes.map((n) => (
-                <p key={n} className="arena-warning">
-                  {n}
-                </p>
-              ))}
-              <div className="arena-setup-actions">
-                <button type="button" className="secondary" onClick={redoSetup}>
-                  Redo setup
-                </button>
-              </div>
-            </>
-          )}
-          {error ? <p className="arena-error">{error}</p> : null}
-        </section>
-      ) : null}
+      {!fighting && view.phase !== "finished" && <SaberInitiation
+        step={wizard.step} progress={wizard.progress} running={running} loading={loading}
+        bodySeen={bodySeen} phonePaired={you.saber.paired} phoneLive={you.saber.phoneLive}
+        youReady={youArmed} rivalReady={rivalArmed} yourName={you.callsign} rivalName={rival.callsign}
+        start={saberStart} serverFresh={serverFresh} qr={qr} saberUrl={saberUrl}
+        extraOptions={onReplayEnabled && <label className="arena-replay-optin"><input type="checkbox" checked={replayEnabled} onChange={e => onReplayEnabled(e.target.checked)} /> Record a local replay. Everyone visible must agree. Upload is a separate choice after the duel.</label>}
+        notes={wizard.notes} error={error} onStart={() => setRunning(true)} onRedo={redoSetup}
+      />}
+      <SaberCountdown start={saberStart} remaining={countdown} fresh={!finished && serverFresh && wizard.step === "done" && youArmed && rivalArmed} />
+      {running && !fighting && !finished && <span className="si-self-label">YOUR CAMERA / LIVE FEEDBACK</span>}
 
       {finished ? (
         <section className="arena-result" aria-label="Result">
@@ -634,14 +600,10 @@ export function ArenaDuel({
               Back to bridge
             </button>
           </div>
+          {resultExtra}
         </section>
       ) : null}
-      {countdown !== null && countdown > -FIGHT_FLASH_MS && view.phase === "active" ? (
-        <div className="arena-countdown" aria-live="assertive">
-          {countdown > 0 ? Math.ceil(countdown / 1000) : "FIGHT"}
-        </div>
-      ) : null}
-      {engaged && wizard.step === "done" ? (
+      {engaged && fighting ? (
         <div className="arena-engaged">ENGAGED</div>
       ) : null}
       {toast ? (
@@ -649,7 +611,7 @@ export function ArenaDuel({
           {toast}
         </div>
       ) : null}
-      {wizard.step === "done" ? (
+      {fighting ? (
         <p className="arena-controls">
           Swipe on your phone with your thumb to move: ↑ in · ↓ out · ← →
           circle · or WASD
@@ -675,14 +637,6 @@ function resultTitle({ result, you, rival }: PlayerView): string {
 
 function midpoint(a: Vec3, b: Vec3): Vec3 {
   return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
-}
-
-function Check({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <span className={`arena-check ${ok ? "ok" : ""}`}>
-      {ok ? "✓" : "•"} {label}
-    </span>
-  );
 }
 
 function Bar({

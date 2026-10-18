@@ -30,6 +30,10 @@ Record decisions below with owner/date and affected modules. No decisions have b
 
 ## Decisions
 
+- 2026-10-18, Alan / Codex — user-authorized cinematic replay reuses existing `arena`, `saberResolved`, `projectileLanded` and `view` payloads without changing wire schemas or game rules. The frontend collector shares the local webcam start epoch, retains bounded opening/closing motion, and reserves the captured terminal server knockout for the final scene. Perceptron chooses earlier video intervals; game code supplies cameras/effects. Local presentation handoff for A/B/C/D: `docs/perceptron-replay.md`. No network contract or owner migration is required.
+
+- 2026-10-18, Alan / Codex — user-authorized Perceptron continuation adds `replay:ticket({matchId})` to the already joined socket. Only the pilot's current finished match is eligible. Reply is a 2-minute bearer ticket or an explicit failure; private playerId and permanent provider keys stay server-side. `POST /replay/:matchId` accepts raw video (WebM/MP4), `Authorization: Bearer <ticket>`, `X-Replay-Duration` (seconds), max 8 MiB/45 s. Tickets bind pilot + match; upload rechecks current finished match and connected session. Analysis/cache is per pilot + match, bounded and expires after 10 minutes; duplicate uploads do not repeat provider calls. Responses contain Perceptron clip captions/timestamps and optional timestamped boxes; no combat mutations or claims that video proves a hit. Affects B's transport/contracts and D's integrations; handoff is recorded on task board. Existing events are unchanged.
+
 - 2026-10-17, B — Transport is Socket.IO 4.8.4 (not raw `ws`). Affects web/src/networking: the client must use `socket.io-client`. Socket.IO replays buffered emits after reconnect, so command IDs remain required.
 - 2026-10-17, B — Join: client emits `join({ playerId })` with an ack. `playerId` is generated once by the phone and stored (8–64 chars of `A-Za-z0-9_-`) so a reconnect reclaims the same slot. Demo-level identity, not authentication. Server replies `{ ok, slot, snapshot }` or `{ ok: false, reason }` and broadcasts `snapshot` on join/disconnect.
 - 2026-10-17, B — Timing fields in snapshots are remaining milliseconds (`landsInMs`, `endsInMs`), not timestamps. Current types: `server/src/contracts.ts` (moves to packages/contracts once a root workspace is agreed with A).
@@ -112,6 +116,14 @@ Supersedes the lane-grid movement decision above. Existing `step` commands and a
 
 Every positive-damage saber or projectile hit forces the defender away from the attacker's current root by up to `SABER.knockbackMeters` (0.65 m), capped at the existing 3.9 m separation. Uses current gliding roots, interrupts the defender's glide, cancels their buffered step, and restarts the normal 110 ms glide plus 60 ms movement cooldown. Blocked hits cause no displacement. Existing `stepped` and arena frames carry the authoritative destination; no wire changes. A/C handoff: the existing avatar glide renders this forced movement automatically. No external messages or deployment performed.
 
+## Exploration feature port — Alex, October 18
+
+Source `origin/alan` at `b637186`, feature-scoped into the current alex-dev UI. Frontend `LobbyView` adds `pilot`; `HyperspaceTunnel` accepts optional `caption`; `ExploreApp` accepts optional `onBattleLaunch` so accepted challenges reuse the cockpit launch/audio path and return to the existing planetary travel + saber arena. Existing lobby actions and game-client connection remain owned by BridgeApp/FlightApp. No server wire, phone step, combat, or knockback contract changed. See `docs/exploration-integration.md`. No external message or deployment sent.
+
+## Live saber initiation + shared countdown — Alex, October 18
+
+User-authorized setup presentation and startup gate. Optional `ArenaFrame.saberStart { startsAtMs, unlocked }` carries one server deadline and explicit combat unlock; interpolation preserves it. Optional `SaberStatus.match.startsInMs` and shared `armed` status align the phone. Six existing measured setup steps remain; no command/phase changes. Swings cannot resolve during the initial 3-second gate, tracking loss before GO cancels it, and deadline expiry alone never opens combat on the laptop. New laptop setup requires the matching updated backend. B/C handoff: see `docs/saber-initiation-overlay.md` for ownership, compatibility, checks and device QA. No deployment or external messages sent.
+
 ## Rock/gun path removed — October 18, user-authorized server/web/voice update
 
 The duel is lightsaber-only. Removed from the wire: commands `rockActive`, `gunActive`, `throwRock`, `fireGun`, `startBlock`, `endBlock`; the `projectileLanded` event and `ProjectileLanded`; `PlayerState.action`, `weapon`, `cooldowns`, `block` and `projectile` (with `PlayerAction`, `BlockState`, `Weapon`, `ProjectileInFlight`); `World.rockFlightMs`; reject reasons `on_cooldown`, `weapon_not_active`, `projectile_in_flight` and `not_blocking`. `MatchCommandType` is now `ready | leaveMatch`; saber swings, blocks and knockback come only from the body/aim streams. Rules lose `startingWeapon`, `blockLimitMs`, `blockCooldownMs`, `rockFlightMs()` and `weaponsFor()`; world gravity stays. Web removes the matching `GameClient` methods and `onProjectileLanded`, the `/?pvp=1`, `/?camera=1` / `/?debug=camera` and `/?dev=mars` routes, `LiveDuel`, `liveCommands`, `CameraDebugPage`, `DevMars`, the Mars camera backdrop/cutout, `src/vision`, `src/overlay` and `public/models/gun.glb`; `camera/mediapipeVision.ts` keeps only `WASM_ROOT`. LYRA's control help now describes the saber duel. Affects A (routes), C (camera/vision/overlay/models), D (copilot text, `game-smoke.mjs` deleted). D's Grok briefing fixtures still compute their own `rockFlightSeconds` and were not changed. No external messages or deployment.
@@ -154,3 +166,47 @@ together before using Neptune in real matches.
 ## Random arena world — feature/neptune-arena
 
 With no `destination` on the challenge, the server now rolls Mars or Neptune 50/50 when the challenge is accepted (`pickArenaWorld`), once per match; both pilots and reconnects see the same world. The web client no longer sends `destination` (the cockpit picker is removed); the optional field stays for tests and tools.
+
+## saber-duel merged into alex-dev — October 18
+
+Source: origin/saber-duel at 7e8d387. Preserves the current cockpit/exploration, direct travel-to-setup flow, persisted journey, early camera avatar/display-only saber, compact LYRA slides, prominent QR and in-square swipe help. Integrates stamina, guard breaks/stun, rematch/forfeit, saved callsign, and the bundled travel-video fix. Removed legacy rock/gun commands and unused old camera-duel routes per Justin's lightsaber-only branch.
+
+Calibration now uses five measured tasks: phone → stand → upright → right → reach, then done. Both phone and laptop follow that same order. One authoritative startup gate drives ArenaFrame.saberStart and view/phone startsInMs; pre-GO tracking loss cancels and restarts three seconds, local timer expiry cannot enable combat. Rematch resets the gate while keeping camera and measured calibration mounted. The phone clears a cancelled countdown and waits for actual server readiness before FIGHT.
+
+Validation: 98/98 server tests passed (including sockets, rematch, stale-input countdown cancellation and recovery); 149 frontend tests passed, one opt-in live test skipped; frontend typecheck/production build passed. Existing large exploration chunk warning remains. Physical two-player camera/phone/travel and rematch QA remains necessary. No new dependencies, environment variables, provider calls, deployment or push. Uncommitted audio/LYRA work in the main checkout is preserved separately.
+
+## Exploration location — Alan (C, user-authorized cross-boundary), October 18 ~03:00
+
+Affects B (server/contracts), A (cockpit `SpaceshipHome`), D (LYRA). Additive and optional; no existing field or command changed.
+
+- `Pilot.location?: { bodyId, label }` — a coarse exploration place the pilot reported (a destination/body ID such as `jupiter`, `sat-25544`, `exo-trappist-1-e`, plus its display name). Absent until reported. **Display only**: never used for matchmaking, challenge authorization, combat or hit checks.
+- New lobby command `setLocation({ location: { bodyId, label } | null })` on the normal deduped command path (`client.setLocation`). `bodyId` must match `/^[a-z0-9][a-z0-9._-]{0,63}$/i`; `label` is trimmed/whitespace-collapsed and must match letters/numbers/dashes/basic punctuation, ≤ 48 chars; anything else is `invalid_command` and keeps the previous value. `null` clears it. Server tests: `server/src/sessions/index.test.ts` ("an exploration location…", "malformed locations…").
+- Web: `NearbyPilot.location`, `LobbyViewModel.actions.setLocation?` (optional for older adapters). Free flight reports the nearest body (debounced 1.2 s, only on change) and clears it on exit. Ships are drawn circling that body in the local universe (`RivalShips.tsx`) — illustrative positions, not coordinates.
+- **Deploy note:** a shared server running older code rejects `setLocation`; the client ignores that, so free flight still works but no rival ships appear until that server runs this branch.
+- Match handoff: when a challenge reaches `launching` during free flight, `ExploreApp.onMatchLaunch` returns to the cockpit so the existing Mars travel → briefing → arena flow runs unchanged.
+
+
+## Alan exploration update integrated — October 18
+
+Source: origin/alan-team-merge at f7e5700. Its two new feature commits dde44fe and f7e5700 were applied onto alex-dev's existing b637186 exploration port, rather than reintroducing the retired camera/rock/gun paths from the older branch history. Adds branded exploration HUD, categorized destination search, SpaceX fleet snapshots and schematic craft, object side views, cosmic zoom, orbit time controls, rival ships/coarse reported locations, peaceful Explore mode and the exploration LYRA guide.
+
+The cockpit still owns accepted-match launch, travel persistence and direct saber setup. ExploreApp retains onBattleLaunch and receives the existing copilotClient; new location commands use the normal authenticated/deduplicated server command path. Current phone saber UI, shared countdown, rematches, early avatar/saber feedback and committed sound changes remain intact. New setLocation and optional Pilot.location are documented above; host must run the updated server for those location reports. No new dependencies or environment variables.
+
+Validation: 100/100 server tests and 177 frontend tests passed (one opt-in live test skipped); frontend typecheck/production build passed with the existing large exploration chunk warning. Browser smoke test verified Universe ready, branded HUD, destination categories, SpaceX fleet records and a state-aware local LYRA answer, with no captured warning/error logs. Grok Voice/provider calls, actual two-player camera/phone launch and sustained mobile performance were not tested during this integration. No deployment or external messages. Sound/LYRA changes were pushed separately as 39500ba; this exploration integration is local pending a later push request.
+
+
+## Replay integrated on alex-dev — October 18
+
+Applied replay-only source commits 4caf1d3 and 283f824 from origin/codex/cinematic-arena-replay. The preceding 09b5291 changes cockpit/exploration mode presentation and was excluded from this replay integration. Alan's exploration feature commits were already integrated; no second exploration merge was performed.
+
+Adaptation preserves direct travel-to-setup, compact LYRA initiation, fresh local avatar/saber preview, authoritative countdown, guard breaks/stamina, mounted camera/calibration and rematch controls. Enable recording under Setup options; webcam capture starts only at actual combat readiness. Finished results contain the local video and cinematic panel. Removed the retired live projectile event subscription; historical replay weapon labels remain local to replay code. Optional MatchSnapshot.round / PlayerView.round starts at 1 and increments on rematch; capture, result UI, upload tickets and cached analysis are isolated by round. A regression verifies an old round's ticket cannot access a later round and that later analysis does not reuse old output.
+
+The replay HTTP route honors the configured ALLOWED_ORIGIN list; use the public frontend origin there for a separately hosted frontend. PERCEPTRON_API_KEY (optional PERCEPTRON_MODEL) belongs only in ignored server/.env on the actual host. This integration made no provider calls or uploads and did not deploy or change running-host configuration.
+
+Necessary checks only: frontend build/typecheck passed; 50 focused replay/recorder/networking/local-fighter/buffer/countdown-display tests passed; server build plus 33 replay HTTP/parser/match/rematch/countdown tests passed. Inference is mocked in transport tests. No broad full-suite rerun or browser/device walkthrough was performed. Physical capture-to-real-provider playback remains an acceptance check for the team. Existing exploration chunk-size warning remains. Not pushed.
+
+## alex-dev merged into saber-duel — October 18
+
+Source: origin/alex-dev at 4b354a8 onto saber-duel at 07a0229 (base 7e8d387). Conflicts in `FlightApp.tsx`, `ArenaScene.tsx`, `gameClient.ts`, `SaberPhone.tsx` and both docs were resolved by keeping alex-dev's newer flow (direct travel → saber setup, persisted arena journey, hold-to-ignite phone HUD, Perceptron replay) as the structure and layering the Neptune generalization on it: travel destinations are `DestinationId`, the cockpit receives the server's world, and `ArenaScene` takes `destination`, `initiation` and `replay` together (initiation square is world-agnostic; the Neptune branch now also honors the replay presentation). `GameClient` keeps both `setLocation` and the optional `challenge(pilotId, destination?)` testing override. The phone keeps the "duel over → close tab" and result-screen mute behavior; the removed local countdown chime stays removed as on alex-dev.
+
+Wiring added beyond the raw conflicts: `ReplayPanel`/`CinematicReplay` accept `destination` so a Neptune duel replays on Neptune; the exploration HUD and LYRA copy no longer claim duels are always on Mars. No contract fields changed.

@@ -72,3 +72,40 @@ export function withLocalFighter(
 
   return { ...frame, players: frame.players.map((p) => (p.slot === slot ? { ...p, facing, joints, blade } : p)) }
 }
+
+
+/** Setup-only display: show the camera body before phone calibration or any server echo.
+ * The upright pre-calibration saber is display-only; it never arms the pilot or changes authoritative state.
+ */
+export function withSetupBody(
+  frame: ArenaFrame | null,
+  slot: PlayerSlot,
+  body: Vec3[] | null,
+  cellSize: number,
+  nowMs: number,
+  preview?: { hand: Hand; direction: Vec3 },
+): ArenaFrame {
+  const me = frame?.players.find(p => p.slot === slot)
+  const facing: [number, number] = me?.facing ?? (slot === 1 ? [0, 1] : [0, -1])
+  const root: Vec3 = me?.joints ? mid(me.joints[LEFT_HIP], me.joints[RIGHT_HIP])
+    : [me ? me.cell.q * cellSize : 0, 1, me ? me.cell.r * cellSize : 0]
+  const hips = body ? mid(body[LEFT_HIP], body[RIGHT_HIP]) : null
+  const joints = body && hips ? body.map(j => {
+    const v = turn([j[0] - hips[0], j[1] - hips[1], j[2] - hips[2]], facing)
+    return [root[0] + v[0], root[1] + v[1], root[2] + v[2]] as Vec3
+  }) : null
+  const hilt = joints?.[(preview?.hand ?? "right") === "left" ? LEFT_WRIST : RIGHT_WRIST];
+  const dir = turn(preview?.direction ?? [0, 1, 0], facing);
+  const scale = .9 / (Math.hypot(...dir) || 1);
+  const previewBlade = hilt ? { hilt, tip: [hilt[0] + dir[0] * scale, hilt[1] + dir[1] * scale, hilt[2] + dir[2] * scale] as Vec3 } : null;
+  const player = {
+    ...(me ?? { slot, cell: { q: 0, r: 0 }, facing, stamina: 100, winded: false, stunned: false }),
+    joints,
+    blade: joints ? me?.blade ?? previewBlade : null,
+    swinging: false,
+  }
+  return {
+    ...(frame ?? { serverMs: nowMs, engaged: false }),
+    players: me ? frame!.players.map(p => p.slot === slot ? player : p) : [...(frame?.players ?? []), player],
+  }
+}

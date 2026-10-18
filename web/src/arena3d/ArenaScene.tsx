@@ -21,6 +21,13 @@ import { cellToWorld, type Board } from "./gridBoard"
 export const toThree = (v: Vec3): THREE.Vector3 => new THREE.Vector3(v[0], v[1], -v[2])
 
 export type ImpactFlash = { kind: "blocked" | "hit" | "guardBreak"; at: Vec3; startedMs: number }
+/** Presentation-only replay controls; omitted in live combat. Coordinates use the arena frame. */
+export interface ArenaReplayPresentation {
+  timeMs: () => number
+  camera: (frame: ArenaFrame) => { position: Vec3; target: Vec3; fov: number }
+  reducedMotion: boolean
+}
+const realTime = () => performance.now()
 
 // The swing trail: about this much of the blade's recent path, as a fading ribbon.
 const TRAIL_MS = 120
@@ -54,11 +61,12 @@ function placeBetween(mesh: THREE.Object3D, a: THREE.Vector3, b: THREE.Vector3) 
   mesh.scale.set(1, len, 1)
 }
 
-function Avatar({ frameRef, slot, color, flashRef }: {
+function Avatar({ frameRef, slot, color, flashRef, clock = realTime }: {
   frameRef: RefObject<ArenaFrame | null>
   slot: PlayerSlot
   color: string
   flashRef: RefObject<ImpactFlash | null>
+  clock?: () => number
 }) {
   const limbs = useRef<(THREE.Mesh | null)[]>([])
   const head = useRef<THREE.Mesh>(null)
@@ -84,11 +92,11 @@ function Avatar({ frameRef, slot, color, flashRef }: {
     }
     // A hit flashes the avatar white for a moment.
     const flash = flashRef.current
-    const age = flash ? performance.now() - flash.startedMs : Infinity
+    const age = flash ? clock() - flash.startedMs : Infinity
     const hitMe = flash?.kind === "hit" && age < 300 && player?.joints && isNear(flash.at, player.joints)
     material.emissive.copy(hitMe ? hurt : base)
     // A stunned fighter (guard broken) flickers until they can act again.
-    const stunned = player?.stunned && Math.floor(performance.now() / 80) % 2 === 0
+    const stunned = player?.stunned && Math.floor(clock() / 80) % 2 === 0
     material.emissiveIntensity = hitMe ? 2.5 : stunned ? 0.1 : 0.6
   })
 
@@ -111,7 +119,7 @@ function isNear(at: Vec3, joints: Vec3[]): boolean {
   return Math.hypot(at[0] - chest[0], at[1] - chest[1], at[2] - chest[2]) < 0.8
 }
 
-function Blade({ frameRef, slot, color }: { frameRef: RefObject<ArenaFrame | null>; slot: PlayerSlot; color: string }) {
+function Blade({ frameRef, slot, color, clock = realTime }: { frameRef: RefObject<ArenaFrame | null>; slot: PlayerSlot; color: string; clock?: () => number }) {
   const core = useRef<THREE.Mesh>(null)
   const glow = useRef<THREE.Mesh>(null)
   const hilt = useRef<THREE.Mesh>(null)
@@ -175,7 +183,8 @@ function Blade({ frameRef, slot, color }: { frameRef: RefObject<ArenaFrame | nul
 
   // A ribbon through the blade's recent positions: bright while swinging, a faint wake otherwise.
   function updateTrail(hiltNow: THREE.Vector3, tipNow: THREE.Vector3, swinging: boolean) {
-    const now = performance.now()
+    const now = clock()
+    if (now < (trail.current.at(-1)?.atMs ?? -Infinity)) trail.current = []
     const points = [...trail.current, { atMs: now, hilt: hiltNow, tip: tipNow }]
       .filter((p) => now - p.atMs <= TRAIL_MS)
       .slice(-TRAIL_POINTS)
@@ -220,7 +229,7 @@ const IMPACT_COLORS: Record<ImpactFlash["kind"], { core: string; light: string }
   guardBreak: { core: "#ffd34d", light: "#ffc23a" },
 }
 
-function Impact({ flashRef }: { flashRef: RefObject<ImpactFlash | null> }) {
+function Impact({ flashRef, clock = realTime, cinematic = false, reducedMotion = false }: { flashRef: RefObject<ImpactFlash | null>; clock?: () => number; cinematic?: boolean; reducedMotion?: boolean }) {
   const mesh = useRef<THREE.Mesh>(null)
   const light = useRef<THREE.PointLight>(null)
   const material = useMemo(
@@ -229,7 +238,7 @@ function Impact({ flashRef }: { flashRef: RefObject<ImpactFlash | null> }) {
   )
   useFrame(() => {
     const flash = flashRef.current
-    const age = flash ? (performance.now() - flash.startedMs) / 1000 : Infinity
+    const age = flash ? (clock() - flash.startedMs) / 1000 : Infinity
     const on = flash !== null && age < 0.3
     if (mesh.current) mesh.current.visible = on
     if (light.current) light.current.intensity = on ? 25 * (1 - age / 0.3) : 0
@@ -250,8 +259,49 @@ function Impact({ flashRef }: { flashRef: RefObject<ImpactFlash | null> }) {
         <sphereGeometry args={[1, 16, 12]} />
       </mesh>
       <pointLight ref={light} intensity={0} distance={4} />
+      {cinematic && !reducedMotion && <ReplaySparks flashRef={flashRef} clock={clock} />}
     </>
   )
+}
+
+/** Replay-only sparks/shock ring; driven by captured server outcomes, never a hit detector. */
+function ReplaySparks({ flashRef, clock }: { flashRef: RefObject<ImpactFlash | null>; clock: () => number }) {
+  const group = useRef<THREE.Group>(null)
+  const ring = useRef<THREE.Mesh>(null)
+  const geometry = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(24 * 6), 3))
+    return g
+  }, [])
+  const material = useMemo(() => new THREE.LineBasicMaterial({ color: '#ffe2aa', transparent: true, toneMapped: false, depthWrite: false }), [])
+  const ringMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: '#a3edff', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }), [])
+  useFrame(() => {
+    const flash = flashRef.current, age = flash ? (clock() - flash.startedMs) / 1000 : Infinity
+    const visible = age >= 0 && age < .35
+    if (group.current) group.current.visible = visible
+    if (!visible || !flash || !group.current) return
+    group.current.position.copy(toThree(flash.at))
+    const u = age / .35
+    const positions = geometry.getAttribute('position') as THREE.BufferAttribute
+    for (let i = 0; i < 24; i++) {
+      const theta = i * 2.39996, y = (i / 23) * 2 - 1, r = Math.sqrt(1 - y * y)
+      const length = .05 + u * (.45 + (i % 4) * .07)
+      const x = Math.cos(theta) * r, z = Math.sin(theta) * r
+      positions.setXYZ(i * 2, x * length * .55, y * length * .55 - u * u * .12, z * length * .55)
+      positions.setXYZ(i * 2 + 1, x * length, y * length - u * u * .12, z * length)
+    }
+    positions.needsUpdate = true
+    material.opacity = (1 - u) * .9
+    material.color.set(flash.kind === 'blocked' ? '#c6f4ff' : '#ffb36e').multiplyScalar(2)
+    ringMaterial.opacity = (1 - u) * .55
+    ring.current?.scale.setScalar(.15 + u * .9)
+  })
+  return <group ref={group} visible={false}>
+    <lineSegments geometry={geometry} material={material} frustumCulled={false} />
+    <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} material={ringMaterial}>
+      <ringGeometry args={[.93, 1, 48]} />
+    </mesh>
+  </group>
 }
 
 // Looking down at 35°: steep enough that walking forward reads as moving up the
@@ -265,10 +315,11 @@ const AIM_HEIGHT = 0.3
 const SHOULDER_OFFSET = 0.45
 
 /** Over your own shoulder, looking down at the duel. Follows your hips as you walk. */
-function ShoulderCamera({ frameRef, mySlot, groundY }: {
+function ShoulderCamera({ frameRef, mySlot, groundY, initiation = false }: {
   frameRef: RefObject<ArenaFrame | null>
   mySlot: PlayerSlot
   groundY: number
+  initiation?: boolean
 }) {
   const target = useRef(new THREE.Vector3())
   useFrame(({ camera }, delta) => {
@@ -282,11 +333,15 @@ function ShoulderCamera({ frameRef, mySlot, groundY }: {
     // The camera isn't inside the arena's ground group, so it adds the ground height itself.
     hips.y += groundY
     const aim = hips.clone().addScaledVector(forward, AIM_AHEAD).add(new THREE.Vector3(0, AIM_HEIGHT, 0))
+    // Setup fills a square viewport with only your real tracked fighter.
+    if (initiation) aim.copy(hips).add(new THREE.Vector3(0, 0.55, 0));
+    const distance = initiation ? 4.2 : CAMERA_DISTANCE;
+    const pitch = initiation ? 0.06 : CAMERA_PITCH;
     const desired = aim
       .clone()
-      .addScaledVector(forward, -CAMERA_DISTANCE * Math.cos(CAMERA_PITCH))
-      .addScaledVector(right, SHOULDER_OFFSET)
-      .add(new THREE.Vector3(0, CAMERA_DISTANCE * Math.sin(CAMERA_PITCH), 0))
+      .addScaledVector(forward, -distance * Math.cos(pitch))
+      .addScaledVector(right, initiation ? 0 : SHOULDER_OFFSET)
+      .add(new THREE.Vector3(0, distance * Math.sin(pitch), 0))
     // Follow with the same feel at any frame rate (~130 ms to catch up most of the way).
     const follow = 1 - Math.exp(-delta / 0.13)
     camera.position.lerp(desired, follow)
@@ -301,6 +356,8 @@ type FightersProps = {
   flashRef: RefObject<ImpactFlash | null>
   mySlot: PlayerSlot
   board: Board
+  initiation?: boolean
+  replay?: ArenaReplayPresentation
 }
 
 /** Stands the arena on the Mars terrain at its center. */
@@ -351,17 +408,29 @@ function DuelMarkers({ frameRef, mySlot, board }: { frameRef: RefObject<ArenaFra
   </group>
 }
 
-function Fighters({ frameRef, flashRef, mySlot, board, groundY }: FightersProps & { groundY: number }) {
+function DirectedCamera({ frameRef, groundY, replay }: { frameRef: RefObject<ArenaFrame | null>; groundY: number; replay: ArenaReplayPresentation }) {
+  useFrame(({ camera }) => {
+    if (!frameRef.current) return
+    const pose = replay.camera(frameRef.current)
+    camera.position.copy(toThree(pose.position)).y += groundY
+    const target = toThree(pose.target); target.y += groundY
+    camera.lookAt(target)
+    if (camera instanceof THREE.PerspectiveCamera && Math.abs(camera.fov - pose.fov) > .01) { camera.fov = pose.fov; camera.updateProjectionMatrix() }
+  })
+  return null
+}
+
+function Fighters({ frameRef, flashRef, mySlot, board, groundY, initiation, replay }: FightersProps & { groundY: number }) {
   const rivalSlot: PlayerSlot = mySlot === 1 ? 2 : 1
   return (
     <group position={[0, groundY, 0]}>
-      <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} />
-      <Avatar frameRef={frameRef} slot={mySlot} color={COLORS.you} flashRef={flashRef} />
-      <Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} />
-      <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} />
-      <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} />
-      <Impact flashRef={flashRef} />
-      <DuelMarkers frameRef={frameRef} mySlot={mySlot} board={board} />
+      {replay ? <DirectedCamera frameRef={frameRef} groundY={groundY} replay={replay} /> : <ShoulderCamera frameRef={frameRef} mySlot={mySlot} groundY={groundY} initiation={initiation} />}
+      <Avatar frameRef={frameRef} slot={mySlot} color={COLORS.you} flashRef={flashRef} clock={replay?.timeMs} />
+      {!initiation && <Avatar frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} flashRef={flashRef} clock={replay?.timeMs} />}
+      <Blade frameRef={frameRef} slot={mySlot} color={COLORS.you} clock={replay?.timeMs} />
+      {!initiation && <Blade frameRef={frameRef} slot={rivalSlot} color={COLORS.rival} clock={replay?.timeMs} />}
+      {!initiation && <Impact flashRef={flashRef} clock={replay?.timeMs} cinematic={Boolean(replay)} reducedMotion={replay?.reducedMotion} />}
+      {!initiation && <DuelMarkers frameRef={frameRef} mySlot={mySlot} board={board} />}
     </group>
   )
 }
@@ -374,14 +443,17 @@ function FrameSampler({ getFrame, frameRef }: { getFrame: () => ArenaFrame | nul
   return null
 }
 
-export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false, destination = 'mars' }: {
-  destination?: DestinationId;
+export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = false, initiation = false, replay, destination = 'mars' }: {
+  /** Which world's environment to draw; the server's view decides it. */
+  destination?: DestinationId
   basicGraphics?: boolean
+  initiation?: boolean
   /** The arena to draw right now: blended server frames, with your own fighter drawn locally. */
   getFrame: () => ArenaFrame | null
   flashRef: RefObject<ImpactFlash | null>
   mySlot: PlayerSlot
   board: Board
+  replay?: ArenaReplayPresentation
 }) {
   const frameRef = useRef<ArenaFrame | null>(null)
   return (
@@ -393,7 +465,14 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
       <FrameSampler getFrame={getFrame} frameRef={frameRef} />
-      {destination==='neptune'?<>
+      {initiation ? <>
+        {/* The saber setup square is world-agnostic: a calm grid while the player calibrates. */}
+        <color attach="background" args={["#061326"]} />
+        <hemisphereLight args={["#c5efff", "#174d80", 2.2]} />
+        <directionalLight position={[2, 5, 4]} intensity={2} color="#9de4ff" />
+        <gridHelper args={[12, 24, "#225884", "#102b46"]} />
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation />
+      </> : destination === 'neptune' ? <>
         {basicGraphics ? <>
           <color attach="background" args={["#4f97d8"]} />
           <hemisphereLight args={["#8cc4f0", "#0d2c58", 1.6]} />
@@ -402,12 +481,12 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
           <NeptuneEnvironment/>
           <NeptuneDust/>
         </>}
-        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0}/>
-      </>:basicGraphics ? <>
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} replay={replay} />
+      </> : basicGraphics ? <>
         <color attach="background" args={["#1b0f0b"]} />
         <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
         <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>
-        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} />
+        <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation={initiation} replay={replay} />
       </> : <Suspense
         fallback={
           // Plain floor while the Mars terrain loads, so the duel is playable immediately.
@@ -415,12 +494,12 @@ export function ArenaScene({ getFrame, flashRef, mySlot, board, basicGraphics = 
             <color attach="background" args={["#1b0f0b"]} />
             <hemisphereLight args={["#ffd9b0", "#3a2216", 1.2]} />
             <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#4a2a1a" /></mesh>
-            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} />
+            <Fighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} groundY={0} initiation={initiation} replay={replay} />
           </>
         }
       >
         <MarsEnvironment quality="low" obstacles={[]} />
-        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} />
+        <MarsFighters frameRef={frameRef} flashRef={flashRef} mySlot={mySlot} board={board} initiation={initiation} replay={replay} />
       </Suspense>}
       {!basicGraphics && <EffectComposer multisampling={0} enableNormalPass={false}>
         <Bloom mipmapBlur intensity={0.9} luminanceThreshold={1.0} luminanceSmoothing={0.2} radius={0.55} />

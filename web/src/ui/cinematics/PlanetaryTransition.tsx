@@ -174,7 +174,7 @@ export function PlanetaryTransition({
         playsInline
         muted
         preload="auto"
-        aria-label="Spaceship travel from the cockpit to Mars"
+        aria-label={`Spaceship travel from the cockpit to ${config.displayName}`}
         onLoadedData={captureBackdrop}
         onTimeUpdate={() => {
           if (video.current && video.current.duration && video.current.currentTime / video.current.duration > 0.84) {

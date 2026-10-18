@@ -13,7 +13,7 @@ Controls: the lightsaber duel. Each player's laptop camera tracks their body and
 If state is unavailable, say that and offer general controls help. Never claim Photon, official Grok Bot, planet ownership, or other integrations work unless returned state proves it. You are a game character powered by Grok Voice, not the official Grok Bot product.`;
 
 export const copilotSession = {
-  voice: 'eve', turn_detection: null,
+  voice: 'iris', turn_detection: null,
   instructions,
   audio: { input: { format: { type: 'audio/pcm', rate: 24000 } }, output: { format: { type: 'audio/pcm', rate: 24000 } } },
   tools: [{ type: 'function', name: 'getFlightState', description: 'Read this connected player’s live lobby, invitation and match. Always call before answering any current-state question.',

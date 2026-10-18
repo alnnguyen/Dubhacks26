@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { gameAudio, type AudioBus } from './gameAudio';
 import './sound.css';
+import { installButtonFeedback } from './buttonFeedback';
 
 /** A single mixer across route changes. Phone controllers keep their own saber audio. */
 export function SoundShell({ children, enabled }: { children: ReactNode; enabled: boolean }) {
@@ -14,24 +15,20 @@ function SoundSession({ children }: { children: ReactNode }) {
     gameAudio.restoreSettings();
     gameAudio.setHidden(document.hidden);
     const gesture = (event: Event) => {
+      // Mixer buttons unlock explicitly; avoid changing Enable into Mute mid-click.
+      if (event.target instanceof Element && event.target.closest('[data-audio-control]')) return;
       if (event instanceof KeyboardEvent && (event.repeat || event.metaKey || event.ctrlKey || event.altKey)) return;
       if (!gameAudio.getSnapshot().unlocked) void gameAudio.unlock();
     };
-    const click = (event: MouseEvent) => {
-      if (!(event.target instanceof Element)) return;
-      if (event.target.closest('[data-audio-control]')) return;
-      const control = event.target.closest('button,[role="button"],a[href],input[type="checkbox"],[role="switch"]');
-      if (control && !control.matches(':disabled,[aria-disabled="true"]')) gameAudio.play('click');
-    };
+    const removeButtonFeedback = installButtonFeedback();
     const visibility = () => gameAudio.setHidden(document.hidden);
     document.addEventListener('pointerdown', gesture, true);
     document.addEventListener('keydown', gesture, true);
-    document.addEventListener('click', click, true);
     document.addEventListener('visibilitychange', visibility);
     return () => {
       document.removeEventListener('pointerdown', gesture, true);
       document.removeEventListener('keydown', gesture, true);
-      document.removeEventListener('click', click, true);
+      removeButtonFeedback();
       document.removeEventListener('visibilitychange', visibility);
     };
   }, []);

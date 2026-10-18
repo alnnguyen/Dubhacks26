@@ -20,7 +20,7 @@ export function SoundCheck() {
   async function cue(id: SoundId, label: string) {
     if (await gameAudio.unlock()) { cueStop.current?.(); cueStop.current = gameAudio.play(id); setStatus(`${label} — cue requested`); }
   }
-  const cues: Array<[SoundId, string]> = [['click','Light UI click'],['introJump','Onboarding hyperspace'],['clash','Matchup clash'],['flyby','Ship flyby'],['charge','Rocket charge'],['jump','Short jump'],['arrive','Mars arrival']];
+  const cues: Array<[SoundId, string]> = [['lyraHello','LYRA hello'],['click','UI click'],['commit','Radar / hyperspace'],['back','Back buttons'],['introJump','Onboarding hyperspace'],['clash','Matchup clash'],['flyby','Ship flyby'],['charge','Rocket charge'],['jump','Short jump'],['arrive','Mars arrival']];
   return <main className="sound-check">
     <p>SPACE BATTLES / AUDIO LISTENING ROOM</p><h1>HEAR THE <span>GALAXY</span></h1>
     <p>Audition the supplied Grok asset pack at the game’s default mix. Switch scenes to hear the music change; try a travel cue over the cockpit bed.</p>
