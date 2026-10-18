@@ -83,8 +83,10 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
     frame.current?.contentWindow?.postMessage({ type: 'COPILOT_STOP' }, location.origin);
     launchTimer.current = window.setTimeout(ready, 1500);
   }
-  // Ends the round but stays on the duel screen, so both pilots can still rematch.
+  // Ends the round but stays in the match (from the briefing too), so both pilots can still rematch.
   function forfeit() {
+    // A pending Ready would only be refused once the round is over.
+    clearTimeout(launchTimer.current); setEntering(false);
     void client.forfeit().then(reply => reply.status === 'rejected' && setNote(rejectionNote(reply)));
   }
   function rematch() {
@@ -116,9 +118,9 @@ export function FlightApp({client: providedClient, cockpitControls}: {client?: G
   return <main className="flight-flow">
     <header className="flight-header">
       <span>FLIGHT SYSTEMS / {screen.toUpperCase()}</span>
-      {screen === 'duel'
-        ? <button onClick={forfeit}>Forfeit</button>
-        : <button onClick={leave}>{view.phase === 'finished' ? 'Return to cockpit' : 'Forfeit & return'}</button>}
+      {screen === 'result'
+        ? <button onClick={leave}>Return to cockpit</button>
+        : <button onClick={forfeit}>Forfeit</button>}
     </header>
     {screen === 'briefing' && <>
       <section className="flight-panel">
