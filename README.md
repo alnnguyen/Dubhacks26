@@ -1,154 +1,112 @@
 # KO.rbit
 
-**DubHacks 2026** · Two phones. One cockpit. A camera duel shaped by real planetary gravity.
+[![DubHacks 2026 — SpaceXAI winner](https://img.shields.io/badge/DubHacks%202026-SpaceXAI%20winner-111111)](https://devpost.com/software/space-battles-aei3wz)
 
-You’re a pilot in a 3D spaceship lobby. Other players appear as ships outside the windshield. Challenge a rival, accept the alert, jump through hyperspace, and fight on a Mars arena with hand-tracked rocks and blasters — while **LYRA**, your Grok-powered ship AI, briefs you from live match state.
+A browser game from DubHacks 2026: fly a catalog of real stars, planets, and spacecraft, then fight a rival with your body and a phone. **Winner of the SpaceXAI track.**
 
-Built for mobile HTTPS browsers. Server-authoritative combat. No native app, no ARKit room scan, no GPS conquest.
+Devpost: [https://devpost.com/software/space-battles-aei3wz](https://devpost.com/software/space-battles-aei3wz)
 
----
+Your laptop shows the world and tracks your pose. A paired phone is the lightsaber. The Node server owns health, stamina, hits, and the winner. Camera detections are commands, not proof of a hit.
 
-## Tracks we’re aiming for
-
-| Track | Why it fits |
+| Main hub | Object view |
 | --- | --- |
-| **SpaceXAI (primary)** | Heavy **Cursor** development (logged in [`docs/cursor-usage.md`](docs/cursor-usage.md)); **Grok Voice / API** powering **LYRA** and world briefings; **NASA / planetary datasets** driving arena timing and presentation; **Grok Bot** used as a planning collaborator for roles, infrastructure cut order, and the living [`PLAN.md`](PLAN.md). |
-| **Chef’s Choice** | End-to-end creative loop: cinematic onboarding → cockpit → challenge → gravity-aware camera duel → result. |
-| **Photon 2.0** | Real channel send/reply proofs and challenge-agent fixtures ([`docs/sponsor-evidence.md`](docs/sponsor-evidence.md)); live ACCEPT path wired toward the same server commands as the UI. |
+| ![Main hub: the 3D cockpit lobby](docs/images/main-hub.png) | ![Object view: a spacecraft fact card in free flight](docs/images/object-view.png) |
+| Fighting | Arena |
+| ![Fighting: two pilots dueling with phone sabers](docs/images/fighting.png) | ![Arena: the Mars duel with health and stamina](docs/images/arena.png) |
 
-Detailed proofs, limits, and what is / isn’t claimed live in [`docs/sponsor-evidence.md`](docs/sponsor-evidence.md). Cursor sessions: [`docs/cursor-usage.md`](docs/cursor-usage.md). Dataset provenance: [`datasets.md`](datasets.md).
+## What you can do
 
----
+- **Explore** a local snapshot of 31,266 catalog objects: 24,835 HYG stars, 5,301 NASA exoplanets, 1,034 GALEX-atlas galaxies, the planets and the Moon, satellites (including a Starlink sample), small bodies, and seven SpaceX spacecraft. Search, fly, and open a fact card. Orbits are a dated two-body snapshot, not live tracking.
+- **Commission a pilot** and sit in a 3D cockpit. Other players show up as ships you can challenge. Demo mode uses simulated pilots and does not join the server.
+- **Fight** after the server accepts a challenge. It picks Mars or Neptune, 50/50, once. A short travel sequence flies you in. MediaPipe Pose on each laptop places that pilot’s body; the phone’s orientation aims the blade. Swipe the phone to step.
+- **Rematch** from the result screen. The round resets and the paired devices stay paired. A pilot who drops out forfeits after a 15 second reconnect grace.
 
-## Features
+Gravity from NASA’s Planetary Fact Sheet is shown for the arena (Mars 3.7 m/s², Neptune 11.2 m/s²). It does not change saber timing. The Mars floor uses a real NASA MOLA heightmap of Jezero Crater. Neptune’s fight floor is a fictional station over procedural clouds.
 
-### Pilot onboarding
-- Motion-driven intro with Orbitron title cards, laser transitions, and a Three.js hyperspace jump into the cockpit
-- Callsign + ship name + hull accent stored locally for HUD cosmetics
+LYRA, the ship copilot, can answer from live lobby and match state through Grok Voice. She cannot change the match. An opt-in Perceptron replay can recut a finished duel; upload is a second consent. Setup and limits: [`docs/hologram-copilot.md`](docs/hologram-copilot.md), [`docs/perceptron-replay.md`](docs/perceptron-replay.md).
 
-### Spaceship cockpit lobby
-- Ally’s 3D bridge with selectable rival ships and holographic panels
-- Phone orientation “turn to look” through the windshield
-- Server-backed lobby when running **FlightApp** (challenge / accept / decline / ready)
-
-### LYRA — ship AI (Grok)
-- In-cockpit hologram copilot with typed questions and optional mic
-- **Grok Voice** session; permanent keys stay on the server; browser gets short-lived secrets
-- Read-only `getFlightState` tool — LYRA can recommend pilots from the **live lobby/match**, not invent combat results
-- Demo mode clearly labeled when falling back to a local guide
-
-### Authoritative multiplayer
-- Justin’s Socket.IO match + lobby: join, callsign, challenge, accept, server-picked world, ready → active → finished
-- Rock + gun weapons, block windows, cooldowns, reconnect grace, projectile landing events
-- Clients use `createGameClient` — command IDs and validation stay server-side
-
-### Perceptron replay highlights
-- Opt in during saber setup to record up to 45 seconds of silent webcam footage locally; upload consent is separate on the result screen.
-- Perceptron selects intervals/captions and tracks player boxes; browser playback adds cuts, slow motion and reframing. Original video can be saved locally.
-- Cinematic arena replay adds orbit/low/overhead shots, continuous recorded movement, speed ramps, sparks and impact holds. The captured server knockout is always the final scene, separately credited from Perceptron's earlier selections. `/?dev=replay` is a labeled synthetic preview.
-- Real synthetic-WebM clip/track API proof passed; a complete recorded duel and phone-browser QA remain pending. Setup and limits: [`docs/perceptron-replay.md`](docs/perceptron-replay.md).
-
-### Camera duel (Alan)
-- Rear-camera MediaPipe hand + pose; hand lock so rival hands don’t steal your gestures
-- Rock: palm charge → fist grab → fling / release → server `throwRock`
-- Gun: fist cock → index+middle fire → `fireGun`, with 3D blaster GLB + tracers
-- Touch backups for throw / fire / block
-
-### Mars arena (Ally)
-- Immersive Jezero-style terrain from **NASA MOLA**-derived height data
-- Opponent cutout / multi-person detection for an “across the dust” duel feel
-- Phone tilt look-around; dust, rocks, sky treatment
-- Dev route for tuning without a full match (`/?arena=mars`)
-
-### Real space data in gameplay
-- **NASA Planetary Fact Sheet** gravity (e.g. Mars **3.7 m/s²**) is shown for each world; it does not yet change saber combat
-- Arena and briefing copy grounded in provenance docs (`datasets.md`, arena attributions under `web/public/arena/mars/`)
-- Research backlog for windshield ephemeris, star maps, and space weather chips when we have bandwidth
-
----
-
-## Player journey
-
-1. **Onboard** — commission callsign / ship, hyperspace into the bridge  
-2. **Lobby** — see other pilots; challenge from the cockpit  
-3. **Accept** — defender gets the alert; both share one match  
-4. **World** — server picks conditions (Mars-focused build); LYRA / briefing explains gravity impact  
-5. **Duel** — rear camera, rock & gun, block on incoming projectiles  
-6. **Result** — server winner; return to cockpit / rematch path as available  
-
----
+The earlier rock-and-blaster camera duel was removed on October 18. [`PLAN.md`](PLAN.md) is the original hackathon plan and still describes that version.
 
 ## Quick start
 
-**Requirements:** Node 22+ recommended, two phones or laptop + phone for PvP, HTTPS (Vite basic-ssl).
+Node 22 or newer. Two browsers, or a laptop plus a phone, for a real duel. The web dev server is HTTPS (Vite `basic-ssl`).
 
 ```bash
-# Terminal 1 — authoritative game server (port 3001)
+# Terminal 1 — game server (port 3001)
 cd server && npm install && npm test && npm run dev
 
 # Terminal 2 — web client
 cd web && npm install && npm test && npm run dev
 ```
 
-Open the HTTPS URL Vite prints (accept the self-signed cert). For phones, tunnel that origin (see [`web/README.md`](web/README.md)). Socket.IO is proxied through Vite to `127.0.0.1:3001`.
+Open the HTTPS URL Vite prints (usually `https://localhost:5173`) and accept the self-signed certificate. Socket.IO is proxied to `127.0.0.1:3001`. `GET /health` on the server returns `ok`.
 
-### Useful routes
+Phones need a public HTTPS page for motion sensors. With Vite running:
 
-| Route | What you get |
-| --- | --- |
-| `/` | Onboarding → cockpit shell (`BridgeApp`) |
-| FlightApp path | Real lobby → challenge → briefing → saber arena duel (composition target for the full demo) |
-| `/?saber=CODE` | Phone lightsaber controller (opened from the laptop's pair QR) |
-| `/?dev=arena` | Saber arena with synthetic fighters, no camera/phone/server |
-| `/?arena=mars` | Mars scene only |
-
-Provider demos (Photon / Grok) use gitignored env files — see [`server/src/integrations/`](server/src/integrations/) READMEs. **Never commit API keys.**
-
----
-
-## Architecture (short)
-
-```text
-web/          React + Vite + R3F cockpit/arena + MediaPipe + Motion onboarding
-server/       Node + Socket.IO lobby, match rules, gravity mapping
-  integrations/  Photon + Grok (keys server-side only)
-docs/         contracts, QA, cursor usage, sponsor evidence
-datasets.md   NASA / JPL / imagery research for SpaceXAI provenance
+```bash
+npx --yes cloudflared tunnel --url https://localhost:5173
 ```
 
-**Invariant:** the server owns health, cooldowns, attack timing, and winner. Camera detections are inputs, not proof of a hit.
+Vite also allows ngrok hosts (`.ngrok-free.app`, `.ngrok-free.dev`, `.ngrok.io`). Scan the pair QR on the laptop; it opens `/?saber=CODE`. There is no hosted production deployment in this repo. Quick tunnels change address when restarted. Details: [`web/README.md`](web/README.md), [`docs/deployment.md`](docs/deployment.md).
 
----
+### Routes
+
+| URL | What you get |
+| --- | --- |
+| `/` | Onboarding, then the cockpit. Live mode is the real lobby and duel. |
+| `/?saber=CODE` | Phone lightsaber controller |
+| `/?explore=1` | Free-flight catalog, without the live roster |
+| `/?arena=mars` | Mars scene only |
+| `/?arena=neptune` | Neptune scene only |
+| `/?dev=arena` | Saber arena with synthetic fighters, no camera, phone, or server |
+| `/?dev=replay` | Labeled synthetic replay preview |
+| `/?dev=initiation` | Setup-overlay preview with synthetic telemetry |
+| `/?dev=hud` | Arena HUD preview |
+| `/?audio=check` | Sound check |
+| `/?journey=mars` | Mars arrival preview |
+| `/?journey=neptune` | Neptune arrival preview |
+
+### Environment variables
+
+Public URLs only in the browser. Permanent provider keys stay on the server. Examples are safe to commit; real values are gitignored.
+
+| Name | Where | Purpose |
+| --- | --- | --- |
+| `PORT` | server | Listen port, default `3001` |
+| `ALLOWED_ORIGIN` | server | Comma-separated CORS origins. Default `http://localhost:5173,https://localhost:5173` |
+| `XAI_API_KEY` | server | Grok Voice / speech. Loaded from the environment or ignored `server/.env.grok.local` |
+| `PERCEPTRON_API_KEY` | server | Optional KO replay. See `server/.env.perceptron.example` |
+| `PERCEPTRON_MODEL` | server | Optional. Default `perceptron-mk1.5` |
+| `VITE_GAME_SERVER_URL` | web | Public Socket.IO origin. Blank uses this page and the Vite proxy |
+| `VITE_SABER_CONTROLLER_URL` | web | Public HTTPS page for phone QR links. Blank uses this page |
+| `GAME_PROXY_TARGET` | web dev | Where Vite proxies `/socket.io` and `/replay`. Default `http://127.0.0.1:3001` |
+
+## How it is built
+
+```text
+web/       React 19, TypeScript, Vite, React Three Fiber, MediaPipe Pose
+server/    Node, Socket.IO. Lobby, match rules, copilot and replay adapters
+docs/      Contracts, QA, deployment, sponsor notes
+datasets.md  Source and license notes for the catalogs
+```
+
+The server ticks the duel about every 33 ms and checks the blade in 10 substeps, so a fast swing cannot pass through a guard between frames. Duplicate command IDs are not applied twice.
 
 ## Team
 
-| Role | Owner | Focus |
-| --- | --- | --- |
-| A | Ally | Cockpit, Mars arena, presentation |
-| B | Justin | Server, lobby/match contracts, networking |
-| C | Alan | Camera, gestures, overlays, gun/rock CV |
-| D | Alex | Photon, Grok Voice / LYRA, Cursor + sponsor evidence |
+| Name | Focus |
+| --- | --- |
+| Ally Chen | Cockpit, onboarding, and arena presentation |
+| Justin Lee | Authoritative server, lobby, and saber combat |
+| Alan Nguyen | Exploration universe and camera/body tracking |
+| Alex Nguyen | LYRA voice copilot and live session integration |
 
-**Web:** default `/` is onboarding → cockpit (`BridgeApp`; next glue is FlightApp’s real lobby). Other routes: `/?explore=1` (free-flight solar system + hyperspace + challenge→duel handoff), `/?camera=1` / `/?debug=camera` (Alan harness), `/?dev=mars` (camera + Mars, no match), `/?arena=mars` (scene only), `/?pvp=1` (LiveDuel rehearsal). Real challenge → briefing → duel lives in `FlightApp`.
+The same four people are on the [Devpost submission](https://devpost.com/software/space-battles-aei3wz). Early notes called these roles A–D; those letters are historical. See [`docs/team.md`](docs/team.md).
 
-Rules of engagement: [`AGENTS.md`](AGENTS.md) · Living plan: [`PLAN.md`](PLAN.md) · Board: [`docs/task-board.md`](docs/task-board.md)
+## More detail
 
----
-
-## Evidence for judges
-
-- **Cursor:** [`docs/cursor-usage.md`](docs/cursor-usage.md)  
-- **Providers (Photon, Grok Voice, LYRA):** [`docs/sponsor-evidence.md`](docs/sponsor-evidence.md)  
-- **LYRA details:** [`docs/hologram-copilot.md`](docs/hologram-copilot.md)  
-- **Datasets:** [`datasets.md`](datasets.md)  
-- **QA phones:** [`docs/qa-checklist.md`](docs/qa-checklist.md)  
-
----
-
-## Outside scope (intentionally)
-
-Native iOS / ARKit shared rooms, campus GPS, planet ownership economies, offline armies, and treating MediaPipe as Perceptron.
-
----
-
-*Deadline context: DubHacks Sunday Oct 18, 2026 · Feature freeze Saturday 10 p.m. Pacific — see PLAN.md.*
+- Dataset licenses and what was actually imported: [`datasets.md`](datasets.md)
+- Cursor sessions: [`docs/cursor-usage.md`](docs/cursor-usage.md)
+- Provider limits: [`docs/sponsor-evidence.md`](docs/sponsor-evidence.md)
+- Phone QA list: [`docs/qa-checklist.md`](docs/qa-checklist.md)
+- Original Saturday plan: [`PLAN.md`](PLAN.md)

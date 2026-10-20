@@ -1,12 +1,12 @@
 # KO.rbit: real space datasets and APIs (DubHacks 26)
 
-_Compiled Sat Oct 17, 2026, about 2:55 PM PT. Every URL below was checked live from the box with curl or WebFetch (HTTP 200 unless noted). CORS = whether a phone browser can call it directly; "no" means proxy it through `apps/server`._
+Compiled Saturday, October 17, 2026, about 2:55 p.m. Pacific. The URLs below were checked then (HTTP 200 unless a row says otherwise). CORS means whether a phone browser can call the URL directly. "No" means the call has to go through the Node server in `server/`, because the API does not send a browser CORS header.
 
-**How these were found:** the Parallel plugin was **not usable**. `parallel-cli` wasn't installed. I installed v0.9.3 into a venv at `/tmp/pvenv`, but `parallel-cli auth --json` returned `authenticated: false`: no `PARALLEL_API_KEY` env var and no stored login. To enable it, run `parallel-cli login` or set `PARALLEL_API_KEY`. The research fell back to WebSearch, WebFetch, and direct curl checks. The raw source list is in `datasets-sources.json`. It is **not** Parallel output.
+These are source and licensing notes. The "game use" column records ideas from that Saturday, including the rock-throw duel later removed from `main`. A short note at the end says which sources the current game actually ships.
 
 ---
 
-## ⭐ Top 5 for the ~18-hour build
+## Sources reviewed first
 
 | # | Dataset | Game use | Effort |
 |---|---|---|---|
@@ -16,7 +16,7 @@ _Compiled Sat Oct 17, 2026, about 2:55 PM PT. Every URL below was checked live f
 | 4 | **NOAA SWPC Planetary K-index** | A live "space weather" chip in the lobby. Kp ≥ 5 means "geomagnetic storm: blaster bolts flicker / shields +10%". Free, no key, CORS-open. | S |
 | 5 | **JPL SBDB Close-Approach (CAD) API** | "Today's rock is real." The thrown rock is named after an asteroid passing Earth this month and sized from its magnitude (e.g., "2026 TS, ~10 m, passes Oct 18"). | S–M |
 
-These give a visible real-data story in each phase: the **wheel** (Fact Sheet), the **windshield** (Horizons + star map), the **lobby** (Kp), and the **duel** (CAD asteroid rock).
+The Saturday plan attached these five to a world wheel (Fact Sheet), a live windshield (Horizons and a star map), a lobby chip (Kp), and the thrown rock (CAD). See the closing note for what `main` actually uses.
 
 ---
 
@@ -84,7 +84,7 @@ These give a visible real-data story in each phase: the **wheel** (Fact Sheet), 
 1. **InSight weather is dead.** The API still answers, but with Oct 2020 data. Don't present it as live.
 2. **CelesTrak blocks repeat downloads.** Fetch each group at most once every 2 h, server-side, cached to disk. Stop on any non-200 response (301/403/404/50x); more than 1,000 errors a day puts your IP in the firewall. Always use `celestrak.org`, never `.com` (that returns a 301). Don't pull `GROUP=starlink` (4.7 MB) to phones.
 3. **NASA DEMO_KEY** is documented at 30 req/hr and 50/day per IP, and the live NeoWs header reported a limit of **10**. Hackathon Wi-Fi shares one IP, so register a free key at https://api.nasa.gov/ and keep it in server env.
-4. **JPL APIs (Horizons, CAD, SBDB) send no CORS header.** Phones can't call them directly; proxy them through `apps/server`.
+4. **JPL APIs (Horizons, CAD, SBDB) send no CORS header.** Phones can't call them directly; proxy them through the Node server in `server/`.
 5. **APOD changes:** the legacy APOD API is archived Dec 1, 2026, and NASA's Mars Rover Photos and Earth APIs are already archived (per api.nasa.gov). Don't build on them.
 6. **DONKI returned 503 today.** Treat it as optional with a cached fallback.
 7. **The MSL weather feed lags about 7 weeks.** Label it "latest reported sol", not "today".
@@ -92,8 +92,14 @@ These give a visible real-data story in each phase: the **wheel** (Fact Sheet), 
 9. **Phone budget:** ship 2K textures (not 8K+) and stars filtered to mag < 6. The camera, MediaPipe, and Three.js already share the GPU.
 10. **Demo resilience:** snapshot every live feed into `worlds.json` / `live-cache.json` at build time and fall back silently if the Wi-Fi dies, with the cached timestamp shown.
 
-## Suggested wiring (owner)
-- **B (server):** `/api/sky` (Horizons, 1 h cache), `/api/rock` (CAD, 6 h cache), `/api/iss` (CelesTrak stations, 2 h cache), plus Fact Sheet values in `packages/physics/worlds.json`.
-- **A (lobby):** skybox from the SVS star map, planet sprites from `/api/sky`, Kp chip fetched directly from NOAA.
-- **C (AR):** rock scale and damage from `/api/rock`, per-world camera tint.
-- **D (voice):** eve lines pulled from the Fact Sheet, Kp, and asteroid name/speed.
+## What `main` uses
+
+Shipped from these notes:
+
+- NASA Planetary Fact Sheet gravities in `server/src/game/rules.ts`: Earth 9.8, Mars 3.7, Moon 1.6, and Neptune 11.2 m/s², retrieved 2026-10-17. The arena shows the selected world's value. Saber timing does not change with it.
+- Solar System Scope 2K maps in `web/public/textures/planets/` (CC BY 4.0). Credit line: `web/public/textures/planets/ATTRIBUTION.md`.
+- Exploration snapshots in `web/src/ui/components/explore/data/`, with counts, licenses, and retrieval notes in that folder's `ATTRIBUTION.md`.
+- Mars Jezero heightmap from NASA MOLA product `MGS-M-MOLA-5-MEGDR-L3-V1.0`, credited in `web/public/arena/mars/ATTRIBUTION.md`.
+- Spacecraft orbits from a dated JPL Horizons and CelesTrak snapshot imported by `web/scripts/import-spacex.py`. That is a build-time snapshot, not a live windshield.
+
+Not wired into the running game: a NOAA K-index lobby chip, live Horizons azimuth/elevation sprites, CAD-named thrown rocks, ISS pass predictions, and a Curiosity weather HUD. The proposed `/api/sky`, `/api/rock`, and `/api/iss` routes were not added. `packages/physics/` is still an empty placeholder; gravity constants live in `server/src/game/rules.ts`.

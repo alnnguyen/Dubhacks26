@@ -1,5 +1,5 @@
-// Temporary home for shared types. Moves to packages/contracts once A and B
-// agree on a root npm workspace. The web client must use the same shapes.
+// Temporary home for shared types. Moves to packages/contracts once a root
+// npm workspace is agreed. The web client must use the same shapes.
 // All *InMs fields are remaining time, not timestamps: phone clocks don't
 // match the server's. null means "not happening".
 

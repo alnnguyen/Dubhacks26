@@ -1,4 +1,4 @@
-// D-owned integration port. B supplies the implementation; this is not B's contract.
+// Integration port for provider adapters. The game server supplies the implementation; this file is not the shared match contract.
 export function validateGamePort(port) {
   for (const method of ['getChallenge', 'respondChallenge', 'getMatchState']) {
     if (typeof port?.[method] !== 'function') throw new Error(`Game adapter must implement ${method}`);
