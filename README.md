@@ -54,7 +54,7 @@ KO.rbit is a real-time, two-player lightsaber duel with no controller. A laptop 
 1. **Commission a pilot.** An animated onboarding flow sets your callsign and ship, then a hyperspace jump drops you into a 3D cockpit.
 2. **Explore a real universe.** Fly freely, search, jump to any catalogued object, and read its fact card. Time-lapse runs at 1×, 60×, or 600×.
 3. **Challenge a rival.** Pick an online pilot from the cockpit radar. The server handles the lobby, invitations, and readiness.
-4. **Planetary roulette.** The server picks Mars or Neptune (50/50). A live 3D animation hands off to a travel cinematic made with Grok Imagine, then cuts back into the live 3D scene as you enter the arena.
+4. **Planetary roulette.** The roulette spins through a 3D solar system and the server picks your destination world. A live 3D animation hands off to a travel cinematic made with Grok Imagine, then cuts back into the live 3D scene as you enter the arena. For the hackathon demo, Mars and Neptune are the two playable arenas.
 5. **Duel with your body.** Pair your phone by QR code, hold to ignite, swing to strike, hold a guard to block, and swipe to step or circle.
 6. **Relive the KO.** Opt in to record a short local clip (up to 45 s). Perceptron picks the highlight intervals, and the replay always ends on the server-confirmed finishing blow.
 
@@ -85,6 +85,11 @@ KO.rbit is a real-time, two-player lightsaber duel with no controller. A laptop 
 | Mars arena terrain | NASA PDS `MGS-M-MOLA-5-MEGDR-L3-V1.0` (Jezero Crater, 256×256 crop) | — |
 
 The data is imported at build time by `web/scripts/import-universe.py`, `import-local-objects.py`, `import-spacex.py`, and `scripts/mars/crop_mola.py`. The results are dated snapshots (2026-10-18), not live feeds. Orbits use a two-body Kepler solver on published orbital elements, not live tracking, and satellite altitudes are exaggerated for visibility. Each world shows its surface gravity from the NASA fact sheet, but **gravity does not affect combat yet**. Full attribution lives in `web/public/arena/mars/ATTRIBUTION.md`, `web/public/textures/planets/ATTRIBUTION.md`, and `datasets.md`.
+
+### How the planetary arenas were built
+
+- **Mars (Jezero Crater).** The arena terrain comes from NASA's Mars Orbiter Laser Altimeter (MOLA) elevation data. `scripts/mars/crop_mola.py` crops a region about 148 km across around Jezero Crater and resamples it into a 256×256, 16-bit heightmap. Procedural detail and photo-scanned rock and sand textures, re-graded toward Mars tones, are layered on top, and gravity comes from the NASA Mars Fact Sheet.
+- **Neptune.** Neptune has no solid surface, so the duel takes place on a fictional platform above the clouds, and the scene is built around its real atmosphere. Its reference values come from the NASA Neptune Fact Sheet: gravity at the 1-bar level, temperature, hydrogen, helium, and methane composition, and top wind speeds of 580 m/s. Observations from NASA Science and Voyager 2 shape the procedural sky: methane's blue color, bright methane cirrus over a darker cloud deck, banded winds, and sunlight about 1/900 as bright as Earth's. Sources are listed in `docs/neptune-sources.md` and `web/src/arena/neptune/neptuneConfig.ts`.
 
 ## Tech stack
 
@@ -184,7 +189,7 @@ cd web && npm test && npm run build  # Vitest (218 tests) + production build
 
 | Member | Focus |
 |---|---|
-| Ally Chen ([@allyytc](https://github.com/allyytc)) | UI and animations, scene development, planetary arenas from real planet data, cockpit lobby, battle HUD |
+| Ally Chen ([@allyytc](https://github.com/allyytc)) | UI and animations, avatar creation, planetary scene development from real data, cockpit lobby, battle HUD |
 | Justin Lee ([@just1nlee](https://github.com/just1nlee)) | Game server, lobby, lightsaber combat, networking |
 | Alan Nguyen ([@alnnguyen](https://github.com/alnnguyen)) | Camera and gesture tracking, free-flight exploration, Perceptron replays |
 | Alex Nguyen ([@alwxngn](https://github.com/alwxngn)) | UI and animations, LYRA voice copilot (Grok Voice), integrations, phone saber HUD, audio |
@@ -207,6 +212,7 @@ cd web && npm test && npm run build  # Vitest (218 tests) + production build
 
 ## What's next
 
+- Add more planets and arenas to explore beyond Mars and Neptune.
 - Make each world's gravity change how combat feels.
 - Run full QA on recorded duels and phone browsers, including a complete two-laptop, two-phone test.
 - Richer live-duel hit effects (sparks, shockwave rings, hit-stop, a victory camera).
