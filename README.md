@@ -1,154 +1,217 @@
-# KO.rbit
+<h1 align="center">KO.rbit</h1>
 
-**DubHacks 2026** · Two phones. One cockpit. A camera duel shaped by real planetary gravity.
+<p align="center"><b>Fly a starship through 31,266 real astronomical objects, then land on Mars and fight a rival in a lightsaber duel, using your body as the controller and your phone as the saber.</b></p>
 
-You’re a pilot in a 3D spaceship lobby. Other players appear as ships outside the windshield. Challenge a rival, accept the alert, jump through hyperspace, and fight on a Mars arena with hand-tracked rocks and blasters — while **LYRA**, your Grok-powered ship AI, briefs you from live match state.
+<p align="center">
+  <a href="https://devpost.com/software/space-battles-aei3wz"><img src="https://img.shields.io/badge/Winner-SpaceXAI%20Track%20%C2%B7%20DubHacks%202026-gold?style=for-the-badge" alt="Winner: SpaceXAI Track, DubHacks 2026"></a>
+</p>
 
-Built for mobile HTTPS browsers. Server-authoritative combat. No native app, no ARKit room scan, no GPS conquest.
+<p align="center">
+  <a href="https://devpost.com/software/space-battles-aei3wz">Devpost</a> ·
+  <a href="https://www.youtube.com/watch?v=Ta64tj6uJc4">Demo video</a> ·
+  <a href="#run-locally">Run locally</a> ·
+  <a href="https://github.com/dubhack26/KO.rbit">Source</a>
+</p>
 
----
+<p align="center">
+  <img src="https://img.shields.io/badge/React_19-20232A?logo=react&logoColor=61DAFB" alt="React 19">
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Three.js_%2F_R3F-000000?logo=threedotjs&logoColor=white" alt="Three.js / React Three Fiber">
+  <img src="https://img.shields.io/badge/Socket.IO-010101?logo=socketdotio&logoColor=white" alt="Socket.IO">
+  <img src="https://img.shields.io/badge/Node.js_22-339933?logo=nodedotjs&logoColor=white" alt="Node.js 22">
+  <img src="https://img.shields.io/badge/MediaPipe_Pose-0097A7?logo=google&logoColor=white" alt="MediaPipe Pose">
+  <img src="https://img.shields.io/badge/xAI_Grok_Voice-000000?logo=x&logoColor=white" alt="xAI Grok Voice">
+  <img src="https://img.shields.io/badge/Vite_7-646CFF?logo=vite&logoColor=white" alt="Vite 7">
+</p>
 
-## Tracks we’re aiming for
+<p align="center">
+  <img src="docs/images/main-hub.png" alt="3D cockpit hub with the radar and console" width="49%">
+  <img src="docs/images/object-view.png" alt="Explore mode: Hubble Space Telescope fact card over Earth" width="49%">
+</p>
+<p align="center">
+  <img src="docs/images/fighting.png" alt="Saber duel: hit lands for −15 HP and knockback" width="49%">
+  <img src="docs/images/arena.png" alt="Arrival at the Jezero Crater arena on Mars" width="49%">
+</p>
 
-| Track | Why it fits |
-| --- | --- |
-| **SpaceXAI (primary)** | Heavy **Cursor** development (logged in [`docs/cursor-usage.md`](docs/cursor-usage.md)); **Grok Voice / API** powering **LYRA** and world briefings; **NASA / planetary datasets** driving arena timing and presentation; **Grok Bot** used as a planning collaborator for roles, infrastructure cut order, and the living [`PLAN.md`](PLAN.md). |
-| **Chef’s Choice** | End-to-end creative loop: cinematic onboarding → cockpit → challenge → gravity-aware camera duel → result. |
-| **Photon 2.0** | Real channel send/reply proofs and challenge-agent fixtures ([`docs/sponsor-evidence.md`](docs/sponsor-evidence.md)); live ACCEPT path wired toward the same server commands as the UI. |
+## Why it's cool
 
-Detailed proofs, limits, and what is / isn’t claimed live in [`docs/sponsor-evidence.md`](docs/sponsor-evidence.md). Cursor sessions: [`docs/cursor-usage.md`](docs/cursor-usage.md). Dataset provenance: [`datasets.md`](datasets.md).
+KO.rbit is a real-time, two-player lightsaber duel with no controller. A laptop webcam tracks your full body with MediaPipe Pose, and your phone's motion sensors become the saber. Every swing, block, and step streams to a Node/Socket.IO server that decides each hit, so nobody can win by spoofing their camera feed. Before the fight, you fly a 3D cockpit through 31,266 real stars, exoplanets, galaxies, satellites, and SpaceX spacecraft, guided by LYRA, a voice copilot built on xAI's Grok Voice. Then planetary roulette sends you to Mars or Neptune, where the Mars arena is carved from NASA MOLA elevation data for Jezero Crater and the Neptune arena is modeled on its real atmosphere, since Neptune has no solid ground. We built it in about 24 hours at DubHacks 2026.
 
----
+> **Live demo:** there is no permanent hosted URL. The game runs locally, and multiplayer/phone play is shared through a temporary Cloudflare tunnel opened for each session (see [Run locally](#run-locally)).
 
-## Features
+## Highlights
 
-### Pilot onboarding
-- Motion-driven intro with Orbitron title cards, laser transitions, and a Three.js hyperspace jump into the cockpit
-- Callsign + ship name + hull accent stored locally for HUD cosmetics
+- **31,266 real objects** from HYG, NASA Exoplanet Archive, NED, NASA fact sheets, CelesTrak, and JPL, each with a searchable fact card.
+- **Server-authoritative combat:** a 33 ms tick with 10 substeps, so fast swings can't pass through a guard.
+- **Body + phone input:** pose streams at about 30 Hz (`BODY_SEND_MS = 33`) and saber aim at about 60 Hz (`AIM_SEND_MS = 16`). WASD and arrow keys work as a fallback.
+- **Fighting mechanics:** 100 HP, 15 damage per hit with 0.65 m knockback, stamina-limited steps, guard breaks and stuns, rematches, and a 15 s reconnect grace.
+- **Voice AI copilot:** Grok Voice realtime sessions using 60-second client secrets minted on the server.
+- **Real terrain:** a 256×256 NASA MOLA crop of Jezero Crater, plus a cinematic KO replay that picks highlights with Perceptron Mk1.5 (opt-in, with consent at both the recording and upload steps).
+- **339 passing tests:** 121 server (`node --test`) and 218 web (Vitest).
 
-### Spaceship cockpit lobby
-- Ally’s 3D bridge with selectable rival ships and holographic panels
-- Phone orientation “turn to look” through the windshield
-- Server-backed lobby when running **FlightApp** (challenge / accept / decline / ready)
+## What it does
 
-### LYRA — ship AI (Grok)
-- In-cockpit hologram copilot with typed questions and optional mic
-- **Grok Voice** session; permanent keys stay on the server; browser gets short-lived secrets
-- Read-only `getFlightState` tool — LYRA can recommend pilots from the **live lobby/match**, not invent combat results
-- Demo mode clearly labeled when falling back to a local guide
+1. **Commission a pilot.** An animated onboarding flow sets your callsign and ship, then a hyperspace jump drops you into a 3D cockpit.
+2. **Explore a real universe.** Fly freely, search, jump to any catalogued object, and read its fact card. Time-lapse runs at 1×, 60×, or 600×.
+3. **Challenge a rival.** Pick an online pilot from the cockpit radar. The server handles the lobby, invitations, and readiness.
+4. **Planetary roulette.** The server picks Mars or Neptune (50/50), and a travel cinematic flies you to the arena.
+5. **Duel with your body.** Pair your phone by QR code, hold to ignite, swing to strike, hold a guard to block, and swipe to step or circle.
+6. **Relive the KO.** Opt in to record a short local clip (up to 45 s). Perceptron picks the highlight intervals, and the replay always ends on the server-confirmed finishing blow.
 
-### Authoritative multiplayer
-- Justin’s Socket.IO match + lobby: join, callsign, challenge, accept, server-picked world, ready → active → finished
-- Rock + gun weapons, block windows, cooldowns, reconnect grace, projectile landing events
-- Clients use `createGameClient` — command IDs and validation stay server-side
+## Engineering highlights
 
-### Perceptron replay highlights
-- Opt in during saber setup to record up to 45 seconds of silent webcam footage locally; upload consent is separate on the result screen.
-- Perceptron selects intervals/captions and tracks player boxes; browser playback adds cuts, slow motion and reframing. Original video can be saved locally.
-- Cinematic arena replay adds orbit/low/overhead shots, continuous recorded movement, speed ramps, sparks and impact holds. The captured server knockout is always the final scene, separately credited from Perceptron's earlier selections. `/?dev=replay` is a labeled synthetic preview.
-- Real synthetic-WebM clip/track API proof passed; a complete recorded duel and phone-browser QA remain pending. Setup and limits: [`docs/perceptron-replay.md`](docs/perceptron-replay.md).
+| Area | What we built | Where |
+|---|---|---|
+| **Authoritative netcode** | The server owns health, stamina, cooldowns, hits, blocks, and the winner. Clients send commands with IDs and acknowledgements. Pose frames are sent as sequence-numbered volatile Socket.IO messages. The server parses each one, drops stale or too-frequent frames, and treats poses as inputs rather than proof. Blade collisions are checked across 10 substeps per 33 ms tick. | `server/src/game/rules.ts`, `match.ts`, `saber3d.ts`, `web/src/networking/gameClient.ts` |
+| **Secrets stay server-side** | The server exchanges the permanent xAI key for a 60-second realtime client secret, so the browser never sees the real key. LYRA has a single read-only tool (`getFlightState`) and cannot change the lobby or match state. | `server/src/integrations/copilot.ts`, `server/src/integrations/grok/` |
+| **Pose pipeline** | MediaPipe `PoseLandmarker` (full model, VIDEO mode) runs on the GPU and falls back to the CPU. Landmarks become a body stream that drives both the on-screen fighter and the server's body/blade geometry (`server/src/game/saber3d.ts`). | `web/src/arena3d/ArenaDuel.tsx`, `web/src/camera/mediapipeVision.ts` |
+| **Phone as saber** | The phone page reads `deviceorientation` for aim and `devicemotion` for swings over HTTPS. It pairs with the laptop by QR code. | `web/src/saber/SaberPhone.tsx`, `aimMath.ts` |
+| **3D rendering** | React Three Fiber scenes for the cockpit, explore universe, and arenas, with drei helpers and postprocessing. | `web/src/three/`, `web/src/arena3d/`, `web/src/arena/` |
+| **Data pipelines** | Python importers build dated, attributed catalogs at build time, with a validator. Orbits use a two-body Kepler solver. | `web/scripts/import-*.py`, `validate-universe.py`, `scripts/mars/crop_mola.py` |
+| **Testing** | 121 server tests (rules, match flow and reconnects, saber geometry, sessions, replay, copilot) and 218 web tests. | `server/src/**/*.test.ts`, `web/src/**/*.test.ts` |
 
-### Camera duel (Alan)
-- Rear-camera MediaPipe hand + pose; hand lock so rival hands don’t steal your gestures
-- Rock: palm charge → fist grab → fling / release → server `throwRock`
-- Gun: fist cock → index+middle fire → `fireGun`, with 3D blaster GLB + tracers
-- Touch backups for throw / fire / block
+## Real space data
 
-### Mars arena (Ally)
-- Immersive Jezero-style terrain from **NASA MOLA**-derived height data
-- Opponent cutout / multi-person detection for an “across the dust” duel feel
-- Phone tilt look-around; dust, rocks, sky treatment
-- Dev route for tuning without a full match (`/?arena=mars`)
+| Data | Source | Count |
+|---|---|---|
+| Stars | HYG Database v4.1 (CC BY-SA 4.0) | 24,835 |
+| Exoplanets | NASA Exoplanet Archive (PSCompPars) | 5,301 around 3,894 hosts |
+| Galaxies | GALEX Ultraviolet Atlas via NASA/IPAC NED | 1,034 |
+| Planets + Moon | NASA Planetary Fact Sheets | 9 |
+| Satellites | CelesTrak (ISS, Hubble) + Starlink TLEs | 20 |
+| Asteroids & comets | NASA/JPL Small-Body Database API | 60 |
+| SpaceX spacecraft | CelesTrak + JPL Horizons orbital elements | 7 |
+| Mars arena terrain | NASA PDS `MGS-M-MOLA-5-MEGDR-L3-V1.0` (Jezero Crater, 256×256 crop) | — |
 
-### Real space data in gameplay
-- **NASA Planetary Fact Sheet** gravity (e.g. Mars **3.7 m/s²**) is shown for each world; it does not yet change saber combat
-- Arena and briefing copy grounded in provenance docs (`datasets.md`, arena attributions under `web/public/arena/mars/`)
-- Research backlog for windshield ephemeris, star maps, and space weather chips when we have bandwidth
+The data is imported at build time by `web/scripts/import-universe.py`, `import-local-objects.py`, `import-spacex.py`, and `scripts/mars/crop_mola.py`. The results are dated snapshots (2026-10-18), not live feeds. Orbits use a two-body Kepler solver on published orbital elements, not live tracking, and satellite altitudes are exaggerated for visibility. Each world shows its surface gravity from the NASA fact sheet, but **gravity does not affect combat yet**. Full attribution lives in `web/public/arena/mars/ATTRIBUTION.md`, `web/public/textures/planets/ATTRIBUTION.md`, and `datasets.md`.
 
----
+## Tech stack
 
-## Player journey
+| Layer | Technologies |
+|---|---|
+| Client | React 19, TypeScript, Vite 7, Three.js, React Three Fiber / drei / postprocessing, Motion |
+| Body tracking & saber | MediaPipe Tasks Vision (Pose) on the laptop; phone motion sensors over HTTPS; QR pairing |
+| Server | Node.js 22, TypeScript, Socket.IO 4.8 |
+| AI | xAI Grok Voice (realtime) and Grok TTS for LYRA; Perceptron Mk1.5 for replay highlights |
+| Data | NASA, JPL, CelesTrak, HYG catalogs (Python importers) |
+| Testing | Vitest (web), `node --test` (server) |
 
-1. **Onboard** — commission callsign / ship, hyperspace into the bridge  
-2. **Lobby** — see other pilots; challenge from the cockpit  
-3. **Accept** — defender gets the alert; both share one match  
-4. **World** — server picks conditions (Mars-focused build); LYRA / briefing explains gravity impact  
-5. **Duel** — rear camera, rock & gun, block on incoming projectiles  
-6. **Result** — server winner; return to cockpit / rematch path as available  
-
----
-
-## Quick start
-
-**Requirements:** Node 22+ recommended, two phones or laptop + phone for PvP, HTTPS (Vite basic-ssl).
-
-```bash
-# Terminal 1 — authoritative game server (port 3001)
-cd server && npm install && npm test && npm run dev
-
-# Terminal 2 — web client
-cd web && npm install && npm test && npm run dev
-```
-
-Open the HTTPS URL Vite prints (accept the self-signed cert). For phones, tunnel that origin (see [`web/README.md`](web/README.md)). Socket.IO is proxied through Vite to `127.0.0.1:3001`.
-
-### Useful routes
-
-| Route | What you get |
-| --- | --- |
-| `/` | Onboarding → cockpit shell (`BridgeApp`) |
-| FlightApp path | Real lobby → challenge → briefing → saber arena duel (composition target for the full demo) |
-| `/?saber=CODE` | Phone lightsaber controller (opened from the laptop's pair QR) |
-| `/?dev=arena` | Saber arena with synthetic fighters, no camera/phone/server |
-| `/?arena=mars` | Mars scene only |
-
-Provider demos (Photon / Grok) use gitignored env files — see [`server/src/integrations/`](server/src/integrations/) READMEs. **Never commit API keys.**
-
----
-
-## Architecture (short)
+## Architecture
 
 ```text
-web/          React + Vite + R3F cockpit/arena + MediaPipe + Motion onboarding
-server/       Node + Socket.IO lobby, match rules, gravity mapping
-  integrations/  Photon + Grok (keys server-side only)
-docs/         contracts, QA, cursor usage, sponsor evidence
-datasets.md   NASA / JPL / imagery research for SpaceXAI provenance
+ Laptop browser (React + Three.js)            Phone browser (/?saber=CODE)
+ ├─ Cockpit, Explore, Arena scenes             └─ Saber controller: aim, swing, swipe-to-step
+ ├─ MediaPipe Pose → body stream                         │
+ └─ LYRA voice UI ─┐                                     │
+        │          │ short-lived client secret           │
+        │          ▼                                     │
+        │     xAI Grok Voice / TTS                       │
+        ▼                                                ▼
+ ┌──────────────────── Socket.IO (via Vite proxy /socket.io) ───────────────────┐
+ │ server/ (Node, port 3001)                                                     │
+ │  sessions/  lobby, identities, challenges   game/  saber match, rules, tick   │
+ │  integrations/  copilot token minting, LYRA narration, Perceptron replay      │
+ └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Invariant:** the server owns health, cooldowns, attack timing, and winner. Camera detections are inputs, not proof of a hit.
+The server owns health, stamina, hits, blocks, cooldowns, and the winner. Clients only send commands.
 
----
+## Run locally
+
+**Requirements**
+- Node.js **22+** (`server/package.json` sets `engines.node >= 22`)
+- To play a real duel, each player needs a laptop with a webcam and a phone with motion sensors. iOS only allows motion access on **HTTPS** pages.
+- Optional API keys: xAI (for LYRA) and Perceptron (for replays). The game, dev routes, and tests all run without keys. When no key is set, LYRA falls back to a labeled local demo guide.
+
+**0. Clone**
+```bash
+git clone https://github.com/dubhack26/KO.rbit.git
+cd KO.rbit
+```
+
+**1. Game server** (terminal 1)
+```bash
+cd server
+npm ci
+npm run dev          # tsc --watch + node --watch on http://localhost:3001  (GET /health → ok)
+```
+
+**2. Web client** (terminal 2)
+```bash
+cd web
+npm ci
+npm run dev          # https://localhost:5173 (self-signed cert; accept the warning)
+```
+Vite proxies `/socket.io` and `/replay` to the game server.
+
+**3. Phone saber / sharing a live demo**: expose the Vite server over a public HTTPS tunnel, then scan the pair QR code shown on the laptop:
+```bash
+npx --yes cloudflared tunnel --url https://localhost:5173
+# or: ngrok http https://localhost:5173
+```
+
+**Environment variables** (names only; never commit values)
+
+| Where | Variable | Purpose |
+|---|---|---|
+| `server/.env.grok.local` (template: `.env.grok.local.example`) | `XAI_API_KEY` | Grok Voice / TTS for LYRA |
+| `server/.env` (template: `.env.perceptron.example`) | `PERCEPTRON_API_KEY`, `PERCEPTRON_MODEL` (default `perceptron-mk1.5`) | KO replay highlights |
+| `server/.env` | `PORT` (default 3001), `ALLOWED_ORIGIN` (default `http://localhost:5173,https://localhost:5173`) | Server config |
+| `web/.env.local` (template: `web/.env.example`) | `VITE_GAME_SERVER_URL`, `VITE_SABER_CONTROLLER_URL` | Point the client and phone links at a shared hosted server/tunnel; leave blank for local |
+| shell (Vite) | `GAME_PROXY_TARGET` | Override the proxy target (default `http://127.0.0.1:3001`) |
+
+**Dev / preview routes** (no second player needed)
+
+| Route | What it shows |
+|---|---|
+| `/` | Onboarding → cockpit (Demo/Live switch) |
+| `/?explore` | Free-flight universe explorer |
+| `/?dev=arena` | Saber arena with synthetic fighters (no camera, phone or server) |
+| `/?arena=mars` · `/?arena=neptune` | Arena scenes only |
+| `/?journey=mars` | Mars travel sequence |
+| `/?dev=replay` | Replay director with labeled synthetic footage |
+| `/?dev=hud` | Scripted duel HUD |
+| `/?audio=check` | Sound check |
+
+**Tests and build**
+```bash
+cd server && npm test              # builds, then runs node --test (121 tests; the dist/**/*.test.js glob needs Node 22+)
+cd web && npm test && npm run build  # Vitest (218 tests) + production build
+```
 
 ## Team
 
-| Role | Owner | Focus |
-| --- | --- | --- |
-| A | Ally | Cockpit, Mars arena, presentation |
-| B | Justin | Server, lobby/match contracts, networking |
-| C | Alan | Camera, gestures, overlays, gun/rock CV |
-| D | Alex | Photon, Grok Voice / LYRA, Cursor + sponsor evidence |
+| Member | Focus (from repo history and Devpost) |
+|---|---|
+| Ally Chen ([@allyytc](https://github.com/allyytc)) | Animations; scene selection and scene development; planetary arena fighting platforms built from real planet data (Mars Jezero Crater from NASA MOLA elevation; Neptune, which has no solid surface, modeled on its real atmosphere); planetary roulette and travel cinematics; 3D cockpit lobby and phone turn-to-look; avatar onboarding; battle HUD |
+| Justin Lee ([@just1nlee](https://github.com/just1nlee)) | Game server and battle mechanics (Socket.IO lobby, authoritative saber combat) |
+| Alan Nguyen ([@alnnguyen](https://github.com/alnnguyen)) | Camera pipeline, MediaPipe pose/gesture tracking, overlays |
+| Alex Nguyen ([@alwxngn](https://github.com/alwxngn)) | LYRA / Grok Voice, provider integrations (Perceptron, Photon), sponsor evidence |
 
-**Web:** default `/` is onboarding → cockpit (`BridgeApp`; next glue is FlightApp’s real lobby). Other routes: `/?explore=1` (free-flight solar system + hyperspace + challenge→duel handoff), `/?camera=1` / `/?debug=camera` (Alan harness), `/?dev=mars` (camera + Mars, no match), `/?arena=mars` (scene only), `/?pvp=1` (LiveDuel rehearsal). Real challenge → briefing → duel lives in `FlightApp`.
+<!-- TODO(Ally): confirm teammate roles before publishing. -->
 
-Rules of engagement: [`AGENTS.md`](AGENTS.md) · Living plan: [`PLAN.md`](PLAN.md) · Board: [`docs/task-board.md`](docs/task-board.md)
+## Challenges
 
----
+- **A mid-hackathon pivot.** We started with a gesture-based rock-and-blaster duel and switched to the phone saber, which forced the team to merge two diverging combat lines.
+- **Contract drift.** The planned shared `packages/contracts` package was never filled in. Branches edited the server's types directly, and keeping clients wire-compatible took deliberate effort.
+- **HTTPS everywhere.** Phone motion sensors require secure pages, so development ran on self-signed certificates and Cloudflare/ngrok tunnels whose hostnames kept changing.
+- **Replay reliability.** Stopping the recorder without flushing produced empty files. Fixing it took recorder work and a new results layout.
 
-## Evidence for judges
+## What we learned
 
-- **Cursor:** [`docs/cursor-usage.md`](docs/cursor-usage.md)  
-- **Providers (Photon, Grok Voice, LYRA):** [`docs/sponsor-evidence.md`](docs/sponsor-evidence.md)  
-- **LYRA details:** [`docs/hologram-copilot.md`](docs/hologram-copilot.md)  
-- **Datasets:** [`datasets.md`](datasets.md)  
-- **QA phones:** [`docs/qa-checklist.md`](docs/qa-checklist.md)  
+- If camera input is treated as a request to the server rather than as truth, fights are fairer and easier to debug.
+- Agree on shared contracts in the first hour.
+- Real data needs provenance, so we keep attribution and manifests next to every dataset.
+- Short-lived tokens and read-only tools keep an AI copilot safe.
 
----
+## What's next
 
-## Outside scope (intentionally)
+- Make each world's gravity change how combat feels.
+- Run full QA on recorded duels and phone browsers, including a complete two-laptop, two-phone test.
+- Richer live-duel hit effects (sparks, shockwave rings, hit-stop, a victory camera).
 
-Native iOS / ARKit shared rooms, campus GPS, planet ownership economies, offline armies, and treating MediaPipe as Perceptron.
+## Credits
 
----
+Planet textures: Solar System Scope (CC BY 4.0). Ground materials: ambientCG (CC0). Star catalog: HYG Database (CC BY-SA 4.0). NASA/JPL data is in the public domain. See the `ATTRIBUTION.md` files and `datasets.md` for the full list. Built for DubHacks 2026 with help from Cursor and Grok Bot (planning, research, and sound design).
 
-*Deadline context: DubHacks Sunday Oct 18, 2026 · Feature freeze Saturday 10 p.m. Pacific — see PLAN.md.*
+<!-- Internal hackathon process docs (PLAN.md, AGENTS.md, docs/task-board.md, sponsor evidence) are kept in the repo for reference. -->

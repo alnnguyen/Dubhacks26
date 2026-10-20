@@ -73,7 +73,7 @@ const Screen = hudPreview
                       return { default: m.MarsPreview };
                     })
                   : lazy(async () => {
-                      // Onboarding → cockpit; FlightApp (real lobby + duel) is next wiring step.
+                      // Onboarding and cockpit. BridgeApp mounts FlightApp for the live lobby and duel.
                       const m = await import("./ui/screens/BridgeApp");
                       return { default: m.BridgeApp };
                     });

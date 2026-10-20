@@ -1,27 +1,23 @@
-# Team assignment and kickoff
+# Team
 
-- A — Ally (cockpit/UI presentation): cockpit scene, composition help, release adjacent work. Work **on `alex-dev`** (or branch from it). Optional later: fold `cockpit-scene` `dacca30` orientation look if useful. Do not replace the live camera duel with a scanned 3D room (PLAN: screen-space combat).
-- B — name to assign: shared contracts, authoritative server, networking and physics. **Critical path:** `createGamePort` + frozen contracts (`server/src/integrations/HANDOFF.md`).
-- C — Alan: camera, local hand/pose inference and visual overlays (`web/src/camera`, `web/src/vision`, `web/src/overlay`, `public/models`). Already merged into `alex-dev`; **do not re-merge stale `origin/alan`**. Push new C work to a fresh tip, then merge into `alex-dev`.
-- D — Alex: Photon, Grok Voice, actual Grok Bot planning and optional Perceptron (`server/src/integrations`, `web/src/voice`, sponsor evidence). Provider-evidence verifier. Helps Alan on phone QA after D fixtures.
+Same roster as the root README. Early hackathon notes used the letters A–D; those letters are not assignments anymore.
 
-## Decide before splitting
+| Name | Focus |
+| --- | --- |
+| Ally Chen | Cockpit, onboarding, and arena presentation |
+| Justin Lee | Authoritative server, lobby, and saber combat |
+| Alan Nguyen | Exploration universe and camera/body tracking |
+| Alex Nguyen | LYRA voice copilot and live session integration |
 
-- Name each owner and pick the two actual demo phones/browsers.
-- Choose one package manager and compatible Node runtime; A/B coordinate workspace setup.
-- Approve command names and state transitions in contracts.md.
-- Pick server/frontend hosting and a working HTTPS device-testing path.
-- Provision provider keys/channel access without sharing secrets in committed docs.
-- Assign release captain A and provider-evidence verifier D.
+The Devpost submission lists the same four people: [https://devpost.com/software/space-battles-aei3wz](https://devpost.com/software/space-battles-aei3wz).
 
-Each person connects their feature to the deployed main flow. Use short owner/blocker/next-action updates and small merges every 60–90 minutes. Use PLAN.md for detailed scope, checkpoints, rest handoffs and submission schedule.
+## October 17 kickoff (historical)
 
-## Ally / Alan — pull instructions (2026-10-17)
+The notes below were written before names were filled in and before `main` became the saber duel. They are not current branch instructions. Do not check out `alex-dev` or `origin/alan` to continue this repo.
 
-```sh
-git fetch origin
-git checkout alex-dev
-git pull origin alex-dev
-```
+- A — Ally (cockpit/UI presentation): cockpit scene, composition help, release adjacent work. The note said to work on `alex-dev`.
+- B — unassigned at the time of that note. The server, lobby, and combat work is Justin Lee's.
+- C — Alan: camera, local hand/pose inference, and visual overlays (`web/src/camera`, `web/src/vision`, `web/src/overlay`, `public/models`).
+- D — Alex: Photon, Grok Voice, Grok Bot planning, and optional Perceptron (`server/src/integrations`, `web/src/voice`, sponsor evidence).
 
-`origin/alan` tip `e6cd4b7` is already an ancestor of `alex-dev`. Merging `alan` again adds nothing. If Alan has newer commits, push them first, then merge into `alex-dev`.
+`origin/alan` tip `e6cd4b7` was already an ancestor of `alex-dev` on 2026-10-17. That pull instruction is obsolete.

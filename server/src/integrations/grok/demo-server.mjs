@@ -1,4 +1,4 @@
-// Local fixture harness only; B mounts these adapters behind actual game auth.
+// Local fixture harness only. The game server mounts these adapters behind actual game auth.
 import { createServer } from 'node:http';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';

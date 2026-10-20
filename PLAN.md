@@ -1,6 +1,8 @@
 # TEAM ALIGNMENT — Spaceship Lobby → Camera Duel
 
-Current proposed build plan • Saturday, October 17, 2026, about 3:00 p.m. Pacific. Submission deadline: Sunday, October 18, 10:00 a.m. Pacific; team target: 9:00 a.m. Assign names to A–D at kickoff. This is the version to review together before implementation; it supersedes earlier native-app, campus-conquest and virtual-avatar-arena plans for the proposed submission. Older tabs remain historical references.
+> **Historical hackathon plan, written Saturday, October 17, 2026.** This is not a description of the game on `main`. The rock-throw and blaster duel in the sections below was removed on October 18. The shipped fight is a laptop pose track plus a phone lightsaber; the server chooses Mars or Neptune when a challenge is accepted. How to run the current project is in `README.md`. The rest of this file is kept as the original plan, including goals that were cut or never built.
+
+Original proposed build plan • Saturday, October 17, 2026, about 3:00 p.m. Pacific. Submission deadline was Sunday, October 18, 10:00 a.m. Pacific; team target was 9:00 a.m. Names for A–D were assigned at kickoff and are recorded in `docs/team.md`. This plan superseded earlier native-app, campus-conquest, and virtual-avatar-arena ideas for the proposed submission. It is itself historical now.
 
 ## The game we are building
 

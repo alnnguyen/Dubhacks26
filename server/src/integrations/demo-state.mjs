@@ -1,4 +1,4 @@
-// Explicit fixture only. Replace this adapter with B's actual command service.
+// Explicit fixture only. Replace this adapter with the game command service.
 import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
 import { dirname } from 'node:path';
 

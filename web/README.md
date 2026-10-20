@@ -36,18 +36,14 @@ Scan the laptop's pair QR code (it opens `/?saber=CODE`) and follow the guided s
 
 ## Ownership notes
 
-- C: `src/camera`, `src/vision`, `src/overlay`, `public/models`
-- B owns WebSocket + frozen command schemas
-- D’s voice should release the mic during combat
+- Camera, vision, overlays, and `public/models` are Alan's area
+- The WebSocket lobby and command schemas are Justin's server
+- Alex's voice copilot should release the mic during combat
 - Keep secrets out of client config
-
-## Cockpit integration check
-
-Merged origin/cockpit-scene at 20124de into alex-dev. Combined React/Three/MediaPipe dependencies; retained camera HTTPS development support with a Vite 7-compatible SSL plugin. Tests: 53 frontend and 10 integration tests passed; production build passed. Browser cockpit renders without observed console errors; camera debug remains a separate route. Ally’s onEnterBattle/lobby props are the next game integration points. The existing demo-state branch remains separate.
 
 ## Connected local flow
 
-Both pilots accept the server challenge, then each engages from the cockpit. The planetary roulette always selects Mars, plays `public/cinematics/spacetomars.mp4`, and calls `onTravelComplete("mars")` on video completion or skip. `FlightApp` opens the server-backed Mars briefing; the saber arena begins only after the server reports both pilots ready. No room scan is used.
+Both pilots accept the server challenge, then each engages from the cockpit. The server picks Mars or Neptune once, 50/50, when the challenge is accepted. The planetary roulette locks on that world. Mars plays the bundled clip `src/ui/cinematics/assets/spacetomars.mp4`. Neptune plays `public/assets/neptune/neptune-arrival.mp4`. On video completion or skip, the sequence calls `onTravelComplete` with that destination. `FlightApp` sends the server ready command from that arrival; there is no separate briefing page. The saber arena is shown for a pilot who has entered, and the shared countdown starts only after the server sees both pilots set up. No room scan is used.
 
 The arena tracks each player's body with MediaPipe Pose on their own laptop. The server remains authoritative for health, swings, blocks, cooldowns, and results. See `docs/flight-integration.md` from the repository root for local connection details and device-test limitations.
 

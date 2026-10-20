@@ -1,6 +1,6 @@
 import type { World, WorldId } from "../contracts.js";
 
-// Placeholder design numbers to tune with C after play-testing.
+// Placeholder design numbers to tune after play-testing.
 export const RULES = {
   startingHealth: 100,
   reconnectGraceMs: 15000,
