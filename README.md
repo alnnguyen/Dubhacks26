@@ -54,7 +54,7 @@ KO.rbit is a real-time, two-player lightsaber duel with no controller. A laptop 
 1. **Commission a pilot.** An animated onboarding flow sets your callsign and ship, then a hyperspace jump drops you into a 3D cockpit.
 2. **Explore a real universe.** Fly freely, search, jump to any catalogued object, and read its fact card. Time-lapse runs at 1×, 60×, or 600×.
 3. **Challenge a rival.** Pick an online pilot from the cockpit radar. The server handles the lobby, invitations, and readiness.
-4. **Planetary roulette.** The server picks Mars or Neptune (50/50), and a travel cinematic flies you to the arena.
+4. **Planetary roulette.** The server picks Mars or Neptune (50/50). A live 3D animation hands off to a travel cinematic made with Grok Imagine, then cuts back into the live 3D scene as you enter the arena.
 5. **Duel with your body.** Pair your phone by QR code, hold to ignite, swing to strike, hold a guard to block, and swipe to step or circle.
 6. **Relive the KO.** Opt in to record a short local clip (up to 45 s). Perceptron picks the highlight intervals, and the replay always ends on the server-confirmed finishing blow.
 
@@ -67,6 +67,7 @@ KO.rbit is a real-time, two-player lightsaber duel with no controller. A laptop 
 | **Pose pipeline** | MediaPipe `PoseLandmarker` (full model, VIDEO mode) runs on the GPU and falls back to the CPU. Landmarks become a body stream that drives both the on-screen fighter and the server's body/blade geometry (`server/src/game/saber3d.ts`). | `web/src/arena3d/ArenaDuel.tsx`, `web/src/camera/mediapipeVision.ts` |
 | **Phone as saber** | The phone page reads `deviceorientation` for aim and `devicemotion` for swings over HTTPS. It pairs with the laptop by QR code. | `web/src/saber/SaberPhone.tsx`, `aimMath.ts` |
 | **3D rendering** | React Three Fiber scenes for the cockpit, explore universe, and arenas, with drei helpers and postprocessing. | `web/src/three/`, `web/src/arena3d/`, `web/src/arena/` |
+| **Video-to-3D handoff** | Travel cinematics generated with Grok Imagine are matched to the live scenes, so the animation flows from real-time 3D into video and back into 3D at arena entry without a visible cut. | `web/src/ui/cinematics/PlanetaryTransition.tsx`, `web/src/arena/neptune/NeptuneArrival.tsx` |
 | **Data pipelines** | Python importers build dated, attributed catalogs at build time, with a validator. Orbits use a two-body Kepler solver. | `web/scripts/import-*.py`, `validate-universe.py`, `scripts/mars/crop_mola.py` |
 | **Testing** | 121 server tests (rules, match flow and reconnects, saber geometry, sessions, replay, copilot) and 218 web tests. | `server/src/**/*.test.ts`, `web/src/**/*.test.ts` |
 
