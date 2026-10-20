@@ -54,7 +54,7 @@ KO.rbit is a real-time, two-player lightsaber duel with no controller. A laptop 
 1. **Commission a pilot.** An animated onboarding flow sets your callsign and ship, then a hyperspace jump drops you into a 3D cockpit.
 2. **Explore a real universe.** Fly freely, search, jump to any catalogued object, and read its fact card. Time-lapse runs at 1×, 60×, or 600×.
 3. **Challenge a rival.** Pick an online pilot from the cockpit radar. The server handles the lobby, invitations, and readiness.
-4. **Planetary roulette.** The server picks Mars or Neptune (50/50), and a travel cinematic flies you to the arena.
+4. **Planetary roulette.** The roulette spins through a 3D solar system and the server picks your destination world. A live 3D animation hands off to a travel cinematic made with Grok Imagine, then cuts back into the live 3D scene as you enter the arena. For the hackathon demo, Mars and Neptune are the two playable arenas.
 5. **Duel with your body.** Pair your phone by QR code, hold to ignite, swing to strike, hold a guard to block, and swipe to step or circle.
 6. **Relive the KO.** Opt in to record a short local clip (up to 45 s). Perceptron picks the highlight intervals, and the replay always ends on the server-confirmed finishing blow.
 
@@ -65,10 +65,17 @@ KO.rbit is a real-time, two-player lightsaber duel with no controller. A laptop 
 | **Authoritative netcode** | The server owns health, stamina, cooldowns, hits, blocks, and the winner. Clients send commands with IDs and acknowledgements. Pose frames are sent as sequence-numbered volatile Socket.IO messages. The server parses each one, drops stale or too-frequent frames, and treats poses as inputs rather than proof. Blade collisions are checked across 10 substeps per 33 ms tick. | `server/src/game/rules.ts`, `match.ts`, `saber3d.ts`, `web/src/networking/gameClient.ts` |
 | **Secrets stay server-side** | The server exchanges the permanent xAI key for a 60-second realtime client secret, so the browser never sees the real key. LYRA has a single read-only tool (`getFlightState`) and cannot change the lobby or match state. | `server/src/integrations/copilot.ts`, `server/src/integrations/grok/` |
 | **Pose pipeline** | MediaPipe `PoseLandmarker` (full model, VIDEO mode) runs on the GPU and falls back to the CPU. Landmarks become a body stream that drives both the on-screen fighter and the server's body/blade geometry (`server/src/game/saber3d.ts`). | `web/src/arena3d/ArenaDuel.tsx`, `web/src/camera/mediapipeVision.ts` |
-| **Phone as saber** | The phone page reads `deviceorientation` for aim and `devicemotion` for swings over HTTPS. It pairs with the laptop by QR code. | `web/src/saber/SaberPhone.tsx`, `aimMath.ts` |
+| **Phone as saber** | The phone page reads `deviceorientation` for blade aim over HTTPS, and the server detects swings from blade-tip speed. It pairs with the laptop by QR code. | `web/src/saber/SaberPhone.tsx`, `aimMath.ts` |
 | **3D rendering** | React Three Fiber scenes for the cockpit, explore universe, and arenas, with drei helpers and postprocessing. | `web/src/three/`, `web/src/arena3d/`, `web/src/arena/` |
+| **Video-to-3D handoff** | Travel cinematics generated with Grok Imagine are matched to the live scenes, so the animation flows from real-time 3D into video and back into 3D at arena entry without a visible cut. | `web/src/ui/cinematics/PlanetaryTransition.tsx`, `web/src/arena/neptune/NeptuneArrival.tsx` |
 | **Data pipelines** | Python importers build dated, attributed catalogs at build time, with a validator. Orbits use a two-body Kepler solver. | `web/scripts/import-*.py`, `validate-universe.py`, `scripts/mars/crop_mola.py` |
 | **Testing** | 121 server tests (rules, match flow and reconnects, saber geometry, sessions, replay, copilot) and 218 web tests. | `server/src/**/*.test.ts`, `web/src/**/*.test.ts` |
+
+### How the phone saber works
+
+- The phone's gyroscope sets the blade's direction, and the webcam tracks your wrist as the hilt.
+- The server counts a swing based on how fast the blade tip moves, then checks it for hits and blocks.
+- You step by swiping your thumb on the screen, and you pair the phone by scanning a QR code over HTTPS.
 
 ## Real space data
 
@@ -84,6 +91,11 @@ KO.rbit is a real-time, two-player lightsaber duel with no controller. A laptop 
 | Mars arena terrain | NASA PDS `MGS-M-MOLA-5-MEGDR-L3-V1.0` (Jezero Crater, 256×256 crop) | — |
 
 The data is imported at build time by `web/scripts/import-universe.py`, `import-local-objects.py`, `import-spacex.py`, and `scripts/mars/crop_mola.py`. The results are dated snapshots (2026-10-18), not live feeds. Orbits use a two-body Kepler solver on published orbital elements, not live tracking, and satellite altitudes are exaggerated for visibility. Each world shows its surface gravity from the NASA fact sheet, but **gravity does not affect combat yet**. Full attribution lives in `web/public/arena/mars/ATTRIBUTION.md`, `web/public/textures/planets/ATTRIBUTION.md`, and `datasets.md`.
+
+### How the planetary arenas were built
+
+- **Mars (Jezero Crater).** The arena terrain comes from NASA's Mars Orbiter Laser Altimeter (MOLA) elevation data. `scripts/mars/crop_mola.py` crops a region about 148 km across around Jezero Crater and resamples it into a 256×256, 16-bit heightmap. Procedural detail and photo-scanned rock and sand textures, re-graded toward Mars tones, are layered on top, and gravity comes from the NASA Mars Fact Sheet.
+- **Neptune.** Neptune has no solid surface, so the duel takes place on a fictional platform above the clouds, and the scene is built around its real atmosphere. Its reference values come from the NASA Neptune Fact Sheet: gravity at the 1-bar level, temperature, hydrogen, helium, and methane composition, and top wind speeds of 580 m/s. Observations from NASA Science and Voyager 2 shape the procedural sky: methane's blue color, bright methane cirrus over a darker cloud deck, banded winds, and sunlight about 1/900 as bright as Earth's. Sources are listed in `docs/neptune-sources.md` and `web/src/arena/neptune/neptuneConfig.ts`.
 
 ## Tech stack
 
@@ -181,12 +193,12 @@ cd web && npm test && npm run build  # Vitest (218 tests) + production build
 
 ## Team
 
-| Member | Focus (from repo history and Devpost) |
+| Member | Focus |
 |---|---|
-| Ally Chen ([@allyytc](https://github.com/allyytc)) | Animations; scene selection and scene development; planetary arena fighting platforms built from real planet data (Mars Jezero Crater from NASA MOLA elevation; Neptune, which has no solid surface, modeled on its real atmosphere); planetary roulette and travel cinematics; 3D cockpit lobby and phone turn-to-look; avatar onboarding; battle HUD |
-| Justin Lee ([@just1nlee](https://github.com/just1nlee)) | Game server and battle mechanics (Socket.IO lobby, authoritative saber combat) |
-| Alan Nguyen ([@alnnguyen](https://github.com/alnnguyen)) | Camera pipeline, MediaPipe pose/gesture tracking, overlays |
-| Alex Nguyen ([@alwxngn](https://github.com/alwxngn)) | LYRA / Grok Voice, provider integrations (Perceptron, Photon), sponsor evidence |
+| Ally Chen ([@allyytc](https://github.com/allyytc)) | UI and animations, avatar creation, planetary scene development from real data, cockpit lobby, battle HUD |
+| Justin Lee ([@just1nlee](https://github.com/just1nlee)) | Battle mechanics (lightsaber combat, joystick controls, stick-figure fighters), built and ran the multiplayer game server, lobby, networking |
+| Alan Nguyen ([@alnnguyen](https://github.com/alnnguyen)) | Space exploration mode (31,266 real objects, educational fact cards, finding other pilots in the universe), camera and gesture tracking, Perceptron replays |
+| Alex Nguyen ([@alwxngn](https://github.com/alwxngn)) | UI and animations, LYRA voice copilot (Grok Voice), integrations, phone saber HUD, audio |
 
 <!-- TODO(Ally): confirm teammate roles before publishing. -->
 
@@ -206,6 +218,7 @@ cd web && npm test && npm run build  # Vitest (218 tests) + production build
 
 ## What's next
 
+- Add more planets and arenas to explore beyond Mars and Neptune.
 - Make each world's gravity change how combat feels.
 - Run full QA on recorded duels and phone browsers, including a complete two-laptop, two-phone test.
 - Richer live-duel hit effects (sparks, shockwave rings, hit-stop, a victory camera).
