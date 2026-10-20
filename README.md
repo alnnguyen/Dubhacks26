@@ -181,12 +181,12 @@ cd web && npm test && npm run build  # Vitest (218 tests) + production build
 
 ## Team
 
-| Member | Focus (from repo history and Devpost) |
+| Member | Focus |
 |---|---|
-| Ally Chen ([@allyytc](https://github.com/allyytc)) | Animations; scene selection and scene development; planetary arena fighting platforms built from real planet data (Mars Jezero Crater from NASA MOLA elevation; Neptune, which has no solid surface, modeled on its real atmosphere); planetary roulette and travel cinematics; 3D cockpit lobby and phone turn-to-look; avatar onboarding; battle HUD |
-| Justin Lee ([@just1nlee](https://github.com/just1nlee)) | Game server and battle mechanics (Socket.IO lobby, authoritative saber combat) |
-| Alan Nguyen ([@alnnguyen](https://github.com/alnnguyen)) | Camera pipeline, MediaPipe pose/gesture tracking, overlays |
-| Alex Nguyen ([@alwxngn](https://github.com/alwxngn)) | LYRA / Grok Voice, provider integrations (Perceptron, Photon), sponsor evidence |
+| Ally Chen ([@allyytc](https://github.com/allyytc)) | UI and animations, scene development, planetary arenas from real planet data, cockpit lobby, battle HUD |
+| Justin Lee ([@just1nlee](https://github.com/just1nlee)) | Game server, lobby, lightsaber combat, networking |
+| Alan Nguyen ([@alnnguyen](https://github.com/alnnguyen)) | Camera and gesture tracking, free-flight exploration, Perceptron replays |
+| Alex Nguyen ([@alwxngn](https://github.com/alwxngn)) | UI and animations, LYRA voice copilot (Grok Voice), integrations, phone saber HUD, audio |
 
 <!-- TODO(Ally): confirm teammate roles before publishing. -->
 
