@@ -196,7 +196,7 @@ cd web && npm test && npm run build  # Vitest (218 tests) + production build
 | Member | Focus |
 |---|---|
 | Ally Chen ([@allyytc](https://github.com/allyytc)) | UI and animations, avatar creation, planetary scene development from real data, cockpit lobby, battle HUD |
-| Justin Lee ([@just1nlee](https://github.com/just1nlee)) | Battle mechanics (lightsaber combat, joystick controls, stick-figure fighters), built and ran the multiplayer game server, lobby, networking |
+| Justin Lee ([@just1nlee](https://github.com/just1nlee)) | Battle mechanics (lightsaber combat, joystick controls), built and ran the multiplayer game server, lobby, networking |
 | Alan Nguyen ([@alnnguyen](https://github.com/alnnguyen)) | Space exploration mode (31,266 real objects, educational fact cards, finding other pilots in the universe), camera and gesture tracking, Perceptron replays |
 | Alex Nguyen ([@alwxngn](https://github.com/alwxngn)) | UI and animations, LYRA voice copilot (Grok Voice), integrations, phone saber HUD, audio |
 
