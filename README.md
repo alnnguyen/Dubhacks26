@@ -65,11 +65,17 @@ KO.rbit is a real-time, two-player lightsaber duel with no controller. A laptop 
 | **Authoritative netcode** | The server owns health, stamina, cooldowns, hits, blocks, and the winner. Clients send commands with IDs and acknowledgements. Pose frames are sent as sequence-numbered volatile Socket.IO messages. The server parses each one, drops stale or too-frequent frames, and treats poses as inputs rather than proof. Blade collisions are checked across 10 substeps per 33 ms tick. | `server/src/game/rules.ts`, `match.ts`, `saber3d.ts`, `web/src/networking/gameClient.ts` |
 | **Secrets stay server-side** | The server exchanges the permanent xAI key for a 60-second realtime client secret, so the browser never sees the real key. LYRA has a single read-only tool (`getFlightState`) and cannot change the lobby or match state. | `server/src/integrations/copilot.ts`, `server/src/integrations/grok/` |
 | **Pose pipeline** | MediaPipe `PoseLandmarker` (full model, VIDEO mode) runs on the GPU and falls back to the CPU. Landmarks become a body stream that drives both the on-screen fighter and the server's body/blade geometry (`server/src/game/saber3d.ts`). | `web/src/arena3d/ArenaDuel.tsx`, `web/src/camera/mediapipeVision.ts` |
-| **Phone as saber** | The phone page reads `deviceorientation` for aim and `devicemotion` for swings over HTTPS. It pairs with the laptop by QR code. | `web/src/saber/SaberPhone.tsx`, `aimMath.ts` |
+| **Phone as saber** | The phone page reads `deviceorientation` for blade aim over HTTPS, and the server detects swings from blade-tip speed. It pairs with the laptop by QR code. | `web/src/saber/SaberPhone.tsx`, `aimMath.ts` |
 | **3D rendering** | React Three Fiber scenes for the cockpit, explore universe, and arenas, with drei helpers and postprocessing. | `web/src/three/`, `web/src/arena3d/`, `web/src/arena/` |
 | **Video-to-3D handoff** | Travel cinematics generated with Grok Imagine are matched to the live scenes, so the animation flows from real-time 3D into video and back into 3D at arena entry without a visible cut. | `web/src/ui/cinematics/PlanetaryTransition.tsx`, `web/src/arena/neptune/NeptuneArrival.tsx` |
 | **Data pipelines** | Python importers build dated, attributed catalogs at build time, with a validator. Orbits use a two-body Kepler solver. | `web/scripts/import-*.py`, `validate-universe.py`, `scripts/mars/crop_mola.py` |
 | **Testing** | 121 server tests (rules, match flow and reconnects, saber geometry, sessions, replay, copilot) and 218 web tests. | `server/src/**/*.test.ts`, `web/src/**/*.test.ts` |
+
+### How the phone saber works
+
+- The phone's gyroscope sets the blade's direction, and the webcam tracks your wrist as the hilt.
+- The server counts a swing based on how fast the blade tip moves, then checks it for hits and blocks.
+- You step by swiping your thumb on the screen, and you pair the phone by scanning a QR code over HTTPS.
 
 ## Real space data
 
@@ -190,7 +196,7 @@ cd web && npm test && npm run build  # Vitest (218 tests) + production build
 | Member | Focus |
 |---|---|
 | Ally Chen ([@allyytc](https://github.com/allyytc)) | UI and animations, avatar creation, planetary scene development from real data, cockpit lobby, battle HUD |
-| Justin Lee ([@just1nlee](https://github.com/just1nlee)) | Game server, lobby, lightsaber combat, networking |
+| Justin Lee ([@just1nlee](https://github.com/just1nlee)) | Battle mechanics (lightsaber combat, joystick controls, stick-figure fighters), game server, lobby, networking |
 | Alan Nguyen ([@alnnguyen](https://github.com/alnnguyen)) | Camera and gesture tracking, free-flight exploration, Perceptron replays |
 | Alex Nguyen ([@alwxngn](https://github.com/alwxngn)) | UI and animations, LYRA voice copilot (Grok Voice), integrations, phone saber HUD, audio |
 
